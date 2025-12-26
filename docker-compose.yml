@@ -1,0 +1,156 @@
+version: '3.8'
+
+services:
+  # Redis - Context Bus for shared state
+  redis:
+    image: redis:7-alpine
+    container_name: zekka-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    networks:
+      - zekka-network
+
+  # PostgreSQL - Database for project state
+  postgres:
+    image: postgres:15-alpine
+    container_name: zekka-postgres
+    environment:
+      POSTGRES_DB: zekka
+      POSTGRES_USER: zekka
+      POSTGRES_PASSWORD: zekka_password_2024
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U zekka"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    networks:
+      - zekka-network
+
+  # Ollama - Local LLM inference
+  ollama:
+    image: ollama/ollama:latest
+    container_name: zekka-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - zekka-network
+    # Uncomment below if you have GPU (NVIDIA)
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+  # Zekka Orchestrator - Main application
+  orchestrator:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: zekka-orchestrator
+    ports:
+      - "3000:3000"
+    environment:
+      # Database
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=zekka
+      - POSTGRES_USER=zekka
+      - POSTGRES_PASSWORD=zekka_password_2024
+      
+      # Redis
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      
+      # Ollama
+      - OLLAMA_HOST=http://ollama:11434
+      
+      # API Keys (set these in .env file)
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      
+      # Budget settings
+      - DAILY_BUDGET=50
+      - MONTHLY_BUDGET=1000
+      
+      # Node environment
+      - NODE_ENV=production
+    volumes:
+      - ./logs:/app/logs
+      - ./projects:/app/projects
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - zekka-network
+    restart: unless-stopped
+
+  # Arbitrator Agent - Conflict resolution service
+  arbitrator:
+    build:
+      context: .
+      dockerfile: Dockerfile.arbitrator
+    container_name: zekka-arbitrator
+    ports:
+      - "3001:3001"
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=zekka
+      - POSTGRES_USER=zekka
+      - POSTGRES_PASSWORD=zekka_password_2024
+      - OLLAMA_HOST=http://ollama:11434
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - WEBHOOK_SECRET=${WEBHOOK_SECRET:-default-secret-change-me}
+    depends_on:
+      - redis
+      - postgres
+      - ollama
+    networks:
+      - zekka-network
+    restart: unless-stopped
+
+networks:
+  zekka-network:
+    driver: bridge
+
+volumes:
+  redis_data:
+  postgres_data:
+  ollama_data:

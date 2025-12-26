@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zekka Framework - Multi-Agent Orchestration</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
+</head>
+<body class="bg-gray-50">
+    <div class="container mx-auto px-4 py-8">
+        <!-- Header -->
+        <header class="mb-8">
+            <h1 class="text-4xl font-bold text-gray-900 mb-2">🤖 Zekka Framework</h1>
+            <p class="text-gray-600">Multi-Agent AI Orchestration Platform</p>
+        </header>
+
+        <!-- Status Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="text-sm text-gray-500 mb-1">System Status</div>
+                <div id="system-status" class="text-2xl font-bold text-green-600">●</div>
+            </div>
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="text-sm text-gray-500 mb-1">Active Projects</div>
+                <div id="active-projects" class="text-2xl font-bold">0</div>
+            </div>
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="text-sm text-gray-500 mb-1">Daily Cost</div>
+                <div id="daily-cost" class="text-2xl font-bold">$0.00</div>
+            </div>
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="text-sm text-gray-500 mb-1">Budget Remaining</div>
+                <div id="budget-remaining" class="text-2xl font-bold">$50.00</div>
+            </div>
+        </div>
+
+        <!-- Create Project Form -->
+        <div class="bg-white rounded-lg shadow mb-8">
+            <div class="p-6 border-b">
+                <h2 class="text-2xl font-bold">Create New Project</h2>
+            </div>
+            <div class="p-6">
+                <form id="create-project-form">
+                    <div class="mb-4">
+                        <label class="block text-gray-700 font-medium mb-2">Project Name</label>
+                        <input type="text" id="project-name" class="w-full border rounded px-3 py-2" placeholder="My Awesome App" required>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label class="block text-gray-700 font-medium mb-2">Requirements (one per line)</label>
+                        <textarea id="requirements" class="w-full border rounded px-3 py-2" rows="5" placeholder="User authentication&#10;Shopping cart&#10;Payment processing" required></textarea>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-4 mb-4">
+                        <div>
+                            <label class="block text-gray-700 font-medium mb-2">Story Points</label>
+                            <input type="number" id="story-points" class="w-full border rounded px-3 py-2" value="8" min="1" max="100">
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 font-medium mb-2">Daily Budget ($)</label>
+                            <input type="number" id="daily-budget" class="w-full border rounded px-3 py-2" value="50" min="1">
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700">
+                        Create & Execute Project
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Projects List -->
+        <div class="bg-white rounded-lg shadow">
+            <div class="p-6 border-b">
+                <h2 class="text-2xl font-bold">Recent Projects</h2>
+            </div>
+            <div id="projects-list" class="divide-y">
+                <!-- Projects will be loaded here -->
+            </div>
+        </div>
+
+        <!-- Cost Summary -->
+        <div class="bg-white rounded-lg shadow mt-8">
+            <div class="p-6 border-b">
+                <h2 class="text-2xl font-bold">Cost Summary</h2>
+            </div>
+            <div id="cost-summary" class="p-6">
+                <!-- Cost data will be loaded here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:3000/api';
+
+        // Check system health
+        async function checkHealth() {
+            try {
+                const response = await axios.get('http://localhost:3000/health');
+                const status = document.getElementById('system-status');
+                status.textContent = response.data.status === 'healthy' ? '● Online' : '● Offline';
+                status.className = response.data.status === 'healthy' 
+                    ? 'text-2xl font-bold text-green-600' 
+                    : 'text-2xl font-bold text-red-600';
+            } catch (error) {
+                console.error('Health check failed:', error);
+                document.getElementById('system-status').textContent = '● Offline';
+                document.getElementById('system-status').className = 'text-2xl font-bold text-red-600';
+            }
+        }
+
+        // Load metrics
+        async function loadMetrics() {
+            try {
+                const response = await axios.get(`${API_BASE}/metrics`);
+                const metrics = response.data;
+                
+                document.getElementById('active-projects').textContent = metrics.projects.total;
+                document.getElementById('daily-cost').textContent = `$${metrics.budget.daily.spent.toFixed(2)}`;
+                document.getElementById('budget-remaining').textContent = `$${metrics.budget.daily.remaining.toFixed(2)}`;
+            } catch (error) {
+                console.error('Failed to load metrics:', error);
+            }
+        }
+
+        // Load projects
+        async function loadProjects() {
+            try {
+                const response = await axios.get(`${API_BASE}/projects`);
+                const projects = response.data;
+                
+                const container = document.getElementById('projects-list');
+                
+                if (projects.length === 0) {
+                    container.innerHTML = '<div class="p-6 text-gray-500">No projects yet. Create one above!</div>';
+                    return;
+                }
+                
+                container.innerHTML = projects.map(project => `
+                    <div class="p-6 hover:bg-gray-50">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <h3 class="font-bold text-lg">${project.name}</h3>
+                                <p class="text-sm text-gray-600 mt-1">${project.project_id}</p>
+                                <div class="mt-2">
+                                    <span class="inline-block px-2 py-1 text-xs rounded ${
+                                        project.status === 'completed' ? 'bg-green-100 text-green-800' :
+                                        project.status === 'running' ? 'bg-blue-100 text-blue-800' :
+                                        project.status === 'failed' ? 'bg-red-100 text-red-800' :
+                                        'bg-gray-100 text-gray-800'
+                                    }">
+                                        ${project.status}
+                                    </span>
+                                    <span class="ml-2 text-sm text-gray-600">
+                                        ${project.story_points || 0} SP
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-sm text-gray-500">
+                                    ${new Date(project.created_at).toLocaleDateString()}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Failed to load projects:', error);
+            }
+        }
+
+        // Load cost summary
+        async function loadCostSummary() {
+            try {
+                const response = await axios.get(`${API_BASE}/costs`);
+                const costs = response.data;
+                
+                const container = document.getElementById('cost-summary');
+                
+                container.innerHTML = `
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <h3 class="font-bold mb-3">Daily Budget</h3>
+                            <div class="space-y-2">
+                                <div class="flex justify-between">
+                                    <span>Spent:</span>
+                                    <span class="font-mono">$${costs.budget.daily.spent.toFixed(2)}</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span>Budget:</span>
+                                    <span class="font-mono">$${costs.budget.daily.budget.toFixed(2)}</span>
+                                </div>
+                                <div class="h-2 bg-gray-200 rounded overflow-hidden">
+                                    <div class="h-full ${costs.budget.daily.percent > 90 ? 'bg-red-600' : costs.budget.daily.percent > 80 ? 'bg-yellow-600' : 'bg-green-600'}" 
+                                         style="width: ${Math.min(costs.budget.daily.percent, 100)}%"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div>
+                            <h3 class="font-bold mb-3">Monthly Budget</h3>
+                            <div class="space-y-2">
+                                <div class="flex justify-between">
+                                    <span>Spent:</span>
+                                    <span class="font-mono">$${costs.budget.monthly.spent.toFixed(2)}</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span>Budget:</span>
+                                    <span class="font-mono">$${costs.budget.monthly.budget.toFixed(2)}</span>
+                                </div>
+                                <div class="h-2 bg-gray-200 rounded overflow-hidden">
+                                    <div class="h-full ${costs.budget.monthly.percent > 90 ? 'bg-red-600' : costs.budget.monthly.percent > 80 ? 'bg-yellow-600' : 'bg-green-600'}" 
+                                         style="width: ${Math.min(costs.budget.monthly.percent, 100)}%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } catch (error) {
+                console.error('Failed to load cost summary:', error);
+            }
+        }
+
+        // Handle form submission
+        document.getElementById('create-project-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const name = document.getElementById('project-name').value;
+            const requirementsText = document.getElementById('requirements').value;
+            const requirements = requirementsText.split('\n').filter(r => r.trim());
+            const storyPoints = parseInt(document.getElementById('story-points').value);
+            const dailyBudget = parseFloat(document.getElementById('daily-budget').value);
+            
+            try {
+                // Create project
+                const createResponse = await axios.post(`${API_BASE}/projects`, {
+                    name,
+                    requirements,
+                    storyPoints,
+                    budget: { daily: dailyBudget }
+                });
+                
+                const projectId = createResponse.data.projectId;
+                alert(`✅ Project created: ${projectId}\nStarting execution...`);
+                
+                // Start execution
+                await axios.post(`${API_BASE}/projects/${projectId}/execute`);
+                
+                // Reset form
+                document.getElementById('create-project-form').reset();
+                
+                // Reload data
+                loadProjects();
+                loadMetrics();
+            } catch (error) {
+                alert(`❌ Error: ${error.response?.data?.error || error.message}`);
+            }
+        });
+
+        // Initial load
+        checkHealth();
+        loadMetrics();
+        loadProjects();
+        loadCostSummary();
+
+        // Auto-refresh every 10 seconds
+        setInterval(() => {
+            checkHealth();
+            loadMetrics();
+            loadProjects();
+            loadCostSummary();
+        }, 10000);
+    </script>
+</body>
+</html>
