@@ -72,6 +72,8 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: zekka-orchestrator
+    env_file:
+      - .env
     ports:
       - "3000:3000"
     environment:
@@ -86,7 +88,10 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       
-      # Ollama
+      # LLM Configuration
+      - PRIMARY_LLM=gemini
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - FALLBACK_LLM=ollama
       - OLLAMA_HOST=http://ollama:11434
       
       # API Keys (set these in .env file)
@@ -125,6 +130,8 @@ services:
       context: .
       dockerfile: Dockerfile.arbitrator
     container_name: zekka-arbitrator
+    env_file:
+      - .env
     ports:
       - "3001:3001"
     environment:
