@@ -1,13 +1,22 @@
 require('dotenv').config();
 const express = require('express');
+const http = require('http');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const { createLogger, format, transports } = require('winston');
+const swaggerUi = require('swagger-ui-express');
+const swaggerSpec = require('./swagger');
 
 const ContextBus = require('./shared/context-bus');
 const TokenEconomics = require('./shared/token-economics');
 const ZekkaOrchestrator = require('./orchestrator/orchestrator');
+
+// Middleware
+const { apiLimiter, createProjectLimiter, authLimiter } = require('./middleware/rateLimit');
+const { authenticate, optionalAuth, register, login, getUser } = require('./middleware/auth');
+const { metricsMiddleware, getMetrics, trackProject, trackAgent, trackCost } = require('./middleware/metrics');
+const websocket = require('./middleware/websocket');
 
 // Logger setup
 const logger = createLogger({
@@ -28,8 +37,9 @@ const logger = createLogger({
   ]
 });
 
-// Initialize app
+// Initialize app and HTTP server
 const app = express();
+const server = http.createServer(app);
 const PORT = process.env.PORT || 3000;
 
 // Middleware
@@ -38,6 +48,7 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('combined', { stream: { write: msg => logger.info(msg.trim()) } }));
+app.use(metricsMiddleware);
 
 // Initialize core services
 let contextBus, tokenEconomics, orchestrator;
@@ -45,6 +56,9 @@ let contextBus, tokenEconomics, orchestrator;
 async function initializeServices() {
   try {
     logger.info('🚀 Initializing Zekka Framework services...');
+    
+    // Initialize WebSocket
+    websocket.initializeWebSocket(server, logger);
     
     // Initialize Context Bus (Redis)
     contextBus = new ContextBus({
@@ -86,7 +100,42 @@ async function initializeServices() {
   }
 }
 
+// Swagger API Documentation
+app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+app.get('/api/docs.json', (req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.send(swaggerSpec);
+});
+
+// Prometheus Metrics
+app.get('/metrics', async (req, res) => {
+  try {
+    const metrics = await getMetrics();
+    res.set('Content-Type', 'text/plain');
+    res.send(metrics);
+  } catch (error) {
+    logger.error('Error fetching Prometheus metrics:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Health check endpoint
+/**
+ * @swagger
+ * /health:
+ *   get:
+ *     summary: System health check
+ *     tags: [Health]
+ *     responses:
+ *       200:
+ *         description: System is healthy
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/HealthStatus'
+ *       503:
+ *         description: System is unhealthy
+ */
 app.get('/health', (req, res) => {
   const health = {
     status: 'healthy',
@@ -106,8 +155,163 @@ app.get('/health', (req, res) => {
 
 // API Routes
 
+// Authentication routes
+/**
+ * @swagger
+ * /api/auth/register:
+ *   post:
+ *     summary: Register new user
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - password
+ *               - name
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *               password:
+ *                 type: string
+ *                 format: password
+ *               name:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: User registered successfully
+ *       400:
+ *         description: Invalid input
+ */
+app.post('/api/auth/register', authLimiter, async (req, res) => {
+  try {
+    const { email, password, name } = req.body;
+    
+    if (!email || !password || !name) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+    
+    const user = await register(email, password, name);
+    logger.info(`👤 User registered: ${email}`);
+    res.status(201).json(user);
+  } catch (error) {
+    logger.error('Registration error:', error);
+    res.status(400).json({ error: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/auth/login:
+ *   post:
+ *     summary: User login
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - password
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *               password:
+ *                 type: string
+ *                 format: password
+ *     responses:
+ *       200:
+ *         description: Login successful
+ *       401:
+ *         description: Invalid credentials
+ */
+app.post('/api/auth/login', authLimiter, async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Missing email or password' });
+    }
+    
+    const result = await login(email, password);
+    logger.info(`👤 User logged in: ${email}`);
+    res.json(result);
+  } catch (error) {
+    logger.error('Login error:', error);
+    res.status(401).json({ error: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/auth/me:
+ *   get:
+ *     summary: Get current user
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: User information
+ *       401:
+ *         description: Unauthorized
+ */
+app.get('/api/auth/me', authenticate, async (req, res) => {
+  try {
+    const user = getUser(req.user.userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    res.json(user);
+  } catch (error) {
+    logger.error('Error fetching user:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Create new project
-app.post('/api/projects', async (req, res) => {
+/**
+ * @swagger
+ * /api/projects:
+ *   post:
+ *     summary: Create new project
+ *     tags: [Projects]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - name
+ *               - requirements
+ *             properties:
+ *               name:
+ *                 type: string
+ *               requirements:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *               storyPoints:
+ *                 type: integer
+ *               budget:
+ *                 type: object
+ *     responses:
+ *       201:
+ *         description: Project created
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Project'
+ */
+app.post('/api/projects', apiLimiter, createProjectLimiter, optionalAuth, async (req, res) => {
   try {
     const { name, requirements, storyPoints, budget } = req.body;
     
@@ -124,7 +328,14 @@ app.post('/api/projects', async (req, res) => {
       budget: budget || {
         daily: parseFloat(process.env.DAILY_BUDGET) || 50,
         monthly: parseFloat(process.env.MONTHLY_BUDGET) || 1000
-      }
+      },
+      userId: req.user?.userId
+    });
+    
+    trackProject('started', 'pending');
+    websocket.broadcastProjectUpdate(project.projectId, {
+      status: 'created',
+      name: project.name
     });
     
     logger.info(`📋 Project created: ${project.projectId}`);
@@ -136,7 +347,23 @@ app.post('/api/projects', async (req, res) => {
 });
 
 // Execute project workflow
-app.post('/api/projects/:projectId/execute', async (req, res) => {
+/**
+ * @swagger
+ * /api/projects/{projectId}/execute:
+ *   post:
+ *     summary: Execute project workflow
+ *     tags: [Projects]
+ *     parameters:
+ *       - in: path
+ *         name: projectId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Execution started
+ */
+app.post('/api/projects/:projectId/execute', apiLimiter, optionalAuth, async (req, res) => {
   try {
     const { projectId } = req.params;
     
@@ -163,7 +390,27 @@ app.post('/api/projects/:projectId/execute', async (req, res) => {
 });
 
 // Get project status
-app.get('/api/projects/:projectId', async (req, res) => {
+/**
+ * @swagger
+ * /api/projects/{projectId}:
+ *   get:
+ *     summary: Get project status
+ *     tags: [Projects]
+ *     parameters:
+ *       - in: path
+ *         name: projectId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Project details
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Project'
+ */
+app.get('/api/projects/:projectId', apiLimiter, optionalAuth, async (req, res) => {
   try {
     const { projectId } = req.params;
     const project = await orchestrator.getProject(projectId);
@@ -180,7 +427,17 @@ app.get('/api/projects/:projectId', async (req, res) => {
 });
 
 // List all projects
-app.get('/api/projects', async (req, res) => {
+/**
+ * @swagger
+ * /api/projects:
+ *   get:
+ *     summary: List all projects
+ *     tags: [Projects]
+ *     responses:
+ *       200:
+ *         description: List of projects
+ */
+app.get('/api/projects', apiLimiter, optionalAuth, async (req, res) => {
   try {
     const projects = await orchestrator.listProjects();
     res.json(projects);
@@ -191,7 +448,31 @@ app.get('/api/projects', async (req, res) => {
 });
 
 // Get cost summary
-app.get('/api/costs', async (req, res) => {
+/**
+ * @swagger
+ * /api/costs:
+ *   get:
+ *     summary: Get cost summary
+ *     tags: [Costs]
+ *     parameters:
+ *       - in: query
+ *         name: projectId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: period
+ *         schema:
+ *           type: string
+ *           enum: [daily, weekly, monthly]
+ *     responses:
+ *       200:
+ *         description: Cost summary
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/CostSummary'
+ */
+app.get('/api/costs', apiLimiter, optionalAuth, async (req, res) => {
   try {
     const { projectId, period } = req.query;
     const costs = await tokenEconomics.getCostSummary(projectId, period);
@@ -203,7 +484,21 @@ app.get('/api/costs', async (req, res) => {
 });
 
 // Get system metrics
-app.get('/api/metrics', async (req, res) => {
+/**
+ * @swagger
+ * /api/metrics:
+ *   get:
+ *     summary: Get system metrics
+ *     tags: [Metrics]
+ *     responses:
+ *       200:
+ *         description: System metrics
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Metrics'
+ */
+app.get('/api/metrics', apiLimiter, optionalAuth, async (req, res) => {
   try {
     const metrics = await orchestrator.getMetrics();
     res.json(metrics);
@@ -244,10 +539,12 @@ process.on('SIGTERM', async () => {
 async function start() {
   await initializeServices();
   
-  app.listen(PORT, '0.0.0.0', () => {
+  server.listen(PORT, '0.0.0.0', () => {
     logger.info(`🌐 Zekka Framework listening on http://0.0.0.0:${PORT}`);
     logger.info(`📊 Health check: http://localhost:${PORT}/health`);
     logger.info(`📚 API docs: http://localhost:${PORT}/api/docs`);
+    logger.info(`📈 Prometheus metrics: http://localhost:${PORT}/metrics`);
+    logger.info(`🔌 WebSocket endpoint: ws://localhost:${PORT}/ws`);
   });
 }
 
