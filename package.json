@@ -8,12 +8,19 @@
     "dev": "nodemon src/index.js",
     "arbitrator": "node src/arbitrator/server.js",
     "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:unit": "jest tests/unit",
+    "test:integration": "jest tests/integration",
     "lint": "eslint src/",
+    "lint:fix": "eslint src/ --fix",
     "docker:build": "docker-compose build",
     "docker:up": "docker-compose up -d",
     "docker:down": "docker-compose down",
     "docker:logs": "docker-compose logs -f",
-    "setup": "./scripts/setup.sh"
+    "setup": "./scripts/setup.sh",
+    "docs:api": "node scripts/generate-api-docs.js",
+    "metrics": "curl http://localhost:3000/metrics"
   },
   "keywords": [
     "ai",
@@ -37,12 +44,24 @@
     "winston": "^3.11.0",
     "joi": "^17.12.0",
     "uuid": "^9.0.1",
-    "crypto": "^1.0.1"
+    "crypto": "^1.0.1",
+    "ws": "^8.16.0",
+    "prom-client": "^15.1.0",
+    "express-rate-limit": "^7.1.5",
+    "swagger-ui-express": "^5.0.0",
+    "yamljs": "^0.3.0",
+    "bcrypt": "^5.1.1",
+    "jsonwebtoken": "^9.0.2"
   },
   "devDependencies": {
     "nodemon": "^3.0.2",
     "eslint": "^8.56.0",
-    "jest": "^29.7.0"
+    "eslint-config-airbnb-base": "^15.0.0",
+    "eslint-plugin-import": "^2.29.1",
+    "eslint-plugin-jest": "^27.6.3",
+    "jest": "^29.7.0",
+    "supertest": "^6.3.4",
+    "@types/jest": "^29.5.11"
   },
   "engines": {
     "node": ">=18.0.0",
