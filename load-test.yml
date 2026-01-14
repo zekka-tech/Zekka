@@ -1,0 +1,218 @@
+# Load Testing Configuration for Zekka Framework
+# Using Artillery.io for comprehensive load and stress testing
+
+config:
+  target: 'http://localhost:3000'
+  phases:
+    # Warm-up phase
+    - duration: 60
+      arrivalRate: 5
+      name: 'Warm-up'
+    
+    # Ramp-up phase
+    - duration: 120
+      arrivalRate: 10
+      rampTo: 50
+      name: 'Ramp-up to 50 req/sec'
+    
+    # Sustained load phase
+    - duration: 300
+      arrivalRate: 50
+      name: 'Sustained load at 50 req/sec'
+    
+    # Peak load phase
+    - duration: 120
+      arrivalRate: 50
+      rampTo: 100
+      name: 'Peak load to 100 req/sec'
+    
+    # Stress test phase
+    - duration: 60
+      arrivalRate: 100
+      rampTo: 200
+      name: 'Stress test to 200 req/sec'
+    
+    # Cool-down phase
+    - duration: 60
+      arrivalRate: 200
+      rampTo: 10
+      name: 'Cool-down'
+
+  processor: './load-test-functions.js'
+  
+  # Performance thresholds
+  ensure:
+    maxErrorRate: 1  # Max 1% error rate
+    p95: 200  # 95th percentile < 200ms
+    p99: 500  # 99th percentile < 500ms
+
+  # Variables
+  variables:
+    testUsers:
+      - email: 'loadtest1@example.com'
+      - email: 'loadtest2@example.com'
+      - email: 'loadtest3@example.com'
+    
+  # Plugins
+  plugins:
+    expect: {}
+    metrics-by-endpoint:
+      stripQueryString: true
+    
+scenarios:
+  # Scenario 1: Complete user workflow
+  - name: 'Complete User Workflow'
+    weight: 40
+    flow:
+      # Register new user
+      - post:
+          url: '/api/v1/auth/register'
+          json:
+            email: '{{ $randomEmail }}@loadtest.com'
+            password: 'LoadTest123!'
+            name: 'Load Test User'
+          capture:
+            json: '$.data.user.id'
+            as: 'userId'
+          expect:
+            - statusCode: 201
+            - hasProperty: 'data.token'
+      
+      # Login
+      - post:
+          url: '/api/v1/auth/login'
+          json:
+            email: '{{ email }}'
+            password: 'LoadTest123!'
+          capture:
+            json: '$.data.token'
+            as: 'authToken'
+          expect:
+            - statusCode: 200
+      
+      # Think time
+      - think: 2
+      
+      # Execute task
+      - post:
+          url: '/api/v1/orchestrator/execute'
+          headers:
+            Authorization: 'Bearer {{ authToken }}'
+          json:
+            description: 'Build a simple REST API'
+            options:
+              maxAgents: 5
+              timeout: 60000
+          expect:
+            - statusCode: 200
+            - hasProperty: 'data.result'
+      
+      # Think time
+      - think: 5
+      
+      # Check agent status
+      - get:
+          url: '/api/v1/orchestrator/status'
+          headers:
+            Authorization: 'Bearer {{ authToken }}'
+          expect:
+            - statusCode: 200
+      
+      # Think time
+      - think: 3
+      
+      # Logout
+      - post:
+          url: '/api/v1/auth/logout'
+          headers:
+            Authorization: 'Bearer {{ authToken }}'
+          expect:
+            - statusCode: 200
+
+  # Scenario 2: Read-heavy workflow
+  - name: 'Read-Heavy Operations'
+    weight: 30
+    flow:
+      # Login
+      - post:
+          url: '/api/v1/auth/login'
+          json:
+            email: '{{ $randomItem(testUsers).email }}'
+            password: 'LoadTest123!'
+          capture:
+            json: '$.data.token'
+            as: 'authToken'
+          expect:
+            - statusCode: 200
+      
+      # Multiple status checks
+      - loop:
+        - get:
+            url: '/api/v1/orchestrator/status'
+            headers:
+              Authorization: 'Bearer {{ authToken }}'
+            expect:
+              - statusCode: 200
+        - think: 1
+        count: 5
+
+  # Scenario 3: Health check monitoring
+  - name: 'Health Check Monitoring'
+    weight: 20
+    flow:
+      # System health
+      - get:
+          url: '/health'
+          expect:
+            - statusCode: 200
+            - hasProperty: 'status'
+      
+      # Think time
+      - think: 2
+      
+      # External services health
+      - get:
+          url: '/health/external'
+          expect:
+            - statusCode:
+              - 200
+              - 503  # May be degraded
+      
+      # Think time
+      - think: 2
+      
+      # Metrics
+      - get:
+          url: '/metrics'
+          expect:
+            - statusCode: 200
+
+  # Scenario 4: Authentication failures
+  - name: 'Authentication Failures'
+    weight: 10
+    flow:
+      # Invalid login
+      - post:
+          url: '/api/v1/auth/login'
+          json:
+            email: 'invalid@example.com'
+            password: 'WrongPassword'
+          expect:
+            - statusCode: 401
+      
+      # Think time
+      - think: 1
+      
+      # Unauthorized access
+      - get:
+          url: '/api/v1/orchestrator/status'
+          headers:
+            Authorization: 'Bearer invalid_token'
+          expect:
+            - statusCode: 401
+
+# After test completion
+after:
+  flow:
+    # Generate report
+    - log: 'Load test completed. Check artillery report for detailed metrics.'
