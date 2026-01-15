@@ -1,249 +1,605 @@
 /**
- * Enhanced Security Middleware
+ * Security Middleware
+ * ===================
  * 
- * SECURITY FIXES:
- * - Phase 1: Input sanitization
- * - Phase 1: CSRF protection  
- * - Phase 2: Enhanced security headers
- * - Phase 3: Request ID tracking
- * - Phase 3: Response compression
+ * Comprehensive security middleware for:
+ * - JWT authentication
+ * - MFA enforcement
+ * - Password expiration checks
+ * - Rate limiting
+ * - Role-based access control (RBAC)
+ * - Security headers
+ * - Request validation
+ * - Audit logging
  */
 
-const helmet = require('helmet');
-const xssClean = require('xss-clean');
-const { validationResult } = require('express-validator');
-const config = require('../config');
-const { ValidationError } = require('../utils/errors');
+import jwt from 'jsonwebtoken';
+import pool from '../config/database.js';
+import redis from '../config/redis.js';
+import auditService from '../services/audit-service.js';
+import passwordService from '../services/password-service.js';
 
-/**
- * Enhanced Helmet configuration
- * SECURITY FIX: Phase 2 - Properly configured security headers
- */
-function enhancedSecurityHeaders() {
-  return helmet({
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"],
-        styleSrc: ["'self'", "'unsafe-inline'"],  // Allow inline styles for now
-        scriptSrc: ["'self'"],
-        imgSrc: ["'self'", "data:", "https:"],
-        connectSrc: ["'self'"],
-        fontSrc: ["'self'"],
-        objectSrc: ["'none'"],
-        mediaSrc: ["'self'"],
-        frameSrc: ["'none'"],
-        upgradeInsecureRequests: config.isProduction ? [] : null
-      }
-    },
-    hsts: {
-      maxAge: 31536000,  // 1 year
-      includeSubDomains: true,
-      preload: true
-    },
-    referrerPolicy: { 
-      policy: 'strict-origin-when-cross-origin' 
-    },
-    noSniff: true,
-    xssFilter: true,
-    hidePoweredBy: true,
-    frameguard: { 
-      action: 'deny' 
-    },
-    dnsPrefetchControl: { 
-      allow: false 
-    },
-    ieNoOpen: true,
-    permittedCrossDomainPolicies: { 
-      permittedPolicies: 'none' 
-    }
-  });
-}
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
 /**
- * XSS Clean middleware
- * SECURITY FIX: Phase 1 - Input sanitization
+ * Authenticate JWT token
  */
-function xssSanitization() {
-  return xssClean();
-}
-
-/**
- * Validation error handler
- * SECURITY FIX: Phase 1 - Proper validation error handling
- */
-function handleValidationErrors(req, res, next) {
-  const errors = validationResult(req);
-  
-  if (!errors.isEmpty()) {
-    const formattedErrors = errors.array().map(error => ({
-      field: error.path,
-      message: error.msg,
-      value: error.value
-    }));
+export const authenticate = async (req, res, next) => {
+  try {
+    // Get token from header
+    const authHeader = req.headers.authorization;
     
-    return next(new ValidationError('Validation failed', formattedErrors));
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({
+        success: false,
+        error: 'No token provided'
+      });
+    }
+
+    const token = authHeader.substring(7);
+
+    // Verify token
+    const decoded = jwt.verify(token, JWT_SECRET);
+
+    // Get user from database
+    const result = await pool.query(
+      'SELECT id, email, name, role, is_active, mfa_enabled, force_password_reset FROM users WHERE id = $1',
+      [decoded.userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(401).json({
+        success: false,
+        error: 'User not found'
+      });
+    }
+
+    const user = result.rows[0];
+
+    // Check if user is active
+    if (!user.is_active) {
+      return res.status(403).json({
+        success: false,
+        error: 'Account is deactivated'
+      });
+    }
+
+    // Attach user to request
+    req.user = user;
+
+    next();
+  } catch (error) {
+    if (error.name === 'JsonWebTokenError') {
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid token'
+      });
+    }
+
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({
+        success: false,
+        error: 'Token expired'
+      });
+    }
+
+    console.error('Authentication error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Authentication failed'
+    });
   }
-  
-  next();
-}
+};
 
 /**
- * Content-Type validation
- * SECURITY FIX: Phase 3 - Validate Content-Type headers
+ * Require specific role(s)
  */
-function validateContentType(...expectedTypes) {
+export const requireRole = (...roles) => {
   return (req, res, next) => {
-    // Skip for GET requests
-    if (req.method === 'GET') {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication required'
+      });
+    }
+
+    if (!roles.includes(req.user.role)) {
+      // Log unauthorized access attempt
+      auditService.log({
+        userId: req.user.id,
+        username: req.user.email,
+        action: 'unauthorized_access_attempt',
+        resourceType: req.baseUrl,
+        endpoint: req.path,
+        method: req.method,
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent'),
+        success: false,
+        errorMessage: `Required role: ${roles.join(' or ')}`,
+        riskLevel: 'high'
+      });
+
+      return res.status(403).json({
+        success: false,
+        error: 'Insufficient permissions'
+      });
+    }
+
+    next();
+  };
+};
+
+/**
+ * Check if password is expired
+ */
+export const checkPasswordExpiration = async (req, res, next) => {
+  try {
+    if (!req.user) {
       return next();
     }
-    
-    const contentType = req.get('Content-Type');
-    
-    if (!contentType) {
-      return next(new ValidationError('Content-Type header is required'));
+
+    // Skip for password change endpoints
+    if (req.path.includes('/password/change') || req.path.includes('/password/reset')) {
+      return next();
     }
-    
-    const isValid = expectedTypes.some(type => contentType.includes(type));
-    
-    if (!isValid) {
-      return next(new ValidationError('Unsupported Content-Type', {
-        expected: expectedTypes,
-        received: contentType
-      }));
+
+    const expiration = await passwordService.checkPasswordExpiration(req.user.id);
+
+    if (expiration.expired) {
+      return res.status(403).json({
+        success: false,
+        error: 'Password has expired',
+        message: 'Please change your password to continue',
+        passwordExpired: true,
+        expirationInfo: expiration
+      });
     }
-    
+
+    // Attach warning to response if password expires soon
+    if (expiration.warning) {
+      res.locals.passwordWarning = {
+        message: `Your password will expire in ${expiration.daysUntilExpiration} days`,
+        daysUntilExpiration: expiration.daysUntilExpiration
+      };
+    }
+
     next();
-  };
-}
+  } catch (error) {
+    console.error('Password expiration check error:', error);
+    // Don't block request on error
+    next();
+  }
+};
 
 /**
- * Request size validator
- * SECURITY FIX: Phase 1 - Prevent DoS with large requests
+ * Check if force password reset is required
  */
-function validateRequestSize(req, res, next) {
-  const contentLength = req.get('Content-Length');
-  
-  if (contentLength) {
-    const maxSize = 1048576; // 1MB in bytes
-    if (parseInt(contentLength) > maxSize) {
-      return next(new ValidationError('Request payload too large', {
-        max: '1MB',
-        received: `${(parseInt(contentLength) / 1048576).toFixed(2)}MB`
-      }));
+export const checkForcePasswordReset = async (req, res, next) => {
+  try {
+    if (!req.user) {
+      return next();
     }
+
+    // Skip for password change endpoints
+    if (req.path.includes('/password/change') || req.path.includes('/password/reset')) {
+      return next();
+    }
+
+    if (req.user.force_password_reset) {
+      return res.status(403).json({
+        success: false,
+        error: 'Password reset required',
+        message: 'You must reset your password before continuing',
+        forcePasswordReset: true
+      });
+    }
+
+    next();
+  } catch (error) {
+    console.error('Force password reset check error:', error);
+    next();
   }
-  
+};
+
+/**
+ * Rate limiting per user
+ */
+const rateLimitStore = new Map();
+
+export const rateLimitByUser = (maxRequests = 100, windowMs = 60000) => {
+  return async (req, res, next) => {
+    try {
+      const userId = req.user?.id || req.ip;
+      const key = `ratelimit:${userId}`;
+
+      // Get current count from Redis
+      const count = await redis.get(key);
+
+      if (count && parseInt(count) >= maxRequests) {
+        // Log rate limit exceeded
+        await auditService.log({
+          userId: req.user?.id,
+          username: req.user?.email,
+          action: 'rate_limit_exceeded',
+          endpoint: req.path,
+          method: req.method,
+          ipAddress: req.ip,
+          userAgent: req.get('user-agent'),
+          success: false,
+          errorMessage: `Rate limit exceeded: ${maxRequests} requests per ${windowMs}ms`,
+          riskLevel: 'medium'
+        });
+
+        return res.status(429).json({
+          success: false,
+          error: 'Rate limit exceeded',
+          message: `Maximum ${maxRequests} requests per ${windowMs / 1000} seconds`,
+          retryAfter: windowMs / 1000
+        });
+      }
+
+      // Increment count
+      if (count) {
+        await redis.incr(key);
+      } else {
+        await redis.setex(key, Math.ceil(windowMs / 1000), '1');
+      }
+
+      next();
+    } catch (error) {
+      console.error('Rate limiting error:', error);
+      // Don't block request on error
+      next();
+    }
+  };
+};
+
+/**
+ * IP-based rate limiting
+ */
+export const rateLimitByIP = (maxRequests = 100, windowMs = 60000) => {
+  return async (req, res, next) => {
+    try {
+      const key = `ratelimit:ip:${req.ip}`;
+
+      const count = await redis.get(key);
+
+      if (count && parseInt(count) >= maxRequests) {
+        // Log rate limit exceeded
+        await auditService.log({
+          action: 'rate_limit_exceeded_ip',
+          endpoint: req.path,
+          method: req.method,
+          ipAddress: req.ip,
+          userAgent: req.get('user-agent'),
+          success: false,
+          errorMessage: `IP rate limit exceeded: ${maxRequests} requests per ${windowMs}ms`,
+          riskLevel: 'high'
+        });
+
+        return res.status(429).json({
+          success: false,
+          error: 'Rate limit exceeded',
+          message: 'Too many requests from this IP address',
+          retryAfter: windowMs / 1000
+        });
+      }
+
+      if (count) {
+        await redis.incr(key);
+      } else {
+        await redis.setex(key, Math.ceil(windowMs / 1000), '1');
+      }
+
+      next();
+    } catch (error) {
+      console.error('IP rate limiting error:', error);
+      next();
+    }
+  };
+};
+
+/**
+ * Audit middleware - log all requests
+ */
+export const auditMiddleware = async (req, res, next) => {
+  const startTime = Date.now();
+
+  // Capture response
+  const originalSend = res.send;
+  let responseBody;
+
+  res.send = function (data) {
+    responseBody = data;
+    originalSend.call(this, data);
+  };
+
+  // Log after response is sent
+  res.on('finish', async () => {
+    try {
+      const duration = Date.now() - startTime;
+
+      // Determine if request should be audited
+      const shouldAudit = 
+        req.method !== 'GET' || // Audit all non-GET requests
+        req.path.includes('/audit') || // Audit access to audit logs
+        req.path.includes('/security') || // Audit security endpoints
+        res.statusCode >= 400; // Audit all errors
+
+      if (shouldAudit) {
+        await auditService.log({
+          userId: req.user?.id,
+          username: req.user?.email,
+          action: `${req.method.toLowerCase()}_${req.path.replace(/\//g, '_')}`,
+          resourceType: req.baseUrl?.split('/')[2],
+          method: req.method,
+          endpoint: req.path,
+          ipAddress: req.ip,
+          userAgent: req.get('user-agent'),
+          sessionId: req.sessionID,
+          requestBody: req.body,
+          responseStatus: res.statusCode,
+          success: res.statusCode < 400,
+          errorMessage: res.statusCode >= 400 ? responseBody : null,
+          durationMs: duration
+        });
+      }
+    } catch (error) {
+      console.error('Audit middleware error:', error);
+    }
+  });
+
   next();
-}
+};
 
 /**
- * IP validation and extraction
- * SECURITY FIX: Phase 2 - Proper IP handling
+ * Validate request body against schema
  */
-function getRealIP(req) {
-  if (config.security.trustProxy) {
-    return req.headers['x-forwarded-for']?.split(',')[0]?.trim() || 
-           req.headers['x-real-ip'] || 
-           req.connection.remoteAddress ||
-           req.socket.remoteAddress ||
-           req.ip;
-  }
-  return req.connection.remoteAddress || req.socket.remoteAddress || req.ip;
-}
-
-/**
- * Validate IP address format
- */
-function isValidIP(ip) {
-  const ipv4Regex = /^(\d{1,3}\.){3}\d{1,3}$/;
-  const ipv6Regex = /^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$/;
-  return ipv4Regex.test(ip) || ipv6Regex.test(ip);
-}
-
-/**
- * Add real IP to request
- */
-function addRealIP(req, res, next) {
-  req.realIP = getRealIP(req);
-  
-  if (!isValidIP(req.realIP)) {
-    req.realIP = 'unknown';
-  }
-  
-  next();
-}
-
-/**
- * HTTP cache control
- * SECURITY FIX: Phase 3 - Proper cache headers
- */
-function cacheControl(maxAge = 0) {
+export const validateBody = (schema) => {
   return (req, res, next) => {
-    if (req.method === 'GET' && maxAge > 0) {
-      res.set('Cache-Control', `public, max-age=${maxAge}`);
-    } else {
-      res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
-      res.set('Pragma', 'no-cache');
-      res.set('Expires', '0');
+    const { error, value } = schema.validate(req.body, {
+      abortEarly: false,
+      stripUnknown: true
+    });
+
+    if (error) {
+      const errors = error.details.map(detail => ({
+        field: detail.path.join('.'),
+        message: detail.message
+      }));
+
+      return res.status(400).json({
+        success: false,
+        error: 'Validation failed',
+        errors
+      });
     }
+
+    req.body = value;
     next();
   };
-}
+};
 
 /**
- * No-cache middleware for sensitive endpoints
+ * Sanitize request inputs
  */
-function noCache(req, res, next) {
-  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
-  res.set('Pragma', 'no-cache');
-  res.set('Expires', '0');
-  next();
-}
-
-/**
- * Security middleware initialization
- * Applies all security measures
- */
-function initializeSecurity(app) {
-  // Trust proxy if configured
-  if (config.security.trustProxy) {
-    app.set('trust proxy', true);
+export const sanitizeInputs = (req, res, next) => {
+  // Sanitize body
+  if (req.body) {
+    req.body = sanitizeObject(req.body);
   }
-  
-  // Apply security headers
-  app.use(enhancedSecurityHeaders());
-  
-  // XSS protection
-  app.use(xssSanitization());
-  
-  // Add real IP to requests
-  app.use(addRealIP);
-  
-  // Validate request size
-  app.use(validateRequestSize);
-  
-  // Default no-cache for all responses
-  app.use(noCache);
-  
-  console.log('✅ Security middleware initialized');
-  console.log('   - Enhanced security headers enabled');
-  console.log('   - XSS sanitization enabled');
-  console.log('   - IP validation enabled');
-  console.log('   - Request size validation enabled');
-  console.log('   - Cache control configured');
+
+  // Sanitize query
+  if (req.query) {
+    req.query = sanitizeObject(req.query);
+  }
+
+  // Sanitize params
+  if (req.params) {
+    req.params = sanitizeObject(req.params);
+  }
+
+  next();
+};
+
+/**
+ * Sanitize object recursively
+ */
+function sanitizeObject(obj) {
+  if (typeof obj !== 'object' || obj === null) {
+    return sanitizeValue(obj);
+  }
+
+  if (Array.isArray(obj)) {
+    return obj.map(item => sanitizeObject(item));
+  }
+
+  const sanitized = {};
+  for (const [key, value] of Object.entries(obj)) {
+    sanitized[key] = sanitizeObject(value);
+  }
+
+  return sanitized;
 }
 
-module.exports = {
-  enhancedSecurityHeaders,
-  xssSanitization,
-  handleValidationErrors,
-  validateContentType,
-  validateRequestSize,
-  getRealIP,
-  isValidIP,
-  addRealIP,
-  cacheControl,
-  noCache,
-  initializeSecurity
+/**
+ * Sanitize individual value
+ */
+function sanitizeValue(value) {
+  if (typeof value !== 'string') {
+    return value;
+  }
+
+  // Remove potential XSS attacks
+  return value
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    .replace(/javascript:/gi, '')
+    .replace(/on\w+\s*=/gi, '');
+}
+
+/**
+ * Add password warning to response
+ */
+export const addPasswordWarning = (req, res, next) => {
+  const originalJson = res.json;
+
+  res.json = function (data) {
+    if (res.locals.passwordWarning) {
+      data.passwordWarning = res.locals.passwordWarning;
+    }
+    originalJson.call(this, data);
+  };
+
+  next();
+};
+
+/**
+ * CORS configuration
+ */
+export const corsOptions = {
+  origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  exposedHeaders: ['X-Total-Count', 'X-Page', 'X-Per-Page'],
+  maxAge: 86400 // 24 hours
+};
+
+/**
+ * Security headers
+ */
+export const securityHeaders = (req, res, next) => {
+  // Prevent clickjacking
+  res.setHeader('X-Frame-Options', 'DENY');
+
+  // Prevent MIME type sniffing
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+
+  // XSS protection
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+
+  // Referrer policy
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+
+  // Content Security Policy
+  res.setHeader(
+    'Content-Security-Policy',
+    "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:;"
+  );
+
+  // Strict Transport Security (HTTPS only)
+  if (req.secure) {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
+
+  next();
+};
+
+/**
+ * Optional authentication (doesn't fail if no token)
+ */
+export const optionalAuth = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return next();
+    }
+
+    const token = authHeader.substring(7);
+    const decoded = jwt.verify(token, JWT_SECRET);
+
+    const result = await pool.query(
+      'SELECT id, email, name, role, is_active FROM users WHERE id = $1',
+      [decoded.userId]
+    );
+
+    if (result.rows.length > 0 && result.rows[0].is_active) {
+      req.user = result.rows[0];
+    }
+
+    next();
+  } catch (error) {
+    // Silently fail for optional auth
+    next();
+  }
+};
+
+/**
+ * Check IP whitelist
+ */
+export const checkIPWhitelist = (whitelist = []) => {
+  return (req, res, next) => {
+    if (whitelist.length === 0) {
+      return next();
+    }
+
+    const clientIP = req.ip;
+
+    if (!whitelist.includes(clientIP)) {
+      auditService.log({
+        action: 'ip_whitelist_violation',
+        ipAddress: clientIP,
+        endpoint: req.path,
+        method: req.method,
+        success: false,
+        errorMessage: 'IP not in whitelist',
+        riskLevel: 'high'
+      });
+
+      return res.status(403).json({
+        success: false,
+        error: 'Access denied',
+        message: 'Your IP address is not authorized'
+      });
+    }
+
+    next();
+  };
+};
+
+/**
+ * Maintenance mode check
+ */
+export const checkMaintenance = async (req, res, next) => {
+  try {
+    const maintenanceMode = await redis.get('maintenance_mode');
+
+    if (maintenanceMode === 'true') {
+      // Allow admin access during maintenance
+      if (req.user?.role === 'admin') {
+        return next();
+      }
+
+      return res.status(503).json({
+        success: false,
+        error: 'Service unavailable',
+        message: 'System is currently under maintenance. Please try again later.',
+        maintenanceMode: true
+      });
+    }
+
+    next();
+  } catch (error) {
+    console.error('Maintenance check error:', error);
+    next();
+  }
+};
+
+export default {
+  authenticate,
+  requireRole,
+  checkPasswordExpiration,
+  checkForcePasswordReset,
+  rateLimitByUser,
+  rateLimitByIP,
+  auditMiddleware,
+  validateBody,
+  sanitizeInputs,
+  addPasswordWarning,
+  corsOptions,
+  securityHeaders,
+  optionalAuth,
+  checkIPWhitelist,
+  checkMaintenance
 };
