@@ -1,429 +1,329 @@
 /**
- * Core Type Definitions for Zekka Framework
+ * Zekka Framework - Core Type Definitions
+ * Comprehensive TypeScript types for enterprise-grade AI orchestration
  * 
- * Provides TypeScript types for all major components
+ * @version 3.0.0
+ * @module types
  */
 
-import { Request as ExpressRequest, Response as ExpressResponse } from 'express';
-import { Pool } from 'pg';
-import { RedisClientType } from 'redis';
+import { Request, Response, NextFunction } from 'express';
 
 // ============================================================================
-// User Types
+// Core Types
+// ============================================================================
+
+export type UUID = string;
+export type ISODateTime = string;
+export type JWT = string;
+export type URL = string;
+export type Email = string;
+export type PhoneNumber = string;
+
+// ============================================================================
+// User & Authentication Types
 // ============================================================================
 
 export interface User {
-  id: string;
-  email: string;
-  name: string;
-  password_hash?: string;
-  is_active: boolean;
-  is_locked: boolean;
+  id: UUID;
+  email: Email;
+  username: string;
+  password_hash: string;
+  role: UserRole;
+  status: UserStatus;
+  mfa_enabled: boolean;
+  mfa_secret?: string;
+  password_changed_at: ISODateTime;
   failed_login_attempts: number;
-  locked_until?: Date;
-  password_changed_at: Date;
-  password_expires_at?: Date;
-  must_change_password: boolean;
-  created_at: Date;
-  updated_at: Date;
-  last_login_at?: Date;
-  metadata: Record<string, any>;
+  locked_until?: ISODateTime;
+  created_at: ISODateTime;
+  updated_at: ISODateTime;
+  last_login_at?: ISODateTime;
+  metadata?: Record<string, unknown>;
 }
 
-export interface CreateUserDto {
-  email: string;
-  password: string;
-  name: string;
-  metadata?: Record<string, any>;
+export enum UserRole {
+  SUPER_ADMIN = 'super_admin',
+  ADMIN = 'admin',
+  USER = 'user',
+  GUEST = 'guest'
 }
 
-export interface LoginCredentials {
-  email: string;
-  password: string;
+export enum UserStatus {
+  ACTIVE = 'active',
+  INACTIVE = 'inactive',
+  SUSPENDED = 'suspended',
+  DELETED = 'deleted'
 }
 
-export interface AuthResult {
-  user: Omit<User, 'password_hash'>;
+export interface AuthToken {
+  access_token: JWT;
+  refresh_token: JWT;
+  token_type: 'Bearer';
+  expires_in: number;
+  user: Omit<User, 'password_hash' | 'mfa_secret'>;
+}
+
+export interface MFASetup {
+  secret: string;
+  qr_code: string;
+  backup_codes: string[];
+}
+
+export interface MFAVerification {
   token: string;
+  backup_code?: string;
 }
 
 // ============================================================================
-// Session Types
+// Audit & Security Types
 // ============================================================================
 
-export interface SessionData {
-  userId: string;
-  createdAt: number;
-  lastActivity: number;
-  deviceFingerprint?: string;
-  ipAddress: string;
-  userAgent: string;
-  metadata?: Record<string, any>;
-}
-
-export interface SessionConfig {
-  sessionMaxAge?: number;
-  sessionName?: string;
-  sessionSecret?: string;
-  secureCookie?: boolean;
-  httpOnly?: boolean;
-  sameSite?: 'strict' | 'lax' | 'none';
-  maxConcurrentSessions?: number;
-  maxIdleTime?: number;
-  trackActivity?: boolean;
-  trackLocation?: boolean;
-  trackDevice?: boolean;
-  rollingSession?: boolean;
-}
-
-// ============================================================================
-// API Versioning Types
-// ============================================================================
-
-export type ApiVersion = 'v1' | 'v2';
-
-export interface ApiVersionConfig {
-  defaultVersion: ApiVersion;
-  supportedVersions: ApiVersion[];
-  deprecatedVersions: ApiVersion[];
-  versionHeader: string;
-  deprecationWarningDays: number;
-}
-
-export interface VersionMetadata {
-  version: ApiVersion;
-  status: 'active' | 'deprecated' | 'removed';
-  introduced: Date;
-  deprecatedAt?: Date;
-  removalDate?: Date;
-  endpoints: EndpointInfo[];
-}
-
-export interface EndpointInfo {
-  method: string;
-  path: string;
-  registered: Date;
-}
-
-// ============================================================================
-// Error Handling Types
-// ============================================================================
-
-export type ErrorCode = string;
-
-export type ErrorSeverity = 'low' | 'medium' | 'high' | 'critical';
-
-export type ErrorCategory = 
-  | 'authentication'
-  | 'authorization'
-  | 'validation'
-  | 'resource'
-  | 'database'
-  | 'external'
-  | 'business'
-  | 'security'
-  | 'system';
-
-export interface ErrorDetails {
-  statusCode?: number;
-  severity?: ErrorSeverity;
-  category?: ErrorCategory;
-  recoverable?: boolean;
-  retryable?: boolean;
-  retryAfter?: number;
-  field?: string;
-  value?: any;
-  userMessage?: string;
-  recoverySuggestion?: string;
-  originalError?: Error;
-}
-
-export interface ErrorResponse {
-  error: {
-    code: ErrorCode;
-    message: string;
-    timestamp: string;
-    category: ErrorCategory;
-    requestId?: string;
-    field?: string;
-    value?: any;
-    recoverable?: boolean;
-    recovery?: {
-      suggestion: string;
-      retryable?: boolean;
-      retryAfter?: number;
-    };
-    documentation: string;
-    stack?: string;
-  };
-}
-
-// ============================================================================
-// Health Check Types
-// ============================================================================
-
-export type HealthStatus = 'healthy' | 'degraded' | 'unhealthy' | 'unknown';
-
-export type CheckType = 'liveness' | 'readiness' | 'startup';
-
-export interface HealthCheckConfig {
-  timeout?: number;
-  cacheTimeout?: number;
-}
-
-export interface CheckConfig {
-  name: string;
-  fn: () => Promise<CheckResult>;
-  critical?: boolean;
-  timeout?: number;
-  enabled?: boolean;
-}
-
-export interface CheckResult {
-  status: HealthStatus;
-  message: string;
-  latency?: number;
-  duration?: number;
-  timestamp?: string;
-  error?: string;
-  metrics?: Record<string, any>;
-}
-
-export interface HealthCheckResult {
-  status: HealthStatus;
-  timestamp: string;
-  uptime: number;
-  version: string;
-  environment: string;
-  checks: Record<string, CheckResult>;
-  summary: {
-    total: number;
-    healthy: number;
-    degraded: number;
-    unhealthy: number;
-    unknown: number;
-  };
-}
-
-// ============================================================================
-// Audit Logging Types
-// ============================================================================
-
-export type AuditCategory = 
-  | 'authentication'
-  | 'authorization'
-  | 'data_access'
-  | 'data_modification'
-  | 'security_event'
-  | 'system_event'
-  | 'user_action'
-  | 'api_call'
-  | 'admin_action';
-
-export type AuditSeverity = 'info' | 'warning' | 'error' | 'critical';
-
-export type AuditOutcome = 'success' | 'failure' | 'partial';
-
-export interface AuditEvent {
-  category: AuditCategory;
-  severity?: AuditSeverity;
-  outcome?: AuditOutcome;
+export interface AuditLog {
+  id: UUID;
+  user_id?: UUID;
   action: string;
+  resource: string;
+  resource_id?: string;
+  ip_address: string;
+  user_agent: string;
+  request_body?: Record<string, unknown>;
+  response_body?: Record<string, unknown>;
+  success: boolean;
+  error?: string;
+  duration_ms: number;
+  geo_location?: GeoLocation;
+  created_at: ISODateTime;
+}
+
+export interface GeoLocation {
+  country?: string;
+  region?: string;
+  city?: string;
+  timezone?: string;
+  latitude?: number;
+  longitude?: number;
+}
+
+export interface SecurityEvent {
+  id: UUID;
+  event_type: SecurityEventType;
+  severity: SecuritySeverity;
+  user_id?: UUID;
+  ip_address: string;
+  description: string;
+  risk_level: number;
+  metadata?: Record<string, unknown>;
+  resolved: boolean;
+  resolved_at?: ISODateTime;
+  created_at: ISODateTime;
+}
+
+export enum SecurityEventType {
+  FAILED_LOGIN = 'failed_login',
+  SUSPICIOUS_ACTIVITY = 'suspicious_activity',
+  UNUSUAL_IP = 'unusual_ip',
+  MFA_FAILED = 'mfa_failed',
+  PASSWORD_CHANGE = 'password_change',
+  PRIVILEGE_ESCALATION = 'privilege_escalation',
+  DATA_EXPORT = 'data_export',
+  UNAUTHORIZED_ACCESS = 'unauthorized_access'
+}
+
+export enum SecuritySeverity {
+  LOW = 'low',
+  MEDIUM = 'medium',
+  HIGH = 'high',
+  CRITICAL = 'critical'
+}
+
+// ============================================================================
+// API & Request/Response Types
+// ============================================================================
+
+export interface APIRequest extends Request {
+  user?: User;
+  api_version?: string;
+  rate_limit?: RateLimitInfo;
+  correlation_id?: string;
+  start_time?: number;
+}
+
+export interface APIResponse<T = unknown> {
+  success: boolean;
+  data?: T;
+  error?: APIError;
+  metadata?: ResponseMetadata;
+}
+
+export interface APIError {
+  code: string;
   message: string;
-  actor?: {
-    userId?: string;
-    email?: string;
-    ipAddress?: string;
+  details?: Record<string, unknown>;
+  stack?: string;
+}
+
+export interface ResponseMetadata {
+  timestamp: ISODateTime;
+  request_id: string;
+  duration_ms: number;
+  api_version: string;
+  rate_limit?: RateLimitInfo;
+}
+
+export interface RateLimitInfo {
+  limit: number;
+  remaining: number;
+  reset: number;
+  retry_after?: number;
+}
+
+// ============================================================================
+// Pagination & Filtering Types
+// ============================================================================
+
+export interface PaginationParams {
+  page: number;
+  limit: number;
+  sort_by?: string;
+  sort_order?: 'asc' | 'desc';
+}
+
+export interface PaginatedResponse<T> {
+  data: T[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    total_pages: number;
+    has_next: boolean;
+    has_prev: boolean;
   };
-  target?: Record<string, any>;
-  resource?: string;
-  changes?: Record<string, any>;
-  requestId?: string;
-  sessionId?: string;
-  ipAddress?: string;
-  userAgent?: string;
-  additionalData?: Record<string, any>;
 }
 
-export interface AuditLoggerConfig {
-  logDir?: string;
-  retentionDays?: number;
-  maxFileSize?: string;
-  maxFiles?: string;
-  batchSize?: number;
-  batchInterval?: number;
+export interface FilterParams {
+  [key: string]: string | number | boolean | undefined;
 }
 
 // ============================================================================
-// Encryption Types
+// Service & Integration Types
 // ============================================================================
 
-export interface EncryptionConfig {
-  algorithm: string;
-  keyLength: number;
-  ivLength: number;
-  saltLength: number;
-  tagLength: number;
-  iterations: number;
-  digest: string;
+export interface ServiceConfig {
+  name: string;
+  enabled: boolean;
+  api_key?: string;
+  base_url?: string;
+  timeout?: number;
+  retry_count?: number;
+  circuit_breaker?: CircuitBreakerConfig;
+  cache_ttl?: number;
 }
 
-export interface EncryptedData {
-  version: number;
-  iv: string;
-  tag: string;
-  encrypted: string;
+export interface CircuitBreakerConfig {
+  failure_threshold: number;
+  success_threshold: number;
+  timeout: number;
+  reset_timeout: number;
 }
 
-export interface KeyManagerConfig {
-  keyStorePath?: string;
-  rotationDays?: number;
-  maxKeyAge?: number;
-}
-
-// ============================================================================
-// Password Policy Types
-// ============================================================================
-
-export interface PasswordPolicyConfig {
-  minLength?: number;
-  maxLength?: number;
-  requireUppercase?: boolean;
-  requireLowercase?: boolean;
-  requireNumbers?: boolean;
-  requireSpecialChars?: boolean;
-  minUppercase?: number;
-  minLowercase?: number;
-  minNumbers?: number;
-  minSpecialChars?: number;
-  preventReuse?: boolean;
-  historySize?: number;
-  expirationDays?: number;
-  warnDaysBefore?: number;
-  checkBreaches?: boolean;
-  checkCommonPasswords?: boolean;
-  maxConsecutiveChars?: number;
-  preventUserInfo?: boolean;
-  maxFailedAttempts?: number;
-  lockoutDurationMinutes?: number;
-  requireMFAAfterReset?: boolean;
-  minStrengthScore?: number;
-}
-
-export interface PasswordValidationResult {
-  isValid: boolean;
-  errors: string[];
-  strengthScore: number;
-  suggestions: string[];
+export interface IntegrationResult<T = unknown> {
+  success: boolean;
+  data?: T;
+  error?: string;
+  duration_ms: number;
+  cached?: boolean;
 }
 
 // ============================================================================
-// Security Monitoring Types
+// Monitoring & Metrics Types
 // ============================================================================
 
-export type AlertSeverity = 'low' | 'medium' | 'high' | 'critical';
-
-export type AlertType = 
-  | 'failed_login'
-  | 'account_lockout'
-  | 'suspicious_activity'
-  | 'data_breach_attempt'
-  | 'unauthorized_access'
-  | 'rate_limit_exceeded'
-  | 'sql_injection_attempt'
-  | 'xss_attempt'
-  | 'csrf_violation'
-  | 'session_hijacking'
-  | 'brute_force'
-  | 'privilege_escalation'
-  | 'data_exfiltration';
-
-export interface SecurityAlert {
-  id: string;
-  type: AlertType;
-  severity: AlertSeverity;
-  timestamp: string;
-  details: Record<string, any>;
-  acknowledged: boolean;
-  acknowledgedBy?: string;
-  acknowledgedAt?: string;
+export interface Metric {
+  name: string;
+  value: number;
+  labels?: Record<string, string>;
+  timestamp: number;
 }
 
-export interface SecurityMetrics {
-  authenticationEvents: number;
-  failedLogins: number;
-  successfulLogins: number;
-  activeUsers: Set<string>;
-  activeSessions: number;
-  apiCalls: number;
-  securityViolations: number;
-  alerts: SecurityAlert[];
-}
-
-// ============================================================================
-// Request/Response Extensions
-// ============================================================================
-
-export interface AuthenticatedRequest extends ExpressRequest {
-  id: string;
-  user: {
-    userId: string;
-    email: string;
-    name: string;
+export interface HealthCheck {
+  status: 'healthy' | 'unhealthy' | 'degraded';
+  version: string;
+  uptime: number;
+  checks: {
+    database: ComponentHealth;
+    redis: ComponentHealth;
+    external_services: ComponentHealth;
   };
-  apiVersion: ApiVersion;
-  session: SessionData;
+  timestamp: ISODateTime;
 }
 
-export interface TypedResponse<T = any> extends ExpressResponse {
-  json: (body: T) => this;
+export interface ComponentHealth {
+  status: 'up' | 'down' | 'degraded';
+  latency_ms?: number;
+  error?: string;
+  last_check: ISODateTime;
 }
 
-// ============================================================================
-// Service Types
-// ============================================================================
-
-export interface UserService {
-  createUser(data: CreateUserDto): Promise<User>;
-  getUserById(id: string): Promise<User | null>;
-  getUserByEmail(email: string): Promise<User | null>;
-  updateUser(id: string, data: Partial<User>): Promise<User>;
-  deleteUser(id: string): Promise<void>;
-  authenticate(credentials: LoginCredentials): Promise<AuthResult>;
-  changePassword(userId: string, newPassword: string, userInfo?: Record<string, any>): Promise<void>;
-}
-
-export interface ProjectService {
-  createProject(data: any): Promise<any>;
-  getProject(id: string): Promise<any>;
-  listProjects(): Promise<any[]>;
-  executeProject(id: string): Promise<void>;
+export interface PerformanceMetrics {
+  request_count: number;
+  error_count: number;
+  avg_response_time: number;
+  p95_response_time: number;
+  p99_response_time: number;
+  cache_hit_rate: number;
+  active_connections: number;
 }
 
 // ============================================================================
-// Repository Types
+// Compliance & GDPR Types
 // ============================================================================
 
-export interface Repository<T> {
-  findById(id: string): Promise<T | null>;
-  findAll(): Promise<T[]>;
-  create(data: Partial<T>): Promise<T>;
-  update(id: string, data: Partial<T>): Promise<T>;
-  delete(id: string): Promise<void>;
+export interface DataSubjectRequest {
+  id: UUID;
+  user_id: UUID;
+  request_type: DSRType;
+  status: DSRStatus;
+  requested_at: ISODateTime;
+  completed_at?: ISODateTime;
+  metadata?: Record<string, unknown>;
 }
 
-export interface UserRepository extends Repository<User> {
-  findByEmail(email: string): Promise<User | null>;
-  authenticate(email: string, password: string): Promise<User | null>;
-  recordFailedLogin(userId: string): Promise<number>;
-  unlockAccount(userId: string): Promise<void>;
-  addToPasswordHistory(userId: string, passwordHash: string): Promise<void>;
-  checkPasswordHistory(userId: string, password: string): Promise<boolean>;
+export enum DSRType {
+  ACCESS = 'access',
+  PORTABILITY = 'portability',
+  ERASURE = 'erasure',
+  RECTIFICATION = 'rectification',
+  RESTRICTION = 'restriction',
+  OBJECTION = 'objection'
+}
+
+export enum DSRStatus {
+  PENDING = 'pending',
+  IN_PROGRESS = 'in_progress',
+  COMPLETED = 'completed',
+  REJECTED = 'rejected'
+}
+
+export interface ConsentRecord {
+  id: UUID;
+  user_id: UUID;
+  purpose: string;
+  consent_given: boolean;
+  consent_date: ISODateTime;
+  expiry_date?: ISODateTime;
+  withdrawn_date?: ISODateTime;
 }
 
 // ============================================================================
-// Database Types
+// Database & Migration Types
 // ============================================================================
+
+export interface Migration {
+  id: number;
+  name: string;
+  executed_at: ISODateTime;
+  execution_time_ms: number;
+}
 
 export interface DatabaseConfig {
   host: string;
@@ -431,15 +331,93 @@ export interface DatabaseConfig {
   database: string;
   user: string;
   password: string;
-  poolMin: number;
-  poolMax: number;
-  idleTimeoutMillis: number;
-  connectionTimeoutMillis: number;
+  ssl?: boolean;
+  pool_size?: number;
+  idle_timeout?: number;
 }
 
-export interface DatabaseConnection {
-  pool: Pool;
-  query: (text: string, params?: any[]) => Promise<any>;
+// ============================================================================
+// Error Types
+// ============================================================================
+
+export class ZekkaError extends Error {
+  constructor(
+    message: string,
+    public code: string,
+    public status_code: number = 500,
+    public details?: Record<string, unknown>
+  ) {
+    super(message);
+    this.name = 'ZekkaError';
+    Error.captureStackTrace(this, this.constructor);
+  }
+}
+
+export class ValidationError extends ZekkaError {
+  constructor(message: string, details?: Record<string, unknown>) {
+    super(message, 'VALIDATION_ERROR', 400, details);
+    this.name = 'ValidationError';
+  }
+}
+
+export class AuthenticationError extends ZekkaError {
+  constructor(message: string = 'Authentication failed') {
+    super(message, 'AUTHENTICATION_ERROR', 401);
+    this.name = 'AuthenticationError';
+  }
+}
+
+export class AuthorizationError extends ZekkaError {
+  constructor(message: string = 'Insufficient permissions') {
+    super(message, 'AUTHORIZATION_ERROR', 403);
+    this.name = 'AuthorizationError';
+  }
+}
+
+export class NotFoundError extends ZekkaError {
+  constructor(resource: string) {
+    super(`${resource} not found`, 'NOT_FOUND', 404);
+    this.name = 'NotFoundError';
+  }
+}
+
+export class RateLimitError extends ZekkaError {
+  constructor(retry_after: number) {
+    super('Rate limit exceeded', 'RATE_LIMIT_EXCEEDED', 429, { retry_after });
+    this.name = 'RateLimitError';
+  }
+}
+
+// ============================================================================
+// Middleware Types
+// ============================================================================
+
+export type MiddlewareFunction = (
+  req: APIRequest,
+  res: Response,
+  next: NextFunction
+) => void | Promise<void>;
+
+export interface AuthMiddleware {
+  authenticate: MiddlewareFunction;
+  authorize: (roles: UserRole[]) => MiddlewareFunction;
+  verifyMFA: MiddlewareFunction;
+}
+
+// ============================================================================
+// Testing Types
+// ============================================================================
+
+export interface TestContext {
+  user?: User;
+  token?: JWT;
+  db?: any;
+  redis?: any;
+}
+
+export interface MockService {
+  reset: () => void;
+  verify: () => void;
 }
 
 // ============================================================================
@@ -447,32 +425,67 @@ export interface DatabaseConnection {
 // ============================================================================
 
 export interface AppConfig {
-  nodeEnv: string;
+  env: 'development' | 'staging' | 'production';
   port: number;
   host: string;
-  sessionSecret: string;
-  jwtSecret: string;
-  jwtExpiration: string;
+  log_level: 'debug' | 'info' | 'warn' | 'error';
   database: DatabaseConfig;
-  redis: {
-    host: string;
+  redis: RedisConfig;
+  jwt: JWTConfig;
+  security: SecurityConfig;
+  monitoring: MonitoringConfig;
+}
+
+export interface RedisConfig {
+  host: string;
+  port: number;
+  password?: string;
+  db?: number;
+  ttl?: number;
+}
+
+export interface JWTConfig {
+  secret: string;
+  access_token_ttl: number;
+  refresh_token_ttl: number;
+  issuer: string;
+  audience: string;
+}
+
+export interface SecurityConfig {
+  rate_limit: {
+    window_ms: number;
+    max_requests: number;
+  };
+  password: {
+    min_length: number;
+    require_uppercase: boolean;
+    require_lowercase: boolean;
+    require_numbers: boolean;
+    require_special: boolean;
+    history_count: number;
+    expiry_days: number;
+  };
+  session: {
+    max_age: number;
+    absolute_timeout: number;
+  };
+}
+
+export interface MonitoringConfig {
+  prometheus: {
+    enabled: boolean;
     port: number;
+    path: string;
   };
-  budgets: {
-    daily: number;
-    monthly: number;
+  grafana: {
+    enabled: boolean;
+    url: string;
+    api_key?: string;
   };
-  apiKeys: {
-    github?: string;
-    anthropic?: string;
-    openai?: string;
-  };
-  ollama: {
-    host: string;
-  };
-  orchestrator: {
-    maxConcurrentAgents: number;
-    defaultModel: string;
+  alerting: {
+    enabled: boolean;
+    channels: string[];
   };
 }
 
@@ -482,5 +495,31 @@ export interface AppConfig {
 
 export type Nullable<T> = T | null;
 export type Optional<T> = T | undefined;
-export type AsyncFunction<T = void> = () => Promise<T>;
-export type Callback<T = void> = (error: Error | null, result?: T) => void;
+export type DeepPartial<T> = {
+  [P in keyof T]?: T[P] extends object ? DeepPartial<T[P]> : T[P];
+};
+export type RequireAtLeastOne<T, Keys extends keyof T = keyof T> = Pick<T, Exclude<keyof T, Keys>> & {
+  [K in Keys]-?: Required<Pick<T, K>> & Partial<Pick<T, Exclude<Keys, K>>>;
+}[Keys];
+
+// ============================================================================
+// Exports
+// ============================================================================
+
+export default {
+  User,
+  UserRole,
+  UserStatus,
+  AuthToken,
+  MFASetup,
+  AuditLog,
+  SecurityEvent,
+  APIRequest,
+  APIResponse,
+  ZekkaError,
+  ValidationError,
+  AuthenticationError,
+  AuthorizationError,
+  NotFoundError,
+  RateLimitError
+};
