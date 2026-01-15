@@ -1,0 +1,144 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alama-inference
+  namespace: zekka-production
+  labels:
+    app: alama-inference
+    tier: compute
+    cost-tier: tier1
+spec:
+  replicas: 3  # Minimum baseline (managed by HPA)
+  selector:
+    matchLabels:
+      app: alama-inference
+  template:
+    metadata:
+      labels:
+        app: alama-inference
+        tier: compute
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+      - name: alama
+        image: ollama/ollama:latest
+        resources:
+          requests:
+            memory: "4Gi"
+            cpu: "2"
+            nvidia.com/gpu: "1"
+          limits:
+            memory: "8Gi"
+            cpu: "4"
+            nvidia.com/gpu: "1"
+        env:
+        - name: CUDA_VISIBLE_DEVICES
+          value: "0"
+        - name: OLLAMA_HOST
+          value: "0.0.0.0:8080"
+        - name: OLLAMA_MODELS
+          value: "/models"
+        - name: OLLAMA_NUM_PARALLEL
+          value: "4"
+        - name: OLLAMA_MAX_LOADED_MODELS
+          value: "2"
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        volumeMounts:
+        - name: model-cache
+          mountPath: /models
+      - name: metrics-exporter
+        image: prom/statsd-exporter:latest
+        ports:
+        - containerPort: 9090
+          name: metrics
+          protocol: TCP
+        args:
+        - "--statsd.mapping-config=/etc/statsd/statsd-mapping.yml"
+        volumeMounts:
+        - name: statsd-config
+          mountPath: /etc/statsd
+      volumes:
+      - name: model-cache
+        persistentVolumeClaim:
+          claimName: alama-model-cache
+      - name: statsd-config
+        configMap:
+          name: statsd-exporter-config
+      nodeSelector:
+        gpu: "true"
+      tolerations:
+      - key: "nvidia.com/gpu"
+        operator: "Exists"
+        effect: "NoSchedule"
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - alama-inference
+              topologyKey: kubernetes.io/hostname
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: alama-model-cache
+  namespace: zekka-production
+spec:
+  accessModes:
+  - ReadWriteMany
+  storageClassName: fast-ssd
+  resources:
+    requests:
+      storage: 50Gi
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: statsd-exporter-config
+  namespace: zekka-production
+data:
+  statsd-mapping.yml: |
+    mappings:
+    - match: "alama.inference.queue.length"
+      name: "inference_queue_length"
+      labels:
+        job: "alama-inference"
+    - match: "alama.inference.duration_ms"
+      name: "inference_duration_milliseconds"
+      labels:
+        job: "alama-inference"
+    - match: "alama.inference.tokens.input"
+      name: "inference_tokens_input_total"
+      labels:
+        job: "alama-inference"
+    - match: "alama.inference.tokens.output"
+      name: "inference_tokens_output_total"
+      labels:
+        job: "alama-inference"
