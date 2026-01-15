@@ -1,0 +1,247 @@
+# Artillery Load Testing Configuration
+# ====================================
+# 
+# Comprehensive load testing with Artillery
+# 
+# Usage:
+# artillery run load-tests/artillery-config.yml
+# artillery run --target http://localhost:3000 load-tests/artillery-config.yml
+# 
+# Generate HTML report:
+# artillery run --output report.json load-tests/artillery-config.yml
+# artillery report report.json
+
+config:
+  target: "http://localhost:3000"
+  phases:
+    # Warm-up phase
+    - duration: 60
+      arrivalRate: 5
+      name: "Warm-up"
+    
+    # Ramp up phase
+    - duration: 120
+      arrivalRate: 5
+      rampTo: 50
+      name: "Ramp up to 50 RPS"
+    
+    # Sustained load
+    - duration: 300
+      arrivalRate: 50
+      name: "Sustained load (50 RPS)"
+    
+    # Peak load
+    - duration: 120
+      arrivalRate: 50
+      rampTo: 100
+      name: "Peak load ramp-up"
+    
+    - duration: 300
+      arrivalRate: 100
+      name: "Peak load (100 RPS)"
+    
+    # Ramp down
+    - duration: 60
+      arrivalRate: 100
+      rampTo: 0
+      name: "Ramp down"
+
+  # Performance thresholds
+  ensure:
+    p95: 200  # 95th percentile < 200ms
+    p99: 500  # 99th percentile < 500ms
+    maxErrorRate: 1  # Error rate < 1%
+    
+  # Plugins
+  plugins:
+    expect: {}
+    metrics-by-endpoint: {}
+  
+  # HTTP settings
+  http:
+    timeout: 10
+    pool: 100  # Connection pool size
+  
+  # Request defaults
+  defaults:
+    headers:
+      Content-Type: "application/json"
+      Accept: "application/json"
+      User-Agent: "Artillery-LoadTest/1.0"
+
+# Test scenarios
+scenarios:
+  # Scenario 1: Health Check
+  - name: "Health Check Flow"
+    weight: 20
+    flow:
+      - get:
+          url: "/api/health"
+          expect:
+            - statusCode: 200
+            - contentType: json
+            - hasProperty: status
+          capture:
+            json: "$.status"
+            as: "healthStatus"
+
+  # Scenario 2: API Versioning
+  - name: "API Versioning Flow"
+    weight: 15
+    flow:
+      # Test v1 (deprecated)
+      - get:
+          url: "/api/v1/health"
+          expect:
+            - statusCode: 200
+            - hasHeader: "X-API-Deprecated"
+      
+      # Test v2 (latest)
+      - get:
+          url: "/api/v2/health"
+          expect:
+            - statusCode: 200
+            - hasHeader: "X-API-Version"
+      
+      # Test version info
+      - get:
+          url: "/api/version"
+          expect:
+            - statusCode: 200
+
+  # Scenario 3: Authentication Flow
+  - name: "User Authentication Flow"
+    weight: 30
+    flow:
+      # Register new user
+      - post:
+          url: "/api/auth/register"
+          json:
+            email: "test-{{ $randomString() }}@example.com"
+            password: "TestPassword123!@#"
+            name: "Test User {{ $randomNumber(1, 1000) }}"
+          capture:
+            json: "$.user.id"
+            as: "userId"
+          expect:
+            - statusCode: 200
+            - hasProperty: user
+      
+      # Login
+      - post:
+          url: "/api/auth/login"
+          json:
+            email: "test@example.com"
+            password: "TestPassword123!@#"
+          capture:
+            json: "$.accessToken"
+            as: "authToken"
+          expect:
+            - statusCode: 200
+            - hasProperty: accessToken
+      
+      # Think time
+      - think: 2
+      
+      # Access protected resource
+      - get:
+          url: "/api/security/password/policy"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          expect:
+            - statusCode: 200
+      
+      # Think time
+      - think: 1
+      
+      # Logout
+      - post:
+          url: "/api/auth/logout"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          expect:
+            - statusCode: 200
+
+  # Scenario 4: Security Features
+  - name: "Security Features Flow"
+    weight: 20
+    flow:
+      # Validate password
+      - post:
+          url: "/api/security/password/validate"
+          json:
+            password: "TestPassword123!@#"
+          expect:
+            - statusCode: 200
+            - hasProperty: data.valid
+      
+      # Think time
+      - think: 1
+      
+      # Get password policy
+      - get:
+          url: "/api/security/password/policy"
+          expect:
+            - statusCode: 200
+            - hasProperty: data.minLength
+      
+      # Think time
+      - think: 1
+      
+      # Check integrations health
+      - get:
+          url: "/api/integrations/phase6a/health"
+          expect:
+            - statusCode: 200
+
+  # Scenario 5: Error Handling
+  - name: "Error Handling Flow"
+    weight: 10
+    flow:
+      # Test 404
+      - get:
+          url: "/api/nonexistent"
+          expect:
+            - statusCode: 404
+            - hasProperty: error.code
+      
+      # Test invalid authentication
+      - post:
+          url: "/api/auth/login"
+          json:
+            email: "invalid@example.com"
+            password: "wrong"
+          expect:
+            - statusCode: 401
+      
+      # Test validation error
+      - post:
+          url: "/api/auth/register"
+          json:
+            email: "invalid-email"
+            password: "weak"
+          expect:
+            - statusCode: 400
+
+  # Scenario 6: Concurrent Operations
+  - name: "Concurrent Operations"
+    weight: 5
+    flow:
+      # Multiple parallel requests
+      - parallel:
+          - get:
+              url: "/api/health"
+          - get:
+              url: "/api/version"
+          - get:
+              url: "/api/integrations/phase6a/health"
+          - get:
+              url: "/api/integrations/phase6b/health"
+          - get:
+              url: "/api/integrations/phase6c/health"
+      
+      expect:
+        - statusCode: 200
+
+# Custom functions for data generation
+processor: "./load-tests/artillery-processor.js"
