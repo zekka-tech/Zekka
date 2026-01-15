@@ -23,7 +23,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install dependencies (production only)
-RUN npm ci --only=production --ignore-scripts && \
+RUN npm ci --legacy-peer-deps --omit=dev --ignore-scripts && \
     npm cache clean --force
 
 # Copy application source
