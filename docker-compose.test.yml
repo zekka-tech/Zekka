@@ -1,0 +1,88 @@
+# ===================================================================
+# Docker Compose - Integration Testing
+# 
+# Isolated environment for running integration tests
+# with real databases and services
+# 
+# Usage:
+#   docker-compose -f docker-compose.test.yml up --abort-on-container-exit
+#   docker-compose -f docker-compose.test.yml down -v
+# ===================================================================
+
+version: '3.8'
+
+networks:
+  test-network:
+    driver: bridge
+
+volumes:
+  test-postgres-data:
+  test-redis-data:
+
+services:
+  # Test Database
+  postgres-test:
+    image: postgres:15-alpine
+    container_name: zekka-postgres-test
+    environment:
+      - POSTGRES_DB=zekka_test
+      - POSTGRES_USER=test_user
+      - POSTGRES_PASSWORD=test_password
+    volumes:
+      - test-postgres-data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d
+    networks:
+      - test-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U test_user"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    tmpfs:
+      - /var/lib/postgresql/data
+
+  # Test Redis
+  redis-test:
+    image: redis:7-alpine
+    container_name: zekka-redis-test
+    command: redis-server --requirepass test_password
+    networks:
+      - test-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    tmpfs:
+      - /data
+
+  # Integration Test Runner
+  test-runner:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    container_name: zekka-test-runner
+    environment:
+      - NODE_ENV=test
+      - DB_HOST=postgres-test
+      - DB_PORT=5432
+      - DB_NAME=zekka_test
+      - DB_USER=test_user
+      - DB_PASSWORD=test_password
+      - REDIS_HOST=redis-test
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=test_password
+      - JWT_SECRET=test-jwt-secret-for-integration-tests-only
+      - SESSION_SECRET=test-session-secret-for-integration-tests-only
+      - ENCRYPTION_KEY=dGVzdC1lbmNyeXB0aW9uLWtleS0zMi1ieXRlcw==
+    volumes:
+      - ./tests:/app/tests
+      - ./src:/app/src
+    networks:
+      - test-network
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+      redis-test:
+        condition: service_healthy
+    command: npm run test:integration

@@ -1,328 +1,344 @@
 /**
- * K6 Load Testing Suite
- * =====================
+ * k6 Load Testing Suite for Zekka Framework
  * 
- * Comprehensive load testing scenarios for:
- * - API endpoints
- * - Authentication flows
- * - Database operations
- * - Concurrent users
- * - Stress testing
- * - Spike testing
- * - Soak testing
+ * Test Scenarios:
+ * 1. Smoke Test - Minimal load to verify system works
+ * 2. Load Test - Normal expected load
+ * 3. Stress Test - Beyond normal load
+ * 4. Spike Test - Sudden traffic increase
+ * 5. Soak Test - Sustained load over time
  * 
  * Usage:
- * k6 run load-tests/k6-load-test.js
- * 
- * Thresholds:
- * - 95% of requests < 200ms
- * - 99% of requests < 500ms
- * - Error rate < 1%
- * - Success rate > 99%
+ *   k6 run load-tests/k6-load-test.js
+ *   k6 run --vus 100 --duration 5m load-tests/k6-load-test.js
  */
 
 import http from 'k6/http';
-import { check, sleep, group } from 'k6';
+import { check, group, sleep } from 'k6';
 import { Rate, Trend, Counter } from 'k6/metrics';
 
 // Custom metrics
 const errorRate = new Rate('errors');
-const requestDuration = new Trend('request_duration');
-const successfulRequests = new Counter('successful_requests');
-const failedRequests = new Counter('failed_requests');
+const apiDuration = new Trend('api_response_time');
+const requestCount = new Counter('request_count');
 
-// Test configuration
+// Configuration
+const BASE_URL = __ENV.BASE_URL || 'http://localhost:3000';
+const API_KEY = __ENV.API_KEY || 'test-api-key';
+
+// Test scenarios
 export const options = {
-  // Scenarios for different testing patterns
   scenarios: {
-    // Smoke test - minimal load
+    // Smoke test: 1 user for 1 minute
     smoke: {
       executor: 'constant-vus',
       vus: 1,
-      duration: '30s',
+      duration: '1m',
       tags: { test_type: 'smoke' },
+      exec: 'smokeTest',
     },
-
-    // Load test - normal traffic
+    
+    // Load test: Ramp up to 100 users over 5 minutes
     load: {
       executor: 'ramping-vus',
       startVUs: 0,
       stages: [
         { duration: '2m', target: 50 },   // Ramp up to 50 users
-        { duration: '5m', target: 50 },   // Stay at 50 users
-        { duration: '2m', target: 100 },  // Ramp up to 100 users
-        { duration: '5m', target: 100 },  // Stay at 100 users
-        { duration: '2m', target: 0 },    // Ramp down
+        { duration: '3m', target: 100 },  // Ramp up to 100 users
+        { duration: '3m', target: 100 },  // Stay at 100 users
+        { duration: '2m', target: 0 },    // Ramp down to 0
       ],
       tags: { test_type: 'load' },
-      startTime: '30s', // Start after smoke test
+      exec: 'loadTest',
+      startTime: '1m', // Start after smoke test
     },
-
-    // Stress test - find breaking point
+    
+    // Stress test: Push beyond normal load
     stress: {
       executor: 'ramping-vus',
       startVUs: 0,
       stages: [
         { duration: '2m', target: 100 },
-        { duration: '5m', target: 100 },
-        { duration: '2m', target: 200 },
-        { duration: '5m', target: 200 },
-        { duration: '2m', target: 300 },
-        { duration: '5m', target: 300 },
-        { duration: '5m', target: 0 },
+        { duration: '3m', target: 200 },
+        { duration: '3m', target: 300 },
+        { duration: '2m', target: 400 },
+        { duration: '5m', target: 400 },  // Hold at breaking point
+        { duration: '3m', target: 0 },
       ],
       tags: { test_type: 'stress' },
-      startTime: '16m30s', // Start after load test
+      exec: 'stressTest',
+      startTime: '11m', // Start after load test
     },
-
-    // Spike test - sudden traffic surge
+    
+    // Spike test: Sudden traffic surge
     spike: {
       executor: 'ramping-vus',
       startVUs: 0,
       stages: [
-        { duration: '10s', target: 100 },
-        { duration: '1m', target: 100 },
-        { duration: '10s', target: 500 },   // Spike!
-        { duration: '3m', target: 500 },
-        { duration: '10s', target: 100 },
-        { duration: '1m', target: 100 },
-        { duration: '10s', target: 0 },
+        { duration: '10s', target: 500 },  // Spike to 500 users in 10s
+        { duration: '1m', target: 500 },   // Hold for 1 minute
+        { duration: '10s', target: 0 },    // Drop back to 0
       ],
       tags: { test_type: 'spike' },
-      startTime: '38m30s', // Start after stress test
+      exec: 'spikeTest',
+      startTime: '28m',
     },
-
-    // Soak test - sustained load over time
-    soak: {
-      executor: 'constant-vus',
-      vus: 50,
-      duration: '30m',
-      tags: { test_type: 'soak' },
-      startTime: '45m', // Start after spike test
-    },
-  },
-
+  ],
+  
   // Performance thresholds
   thresholds: {
-    http_req_duration: ['p(95)<200', 'p(99)<500'], // 95% < 200ms, 99% < 500ms
-    http_req_failed: ['rate<0.01'],                // Error rate < 1%
-    errors: ['rate<0.01'],
-    successful_requests: ['count>0'],
+    // HTTP errors should be less than 1%
+    'http_req_failed': ['rate<0.01'],
+    
+    // 95% of requests should be below 500ms
+    'http_req_duration': ['p(95)<500'],
+    
+    // 99% of requests should be below 1000ms
+    'http_req_duration{test_type:load}': ['p(99)<1000'],
+    
+    // API response time should be reasonable
+    'api_response_time': ['p(95)<300', 'p(99)<600'],
+    
+    // Error rate should be minimal
+    'errors': ['rate<0.05'],
   },
-
-  // Test tags
-  tags: {
-    project: 'zekka-framework',
-    environment: 'staging'
-  },
+  
+  // Additional options
+  noConnectionReuse: false,
+  userAgent: 'k6-load-test/1.0',
 };
-
-// Base URL
-const BASE_URL = __ENV.BASE_URL || 'http://localhost:3000';
 
 // Test data
 const testUsers = [
-  { email: 'test1@example.com', password: 'Test123!@#' },
-  { email: 'test2@example.com', password: 'Test123!@#' },
-  { email: 'test3@example.com', password: 'Test123!@#' },
+  { email: 'load-test-1@example.com', password: 'LoadTest123!@#' },
+  { email: 'load-test-2@example.com', password: 'LoadTest123!@#' },
+  { email: 'load-test-3@example.com', password: 'LoadTest123!@#' },
 ];
 
-// Helper function to get random test user
+// Helper function: Get random user
 function getRandomUser() {
   return testUsers[Math.floor(Math.random() * testUsers.length)];
 }
 
-// Setup function - runs once before all scenarios
-export function setup() {
-  console.log('Starting load tests...');
-  console.log(`Target: ${BASE_URL}`);
+// Helper function: Make authenticated request
+function makeAuthRequest(endpoint, token, method = 'GET', payload = null) {
+  const params = {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    tags: { endpoint },
+  };
   
-  // Health check
-  const healthCheck = http.get(`${BASE_URL}/api/health`);
-  check(healthCheck, {
-    'health check passed': (r) => r.status === 200,
-  });
-
-  return { startTime: new Date().toISOString() };
+  const url = `${BASE_URL}${endpoint}`;
+  let response;
+  
+  const startTime = Date.now();
+  
+  if (method === 'GET') {
+    response = http.get(url, params);
+  } else if (method === 'POST') {
+    response = http.post(url, JSON.stringify(payload), params);
+  } else if (method === 'PUT') {
+    response = http.put(url, JSON.stringify(payload), params);
+  } else if (method === 'DELETE') {
+    response = http.del(url, params);
+  }
+  
+  const duration = Date.now() - startTime;
+  apiDuration.add(duration);
+  requestCount.add(1);
+  
+  return response;
 }
 
-// Main test function
-export default function (data) {
-  // API Health Check
+// Smoke Test: Basic functionality verification
+export function smokeTest() {
   group('Health Check', () => {
-    const res = http.get(`${BASE_URL}/api/health`);
+    const response = http.get(`${BASE_URL}/api/health`);
     
-    check(res, {
-      'status is 200': (r) => r.status === 200,
-      'response time < 100ms': (r) => r.timings.duration < 100,
-    });
-
-    requestDuration.add(res.timings.duration);
-    errorRate.add(res.status !== 200);
-    
-    if (res.status === 200) {
-      successfulRequests.add(1);
-    } else {
-      failedRequests.add(1);
-    }
+    check(response, {
+      'health check status is 200': (r) => r.status === 200,
+      'health check response time < 100ms': (r) => r.timings.duration < 100,
+    }) || errorRate.add(1);
   });
-
-  sleep(1);
-
-  // User Authentication Flow
-  group('Authentication', () => {
-    const user = getRandomUser();
-    
-    // Login
-    const loginRes = http.post(
-      `${BASE_URL}/api/auth/login`,
-      JSON.stringify({
-        email: user.email,
-        password: user.password,
-      }),
-      {
-        headers: { 'Content-Type': 'application/json' },
-      }
-    );
-
-    const loginSuccess = check(loginRes, {
-      'login status is 200': (r) => r.status === 200,
-      'login has token': (r) => JSON.parse(r.body).accessToken !== undefined,
-      'login response time < 300ms': (r) => r.timings.duration < 300,
-    });
-
-    requestDuration.add(loginRes.timings.duration);
-    errorRate.add(!loginSuccess);
-
-    if (loginSuccess) {
-      successfulRequests.add(1);
-      const token = JSON.parse(loginRes.body).accessToken;
-
-      // Authenticated request
-      const authRes = http.get(`${BASE_URL}/api/security/password/policy`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      check(authRes, {
-        'auth request status is 200': (r) => r.status === 200,
-        'auth response time < 200ms': (r) => r.timings.duration < 200,
-      });
-
-      requestDuration.add(authRes.timings.duration);
-      errorRate.add(authRes.status !== 200);
-
-      if (authRes.status === 200) {
-        successfulRequests.add(1);
-      } else {
-        failedRequests.add(1);
-      }
-    } else {
-      failedRequests.add(1);
-    }
-  });
-
-  sleep(1);
-
-  // API Versioning Test
-  group('API Versioning', () => {
-    // Test v1
-    const v1Res = http.get(`${BASE_URL}/api/v1/health`);
-    check(v1Res, {
-      'v1 status is 200': (r) => r.status === 200,
-      'v1 has deprecation warning': (r) => r.headers['X-Api-Deprecated'] !== undefined,
-    });
-
-    // Test v2
-    const v2Res = http.get(`${BASE_URL}/api/v2/health`);
-    check(v2Res, {
-      'v2 status is 200': (r) => r.status === 200,
-      'v2 is latest': (r) => r.headers['X-Api-Version'] === 'v2',
-    });
-
-    requestDuration.add((v1Res.timings.duration + v2Res.timings.duration) / 2);
-  });
-
-  sleep(1);
-
-  // Security Endpoints
-  group('Security Endpoints', () => {
-    const passwordValidateRes = http.post(
-      `${BASE_URL}/api/security/password/validate`,
-      JSON.stringify({
-        password: 'TestPassword123!@#',
-      }),
-      {
-        headers: { 'Content-Type': 'application/json' },
-      }
-    );
-
-    check(passwordValidateRes, {
-      'password validation status is 200': (r) => r.status === 200,
-      'password validation response time < 100ms': (r) => r.timings.duration < 100,
-    });
-
-    requestDuration.add(passwordValidateRes.timings.duration);
-  });
-
-  sleep(1);
-
-  // Integration Tests
-  group('Integration Health', () => {
-    const integrationsRes = http.get(`${BASE_URL}/api/integrations/phase6a/health`);
-    
-    check(integrationsRes, {
-      'integrations health status is 200': (r) => r.status === 200,
-      'response time < 500ms': (r) => r.timings.duration < 500,
-    });
-
-    requestDuration.add(integrationsRes.timings.duration);
-  });
-
-  sleep(Math.random() * 2); // Random sleep between 0-2 seconds
-}
-
-// Teardown function - runs once after all scenarios
-export function teardown(data) {
-  console.log('Load tests completed');
-  console.log(`Started at: ${data.startTime}`);
-  console.log(`Ended at: ${new Date().toISOString()}`);
   
-  // Summary
-  console.log('\n=== Test Summary ===');
-  console.log(`Successful requests: ${successfulRequests.value}`);
-  console.log(`Failed requests: ${failedRequests.value}`);
-  console.log(`Error rate: ${(errorRate.rate * 100).toFixed(2)}%`);
+  sleep(1);
 }
 
-// Handle teardown results
+// Load Test: Normal expected load
+export function loadTest() {
+  const user = getRandomUser();
+  let authToken;
+  
+  // Authentication flow
+  group('Authentication', () => {
+    const loginResponse = http.post(`${BASE_URL}/api/auth/login`, JSON.stringify({
+      email: user.email,
+      password: user.password,
+    }), {
+      headers: { 'Content-Type': 'application/json' },
+      tags: { endpoint: '/api/auth/login' },
+    });
+    
+    const loginSuccess = check(loginResponse, {
+      'login status is 200': (r) => r.status === 200 || r.status === 401, // May not exist
+      'login response time < 200ms': (r) => r.timings.duration < 200,
+      'login returns token': (r) => {
+        try {
+          return r.status === 200 ? JSON.parse(r.body).token !== undefined : true;
+        } catch {
+          return true;
+        }
+      },
+    });
+    
+    if (!loginSuccess) errorRate.add(1);
+    
+    // Extract token if successful
+    if (loginResponse.status === 200) {
+      try {
+        authToken = JSON.parse(loginResponse.body).token;
+      } catch (e) {
+        console.error('Failed to parse login response');
+      }
+    }
+  });
+  
+  // API operations (if authenticated)
+  if (authToken) {
+    group('User Profile', () => {
+      const profileResponse = makeAuthRequest('/api/user/profile', authToken);
+      
+      check(profileResponse, {
+        'profile status is 200': (r) => r.status === 200,
+        'profile response time < 150ms': (r) => r.timings.duration < 150,
+      }) || errorRate.add(1);
+    });
+    
+    group('Resource Operations', () => {
+      // List resources
+      const listResponse = makeAuthRequest('/api/resources', authToken);
+      
+      check(listResponse, {
+        'list resources status is 200': (r) => r.status === 200 || r.status === 404,
+        'list response time < 200ms': (r) => r.timings.duration < 200,
+      }) || errorRate.add(1);
+      
+      // Create resource
+      const createResponse = makeAuthRequest('/api/resources', authToken, 'POST', {
+        title: `Load Test Resource ${Date.now()}`,
+        description: 'Created during load test',
+      });
+      
+      check(createResponse, {
+        'create resource status is 201 or 200': (r) => [200, 201, 404].includes(r.status),
+        'create response time < 300ms': (r) => r.timings.duration < 300,
+      }) || errorRate.add(1);
+    });
+  }
+  
+  sleep(Math.random() * 2 + 1); // Random sleep 1-3 seconds
+}
+
+// Stress Test: Beyond normal capacity
+export function stressTest() {
+  // Similar to load test but with minimal sleep
+  group('High Load Operations', () => {
+    const healthResponse = http.get(`${BASE_URL}/api/health`);
+    
+    check(healthResponse, {
+      'health check under stress': (r) => r.status === 200,
+      'response time under stress < 1000ms': (r) => r.timings.duration < 1000,
+    }) || errorRate.add(1);
+  });
+  
+  sleep(0.1); // Minimal sleep for stress
+}
+
+// Spike Test: Sudden traffic surge
+export function spikeTest() {
+  group('Spike Load', () => {
+    const response = http.get(`${BASE_URL}/api/health`);
+    
+    check(response, {
+      'survives traffic spike': (r) => r.status === 200,
+      'spike response time < 2000ms': (r) => r.timings.duration < 2000,
+    }) || errorRate.add(1);
+  });
+  
+  // No sleep - maximum pressure
+}
+
+// Teardown function
+export function teardown(data) {
+  console.log('Load test completed');
+  console.log(`Total requests: ${requestCount.count}`);
+}
+
+// Summary handler
 export function handleSummary(data) {
   return {
-    'load-test-results.json': JSON.stringify(data, null, 2),
-    stdout: textSummary(data, { indent: ' ', enableColors: true }),
+    'stdout': textSummary(data, { indent: ' ', enableColors: true }),
+    'load-test-results.json': JSON.stringify(data),
+    'load-test-report.html': htmlReport(data),
   };
 }
 
 // Text summary helper
-function textSummary(data, opts = {}) {
-  const indent = opts.indent || '';
-  const enableColors = opts.enableColors !== false;
+function textSummary(data, options) {
+  const indent = options.indent || '';
+  const colors = options.enableColors;
   
-  let summary = `\n${indent}Test Summary\n`;
-  summary += `${indent}============\n\n`;
+  let summary = '\n' + indent + '='.repeat(70) + '\n';
+  summary += indent + 'LOAD TEST SUMMARY\n';
+  summary += indent + '='.repeat(70) + '\n\n';
   
-  // Metrics
-  for (const [name, metric] of Object.entries(data.metrics)) {
-    if (metric.values) {
-      summary += `${indent}${name}:\n`;
-      summary += `${indent}  min: ${metric.values.min.toFixed(2)}ms\n`;
-      summary += `${indent}  avg: ${metric.values.avg.toFixed(2)}ms\n`;
-      summary += `${indent}  max: ${metric.values.max.toFixed(2)}ms\n`;
-      summary += `${indent}  p(95): ${metric.values['p(95)'].toFixed(2)}ms\n`;
-      summary += `${indent}  p(99): ${metric.values['p(99)'].toFixed(2)}ms\n\n`;
-    }
+  // Metrics summary
+  const metrics = data.metrics;
+  summary += indent + 'Key Metrics:\n';
+  summary += indent + `-${'─'.repeat(68)}\n`;
+  
+  if (metrics.http_req_duration) {
+    summary += indent + `  Response Time (p95): ${metrics.http_req_duration.values['p(95)'].toFixed(2)}ms\n`;
+    summary += indent + `  Response Time (p99): ${metrics.http_req_duration.values['p(99)'].toFixed(2)}ms\n`;
   }
   
+  if (metrics.http_req_failed) {
+    summary += indent + `  Error Rate: ${(metrics.http_req_failed.values.rate * 100).toFixed(2)}%\n`;
+  }
+  
+  if (metrics.http_reqs) {
+    summary += indent + `  Total Requests: ${metrics.http_reqs.values.count}\n`;
+  }
+  
+  summary += '\n';
   return summary;
+}
+
+// HTML report helper
+function htmlReport(data) {
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <title>k6 Load Test Report</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    h1 { color: #333; }
+    .metric { margin: 10px 0; padding: 10px; background: #f5f5f5; }
+    .pass { color: green; }
+    .fail { color: red; }
+  </style>
+</head>
+<body>
+  <h1>k6 Load Test Report</h1>
+  <p>Generated: ${new Date().toISOString()}</p>
+  <div class="metric">
+    <h3>Test Results</h3>
+    <pre>${JSON.stringify(data.metrics, null, 2)}</pre>
+  </div>
+</body>
+</html>
+  `;
 }

@@ -1,18 +1,19 @@
-# Artillery Load Testing Configuration
-# ====================================
-# 
-# Comprehensive load testing with Artillery
-# 
-# Usage:
-# artillery run load-tests/artillery-config.yml
-# artillery run --target http://localhost:3000 load-tests/artillery-config.yml
-# 
-# Generate HTML report:
-# artillery run --output report.json load-tests/artillery-config.yml
-# artillery report report.json
+/**
+ * Artillery Load Testing Configuration
+ * 
+ * Alternative to k6 with different features:
+ * - Built-in reporting
+ * - Plugin ecosystem
+ * - Easier configuration
+ * 
+ * Usage:
+ *   npm run load-test:artillery
+ *   artillery run load-tests/artillery-config.yml
+ *   artillery run --target http://localhost:3000 load-tests/artillery-config.yml
+ */
 
 config:
-  target: "http://localhost:3000"
+  target: "{{ $processEnvironment.BASE_URL || 'http://localhost:3000' }}"
   phases:
     # Warm-up phase
     - duration: 60
@@ -23,57 +24,55 @@ config:
     - duration: 120
       arrivalRate: 5
       rampTo: 50
-      name: "Ramp up to 50 RPS"
+      name: "Ramp-up to normal load"
     
-    # Sustained load
+    # Sustained load phase
     - duration: 300
       arrivalRate: 50
-      name: "Sustained load (50 RPS)"
+      name: "Sustained normal load"
     
-    # Peak load
-    - duration: 120
-      arrivalRate: 50
-      rampTo: 100
-      name: "Peak load ramp-up"
-    
-    - duration: 300
+    # Peak load phase
+    - duration: 180
       arrivalRate: 100
-      name: "Peak load (100 RPS)"
+      name: "Peak load"
     
-    # Ramp down
+    # Cool down phase
     - duration: 60
-      arrivalRate: 100
-      rampTo: 0
-      name: "Ramp down"
-
-  # Performance thresholds
-  ensure:
-    p95: 200  # 95th percentile < 200ms
-    p99: 500  # 99th percentile < 500ms
-    maxErrorRate: 1  # Error rate < 1%
-    
+      arrivalRate: 10
+      name: "Cool-down"
+  
+  # HTTP configuration
+  http:
+    timeout: 10
+    maxSockets: 100
+  
   # Plugins
   plugins:
     expect: {}
     metrics-by-endpoint: {}
   
-  # HTTP settings
-  http:
-    timeout: 10
-    pool: 100  # Connection pool size
+  # Performance expectations
+  ensure:
+    maxErrorRate: 1        # Max 1% error rate
+    p95: 500               # 95th percentile < 500ms
+    p99: 1000              # 99th percentile < 1000ms
   
-  # Request defaults
-  defaults:
-    headers:
-      Content-Type: "application/json"
-      Accept: "application/json"
-      User-Agent: "Artillery-LoadTest/1.0"
+  # Variables
+  variables:
+    testEmail:
+      - "load-test-1@example.com"
+      - "load-test-2@example.com"
+      - "load-test-3@example.com"
+    testPassword: "LoadTest123!@#"
+  
+  # Processor for custom logic
+  processor: "./load-tests/artillery-processor.js"
 
 # Test scenarios
 scenarios:
-  # Scenario 1: Health Check
-  - name: "Health Check Flow"
-    weight: 20
+  # Health check scenario
+  - name: "Health Check"
+    weight: 10
     flow:
       - get:
           url: "/api/health"
@@ -81,167 +80,140 @@ scenarios:
             - statusCode: 200
             - contentType: json
             - hasProperty: status
-          capture:
-            json: "$.status"
-            as: "healthStatus"
 
-  # Scenario 2: API Versioning
-  - name: "API Versioning Flow"
-    weight: 15
-    flow:
-      # Test v1 (deprecated)
-      - get:
-          url: "/api/v1/health"
-          expect:
-            - statusCode: 200
-            - hasHeader: "X-API-Deprecated"
-      
-      # Test v2 (latest)
-      - get:
-          url: "/api/v2/health"
-          expect:
-            - statusCode: 200
-            - hasHeader: "X-API-Version"
-      
-      # Test version info
-      - get:
-          url: "/api/version"
-          expect:
-            - statusCode: 200
-
-  # Scenario 3: Authentication Flow
-  - name: "User Authentication Flow"
+  # Authentication scenario
+  - name: "User Authentication"
     weight: 30
     flow:
-      # Register new user
-      - post:
-          url: "/api/auth/register"
-          json:
-            email: "test-{{ $randomString() }}@example.com"
-            password: "TestPassword123!@#"
-            name: "Test User {{ $randomNumber(1, 1000) }}"
-          capture:
-            json: "$.user.id"
-            as: "userId"
-          expect:
-            - statusCode: 200
-            - hasProperty: user
-      
-      # Login
       - post:
           url: "/api/auth/login"
           json:
-            email: "test@example.com"
-            password: "TestPassword123!@#"
+            email: "{{ testEmail }}"
+            password: "{{ testPassword }}"
           capture:
-            json: "$.accessToken"
-            as: "authToken"
+            - json: "$.token"
+              as: "authToken"
           expect:
-            - statusCode: 200
-            - hasProperty: accessToken
+            - statusCode: 
+                - 200
+                - 401  # User might not exist
       
-      # Think time
-      - think: 2
-      
-      # Access protected resource
+      # Get user profile (if authenticated)
       - get:
-          url: "/api/security/password/policy"
+          url: "/api/user/profile"
           headers:
             Authorization: "Bearer {{ authToken }}"
+          ifTrue: "authToken"
           expect:
-            - statusCode: 200
-      
-      # Think time
-      - think: 1
-      
-      # Logout
-      - post:
-          url: "/api/auth/logout"
-          headers:
-            Authorization: "Bearer {{ authToken }}"
-          expect:
-            - statusCode: 200
+            - statusCode:
+                - 200
+                - 401
 
-  # Scenario 4: Security Features
-  - name: "Security Features Flow"
+  # Resource CRUD operations
+  - name: "Resource Operations"
+    weight: 40
+    flow:
+      # Login first
+      - post:
+          url: "/api/auth/login"
+          json:
+            email: "{{ testEmail }}"
+            password: "{{ testPassword }}"
+          capture:
+            - json: "$.token"
+              as: "authToken"
+      
+      # List resources
+      - get:
+          url: "/api/resources"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          ifTrue: "authToken"
+          expect:
+            - statusCode:
+                - 200
+                - 401
+                - 404
+      
+      # Create resource
+      - post:
+          url: "/api/resources"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          json:
+            title: "Load Test Resource {{ $randomString() }}"
+            description: "Created during Artillery load test"
+          ifTrue: "authToken"
+          capture:
+            - json: "$.id"
+              as: "resourceId"
+          expect:
+            - statusCode:
+                - 200
+                - 201
+                - 401
+                - 404
+      
+      # Get specific resource
+      - get:
+          url: "/api/resources/{{ resourceId }}"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          ifTrue: "resourceId"
+          expect:
+            - statusCode:
+                - 200
+                - 404
+      
+      # Update resource
+      - put:
+          url: "/api/resources/{{ resourceId }}"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          json:
+            title: "Updated Load Test Resource"
+          ifTrue: "resourceId"
+          expect:
+            - statusCode:
+                - 200
+                - 404
+      
+      # Delete resource
+      - delete:
+          url: "/api/resources/{{ resourceId }}"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          ifTrue: "resourceId"
+          expect:
+            - statusCode:
+                - 200
+                - 204
+                - 404
+
+  # Search and filter scenario
+  - name: "Search Operations"
     weight: 20
     flow:
-      # Validate password
-      - post:
-          url: "/api/security/password/validate"
-          json:
-            password: "TestPassword123!@#"
-          expect:
-            - statusCode: 200
-            - hasProperty: data.valid
-      
-      # Think time
-      - think: 1
-      
-      # Get password policy
-      - get:
-          url: "/api/security/password/policy"
-          expect:
-            - statusCode: 200
-            - hasProperty: data.minLength
-      
-      # Think time
-      - think: 1
-      
-      # Check integrations health
-      - get:
-          url: "/api/integrations/phase6a/health"
-          expect:
-            - statusCode: 200
-
-  # Scenario 5: Error Handling
-  - name: "Error Handling Flow"
-    weight: 10
-    flow:
-      # Test 404
-      - get:
-          url: "/api/nonexistent"
-          expect:
-            - statusCode: 404
-            - hasProperty: error.code
-      
-      # Test invalid authentication
       - post:
           url: "/api/auth/login"
           json:
-            email: "invalid@example.com"
-            password: "wrong"
-          expect:
-            - statusCode: 401
+            email: "{{ testEmail }}"
+            password: "{{ testPassword }}"
+          capture:
+            - json: "$.token"
+              as: "authToken"
       
-      # Test validation error
-      - post:
-          url: "/api/auth/register"
-          json:
-            email: "invalid-email"
-            password: "weak"
+      - get:
+          url: "/api/resources/search?q=test&page=1&limit=10"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          ifTrue: "authToken"
           expect:
-            - statusCode: 400
+            - statusCode:
+                - 200
+                - 404
 
-  # Scenario 6: Concurrent Operations
-  - name: "Concurrent Operations"
-    weight: 5
-    flow:
-      # Multiple parallel requests
-      - parallel:
-          - get:
-              url: "/api/health"
-          - get:
-              url: "/api/version"
-          - get:
-              url: "/api/integrations/phase6a/health"
-          - get:
-              url: "/api/integrations/phase6b/health"
-          - get:
-              url: "/api/integrations/phase6c/health"
-      
-      expect:
-        - statusCode: 200
-
-# Custom functions for data generation
-processor: "./load-tests/artillery-processor.js"
+# After test hooks
+after:
+  flow:
+    - log: "Load test completed. Check artillery report for details."

@@ -1,0 +1,23 @@
+# Dockerfile for Integration Testing
+
+FROM node:18-alpine
+
+# Install test dependencies
+RUN apk add --no-cache \
+    curl \
+    postgresql-client \
+    redis
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install ALL dependencies (including dev dependencies)
+RUN npm ci
+
+# Copy application code
+COPY . .
+
+# Run tests by default
+CMD ["npm", "run", "test:integration"]
