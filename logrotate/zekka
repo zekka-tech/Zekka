@@ -1,0 +1,93 @@
+# ==================================
+# Zekka Framework - Logrotate Configuration
+# ==================================
+# Installation:
+#   sudo cp logrotate/zekka /etc/logrotate.d/zekka
+#   sudo chmod 644 /etc/logrotate.d/zekka
+#   sudo logrotate -d /etc/logrotate.d/zekka  # Test
+#   sudo logrotate -f /etc/logrotate.d/zekka  # Force run
+# ==================================
+
+# Application logs
+/opt/zekka/logs/*.log {
+    daily
+    rotate 90
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0640 zekka zekka
+    sharedscripts
+    
+    postrotate
+        # Signal application to reopen log files
+        systemctl reload zekka.service > /dev/null 2>&1 || true
+    endscript
+}
+
+# Audit logs (longer retention)
+/opt/zekka/logs/audit/*.log {
+    daily
+    rotate 365
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0600 zekka zekka
+    sharedscripts
+}
+
+# Security logs (longest retention)
+/opt/zekka/logs/security/*.log {
+    daily
+    rotate 730
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0600 zekka zekka
+    sharedscripts
+}
+
+# Error logs
+/opt/zekka/logs/error/*.log {
+    daily
+    rotate 180
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0640 zekka zekka
+    sharedscripts
+    
+    # Email on errors (optional)
+    # mailfirst admin@example.com
+}
+
+# Access logs
+/opt/zekka/logs/access/*.log {
+    daily
+    rotate 30
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0640 zekka zekka
+    sharedscripts
+}
+
+# Nginx logs (if using Nginx reverse proxy)
+/var/log/nginx/zekka-*.log {
+    daily
+    rotate 30
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0640 www-data adm
+    sharedscripts
+    
+    postrotate
+        [ -f /var/run/nginx.pid ] && kill -USR1 `cat /var/run/nginx.pid`
+    endscript
+}

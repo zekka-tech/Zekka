@@ -1,0 +1,50 @@
+[Unit]
+Description=Zekka Framework - AI Orchestration Platform
+Documentation=https://github.com/zekka-tech/Zekka
+After=network.target postgresql.service redis.service
+Wants=postgresql.service redis.service
+
+[Service]
+Type=simple
+User=zekka
+Group=zekka
+WorkingDirectory=/opt/zekka
+Environment=NODE_ENV=production
+EnvironmentFile=/opt/zekka/.env
+
+# Main process
+ExecStart=/usr/bin/node /opt/zekka/src/index.js
+
+# Pre-start checks
+ExecStartPre=/usr/bin/node /opt/zekka/scripts/validate-environment.js
+
+# Restart policy
+Restart=always
+RestartSec=10s
+StartLimitInterval=60s
+StartLimitBurst=3
+
+# Process management
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=30s
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=4096
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/zekka/logs /opt/zekka/uploads /opt/zekka/.wrangler
+ReadOnlyPaths=/opt/zekka
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=zekka
+
+[Install]
+WantedBy=multi-user.target
