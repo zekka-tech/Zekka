@@ -1,0 +1,194 @@
+# OWASP ZAP Scanning Rules Configuration
+# Format: RULE_ID	ACTION	REASON
+# Actions: IGNORE, WARN, FAIL
+
+# ==================================
+# Ignore Rules (False Positives)
+# ==================================
+
+# Content Security Policy (CSP) Header Not Set - handled by Helmet
+10038	IGNORE	CSP configured via Helmet middleware
+
+# X-Content-Type-Options Header Not Set - handled by Helmet
+10021	IGNORE	X-Content-Type-Options configured via Helmet
+
+# Information Disclosure - Debug Error Messages (test environment only)
+10023	IGNORE	Debug messages expected in development
+
+# Timestamp Disclosure - handled by log sanitization
+10096	IGNORE	Timestamps sanitized in production logs
+
+# ==================================
+# Warning Rules (Review Required)
+# ==================================
+
+# Web Browser XSS Protection Not Enabled
+10016	WARN	X-XSS-Protection header consideration
+
+# X-Frame-Options Header Not Set
+10020	WARN	Verify clickjacking protection
+
+# Cookie No HttpOnly Flag
+10010	WARN	Verify cookie security settings
+
+# Cookie Without Secure Flag
+10011	WARN	Ensure HTTPS-only cookies in production
+
+# Absence of Anti-CSRF Tokens
+10202	WARN	Verify CSRF protection implementation
+
+# ==================================
+# Failure Rules (Must Fix)
+# ==================================
+
+# Cross Site Scripting (Reflected)
+40012	FAIL	Critical: XSS vulnerability detected
+
+# Cross Site Scripting (Persistent)
+40014	FAIL	Critical: Persistent XSS vulnerability
+
+# SQL Injection
+40018	FAIL	Critical: SQL injection vulnerability
+
+# Remote OS Command Injection
+90020	FAIL	Critical: Command injection vulnerability
+
+# Server Side Code Injection
+90019	FAIL	Critical: Code injection vulnerability
+
+# Path Traversal
+6	FAIL	Critical: Directory traversal vulnerability
+
+# Remote File Inclusion
+7	FAIL	Critical: File inclusion vulnerability
+
+# CRLF Injection
+40003	FAIL	High: CRLF injection vulnerability
+
+# External Redirect
+20019	FAIL	Medium: Open redirect vulnerability
+
+# Server Side Include
+40009	FAIL	High: SSI injection vulnerability
+
+# Source Code Disclosure
+43	FAIL	High: Source code exposure
+
+# Application Error Disclosure
+90022	FAIL	Medium: Error message disclosure
+
+# Buffer Overflow
+30001	FAIL	Critical: Buffer overflow vulnerability
+
+# Format String Error
+30002	FAIL	Critical: Format string vulnerability
+
+# SQL Injection - Hypersonic SQL
+40020	FAIL	Critical: Database-specific SQL injection
+
+# SQL Injection - MySQL
+40021	FAIL	Critical: MySQL SQL injection
+
+# SQL Injection - Oracle
+40022	FAIL	Critical: Oracle SQL injection
+
+# SQL Injection - PostgreSQL
+40023	FAIL	Critical: PostgreSQL SQL injection
+
+# Heartbleed OpenSSL Vulnerability
+10034	FAIL	Critical: OpenSSL Heartbleed
+
+# ==================================
+# Authentication & Session Management
+# ==================================
+
+# Weak Authentication Method
+10105	FAIL	High: Weak authentication detected
+
+# Insufficient Authentication
+10106	FAIL	High: Authentication bypass possible
+
+# Session ID in URL Rewrite
+3	FAIL	High: Session ID exposed in URL
+
+# ==================================
+# Sensitive Data Exposure
+# ==================================
+
+# Private IP Disclosure
+2	FAIL	Medium: Private IP address disclosure
+
+# Session ID in URL Rewrite
+3	FAIL	High: Session exposed in URL
+
+# User Controllable HTML Element Attribute (Potential XSS)
+10031	WARN	Verify HTML attribute sanitization
+
+# User Controllable JavaScript Event (XSS)
+10043	FAIL	High: JavaScript event XSS
+
+# ==================================
+# Security Misconfiguration
+# ==================================
+
+# Directory Browsing
+0	FAIL	Medium: Directory listing enabled
+
+# Backup File Disclosure
+10095	FAIL	High: Backup files accessible
+
+# .htaccess Information Leak
+40032	FAIL	Medium: Configuration file disclosure
+
+# ==================================
+# Insecure Deserialization
+# ==================================
+
+# Insecure Deserialization
+90026	FAIL	Critical: Unsafe deserialization
+
+# ==================================
+# Using Components with Known Vulnerabilities
+# ==================================
+
+# Vulnerable JavaScript Library
+10003	FAIL	High: Outdated library detected
+
+# ==================================
+# Insufficient Logging & Monitoring
+# ==================================
+
+# Insufficient Logging
+90028	WARN	Review logging implementation
+
+# ==================================
+# API Security
+# ==================================
+
+# Cross-Domain JavaScript Source File Inclusion
+10017	WARN	Review CORS policy
+
+# Content Type Missing
+10019	WARN	Verify Content-Type headers
+
+# Absence of Anti-CSRF Tokens
+10202	FAIL	High: CSRF protection required
+
+# ==================================
+# Transport Layer Protection
+# ==================================
+
+# HTTPS Content Available via HTTP
+10047	FAIL	High: Mixed content vulnerability
+
+# Strict-Transport-Security Header Not Set
+10035	WARN	HSTS header recommended
+
+# ==================================
+# Notes
+# ==================================
+# - IGNORE: Issue will not be reported
+# - WARN: Issue will be reported as informational
+# - FAIL: Issue will cause scan to fail
+# - This file should be updated based on your specific requirements
+# - Review and adjust rules after initial scan
