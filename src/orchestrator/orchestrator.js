@@ -3,24 +3,100 @@ const { v4: uuidv4 } = require('uuid');
 const axios = require('axios');
 
 /**
- * Zekka Orchestrator - Central coordination for multi-agent workflows
+ * Zekka Orchestrator - Central Coordination for Multi-Agent Workflows
+ *
+ * The Orchestrator is the brain of the Zekka Framework, responsible for:
+ * - Creating and managing software development projects
+ * - Coordinating multiple AI agents working on tasks
+ * - Managing workflow stages from research to deployment
+ * - Tracking costs and budget through Token Economics
+ * - Monitoring project progress and metrics
+ *
+ * @module orchestrator/orchestrator
+ * @requires pg - PostgreSQL client for project/task persistence
+ * @requires uuid - Unique identifier generation
+ * @requires axios - HTTP client for external API calls (Ollama, etc.)
+ *
+ * @description
+ * The Orchestrator implements a staged workflow for software development:
+ * 1. Authentication - Verify user and project access
+ * 2. Security Setup - Configure security policies
+ * 3. Research - AI agents research requirements (3 agents)
+ * 4. Documentation - Generate technical documentation
+ * 5. Development - Code implementation (6 agents)
+ * 6. Testing - Automated testing (2 agents)
+ * 7. Validation - Code review and validation
+ * 8. Deployment - Deploy to target environment
+ *
+ * @example
+ * // Initialize orchestrator
+ * const orchestrator = new ZekkaOrchestrator({
+ *   contextBus,
+ *   tokenEconomics,
+ *   logger,
+ *   config: { githubToken, anthropicKey, ollamaHost }
+ * });
+ * await orchestrator.initialize();
+ *
+ * @example
+ * // Create and execute a project
+ * const project = await orchestrator.createProject({
+ *   name: 'My App',
+ *   requirements: ['User authentication', 'Dashboard'],
+ *   storyPoints: 13,
+ *   budget: { daily: 50, monthly: 1000 }
+ * });
+ * await orchestrator.executeProject(project.projectId);
+ *
+ * @author Zekka Technologies
+ * @version 2.0.0
+ * @since 1.0.0
  */
 class ZekkaOrchestrator {
+  /**
+   * Create a new Orchestrator instance.
+   *
+   * @param {Object} options - Configuration options
+   * @param {Object} options.contextBus - Context Bus instance for state management
+   * @param {Object} options.tokenEconomics - Token Economics instance for cost tracking
+   * @param {Object} [options.logger=console] - Logger instance
+   * @param {Object} [options.config={}] - Additional configuration
+   * @param {string} [options.config.githubToken] - GitHub API token
+   * @param {string} [options.config.anthropicKey] - Anthropic API key
+   * @param {string} [options.config.openaiKey] - OpenAI API key
+   * @param {string} [options.config.ollamaHost] - Ollama server URL
+   * @param {number} [options.config.maxConcurrentAgents=10] - Max parallel agents
+   * @param {string} [options.config.defaultModel='ollama'] - Default LLM model
+   *
+   * @throws {Error} If DATABASE_URL environment variable is not set
+   */
   constructor(options = {}) {
     this.contextBus = options.contextBus;
     this.tokenEconomics = options.tokenEconomics;
     this.logger = options.logger || console;
     this.config = options.config || {};
 
+    // Validate required environment variables
     if (!process.env.DATABASE_URL) {
-      throw new Error('DATABASE_URL is not set');
+      throw new Error('DATABASE_URL environment variable is required');
     }
 
+    // Initialize database connection pool
+    // Uses connection pooling for efficient resource management
     this.db = new Pool({
       connectionString: process.env.DATABASE_URL,
       ssl: {
-        rejectUnauthorized: false, // required for Supabase
+        rejectUnauthorized: false, // Required for Supabase and similar cloud providers
       },
+      min: 2,                      // Minimum pool size
+      max: 10,                     // Maximum pool size
+      idleTimeoutMillis: 30000,    // Close idle connections after 30s
+      connectionTimeoutMillis: 5000 // Timeout for new connections
+    });
+
+    // Handle pool errors gracefully
+    this.db.on('error', (err) => {
+      this.logger.error('Unexpected database pool error:', err.message);
     });
 
     this.ready = false;

@@ -7,6 +7,14 @@ version: "3.9"
 networks:
   zekka-network:
     driver: bridge
+    enable_ipv6: true
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.18.0.0/16
+          gateway: 172.18.0.1
+        - subnet: fd00::/80
+          gateway: fd00::1
 
 volumes:
   redis-data:
@@ -30,16 +38,23 @@ services:
       - NODE_OPTIONS=--dns-result-order=ipv4first
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - PGSSLMODE=require
     env_file:
       - .env
       - .env.production
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+      - 1.1.1.1
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       redis:
         condition: service_healthy
     networks:
       - zekka-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -57,18 +72,20 @@ services:
     restart: unless-stopped
     ports:
       - "6379:6379"
+    env_file:
+      - .env.production
     command: >
-      redis-server
-      --requirepass ${REDIS_PASSWORD:-changeme}
+      sh -c "redis-server
+      --requirepass $$REDIS_PASSWORD
       --maxmemory 256mb
       --maxmemory-policy allkeys-lru
-      --appendonly yes
+      --appendonly yes"
     volumes:
       - redis-data:/data
     networks:
       - zekka-network
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "sh", "-c", "redis-cli -a $$REDIS_PASSWORD ping"]
       interval: 10s
       timeout: 3s
       retries: 5
@@ -165,6 +182,8 @@ services:
     restart: unless-stopped
     ports:
       - "9121:9121"
+    env_file:
+      - .env.production
     environment:
       - REDIS_ADDR=redis:6379
       - REDIS_PASSWORD=${REDIS_PASSWORD:-changeme}
