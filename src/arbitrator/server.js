@@ -30,7 +30,12 @@ app.use(express.json());
 // Verify GitHub webhook signature
 function verifyWebhookSignature(req, res, next) {
   const signature = req.headers['x-hub-signature-256'];
-  const secret = process.env.WEBHOOK_SECRET || 'default-secret-change-me';
+  const secret = process.env.WEBHOOK_SECRET;
+
+  if (!secret) {
+    console.error('❌ WEBHOOK_SECRET not configured');
+    return res.status(500).json({ error: 'Server configuration error' });
+  }
   
   if (!signature) {
     return res.status(401).json({ error: 'Missing signature' });

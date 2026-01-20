@@ -19,7 +19,11 @@ import redis from '../config/redis.js';
 import auditService from '../services/audit-service.js';
 import passwordService from '../services/password-service.js';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+const JWT_SECRET = process.env.JWT_SECRET;
+
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is required for security middleware');
+}
 
 /**
  * Authenticate JWT token

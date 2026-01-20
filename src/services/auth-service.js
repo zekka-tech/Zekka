@@ -25,8 +25,12 @@ import redis from '../config/redis.js';
 import auditService from './audit-service.js';
 
 const SALT_ROUNDS = 10;
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '1h';
+
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is required for authentication service');
+}
 const REFRESH_TOKEN_EXPIRES_IN = '7d';
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOCKOUT_TIME_MINUTES = 15;

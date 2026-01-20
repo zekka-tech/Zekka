@@ -11,6 +11,7 @@ const swaggerSpec = require('./swagger');
 const ContextBus = require('./shared/context-bus');
 const TokenEconomics = require('./shared/token-economics');
 const ZekkaOrchestrator = require('./orchestrator/orchestrator');
+const { initVault } = require('./config/vault');
 
 // Middleware
 const { apiLimiter, createProjectLimiter, authLimiter } = require('./middleware/rateLimit');
@@ -51,15 +52,25 @@ app.use(morgan('combined', { stream: { write: msg => logger.info(msg.trim()) } }
 app.use(metricsMiddleware);
 
 // Initialize core services
-let contextBus, tokenEconomics, orchestrator;
+let contextBus, tokenEconomics, orchestrator, vault;
 
 async function initializeServices() {
   try {
     logger.info('🚀 Initializing Zekka Framework services...');
-    
+
     // Initialize WebSocket
     websocket.initializeWebSocket(server, logger);
-    
+
+    // Initialize Vault (if enabled)
+    try {
+      vault = await initVault(logger);
+      if (vault) {
+        logger.info('✅ Vault service ready');
+      }
+    } catch (vaultError) {
+      logger.warn('⚠️  Vault initialization failed, using environment variables:', vaultError.message);
+    }
+
     // Initialize Context Bus (Redis) with password authentication
     contextBus = new ContextBus({
       host: process.env.REDIS_HOST || 'localhost',
@@ -529,10 +540,14 @@ app.use((err, req, res, next) => {
 // Graceful shutdown
 process.on('SIGTERM', async () => {
   logger.info('SIGTERM received, shutting down gracefully...');
-  
+
+  if (vault) {
+    const { shutdownVault } = require('./config/vault');
+    await shutdownVault();
+  }
   if (contextBus) await contextBus.disconnect();
   if (orchestrator) await orchestrator.shutdown();
-  
+
   process.exit(0);
 });
 
