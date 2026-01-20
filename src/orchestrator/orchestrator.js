@@ -1,6 +1,7 @@
 const { Pool } = require('pg');
 const { v4: uuidv4 } = require('uuid');
 const axios = require('axios');
+const ModelClient = require('../services/model-client');
 
 /**
  * Zekka Orchestrator - Central Coordination for Multi-Agent Workflows
@@ -75,6 +76,14 @@ class ZekkaOrchestrator {
     this.tokenEconomics = options.tokenEconomics;
     this.logger = options.logger || console;
     this.config = options.config || {};
+
+    // Initialize the unified Model Client for AI interactions
+    // The Orchestrator uses Gemini Pro by default with automatic fallback to Ollama
+    this.modelClient = new ModelClient({
+      logger: this.logger,
+      tokenEconomics: this.tokenEconomics,
+      contextBus: this.contextBus
+    });
 
     // Validate required environment variables
     if (!process.env.DATABASE_URL) {
@@ -269,10 +278,11 @@ class ZekkaOrchestrator {
     this.logger.info(`📍 Stage ${number}: ${name} (${agentCount} agents)`);
 
     // Select appropriate model based on complexity and budget
-    // Ensure tokenEconomics exists before calling method
-    const model = this.tokenEconomics 
-      ? await this.tokenEconomics.selectModel(complexity, projectId) 
-      : 'llama3';
+    // The Orchestrator uses Gemini Pro by default for workflow coordination
+    // Falls back to Ollama if Gemini is unavailable or budget is exceeded
+    const model = this.tokenEconomics
+      ? await this.tokenEconomics.selectModel(complexity, projectId)
+      : 'gemini-pro';
 
     // Create tasks for each agent
     const tasks = [];
@@ -293,7 +303,7 @@ class ZekkaOrchestrator {
 
     // Execute tasks (simplified simulation)
     for (const task of tasks) {
-      await this.executeTask(task.task_id, model);
+      await this.executeTask(task.task_id, model, projectId);
     }
 
     // Check for conflicts
@@ -324,8 +334,8 @@ class ZekkaOrchestrator {
     return { task_id: taskId, agent_name: agentName, status: 'pending' };
   }
 
-  async executeTask(taskId, model) {
-    // Simulate task execution
+  async executeTask(taskId, model, projectId) {
+    // Execute task using the Model Client for AI coordination
     const startTime = Date.now();
 
     // Update task status
@@ -335,10 +345,37 @@ class ZekkaOrchestrator {
     );
 
     try {
-      // Simulate AI call (would actually call Ollama/Claude here)
-      const result = await this.simulateAgentWork(taskId, model);
+      // Get task details
+      const taskResult = await this.db.query('SELECT * FROM tasks WHERE task_id = $1', [taskId]);
+      const task = taskResult.rows[0];
 
-      // Record cost if tokenEconomics is available
+      // Generate task execution plan using the Orchestrator's model (Gemini Pro)
+      // This uses the unified Model Client which handles fallback automatically
+      const prompt = `You are the Zekka Orchestrator coordinating task execution.
+
+Task Details:
+- Task ID: ${taskId}
+- Agent: ${task.agent_name}
+- Stage: ${task.stage}
+- Project: ${projectId}
+
+Generate a brief execution plan for this task. Respond with a JSON object containing:
+- steps: array of execution steps
+- estimatedDuration: estimated duration in seconds
+- dependencies: any dependencies needed`;
+
+      const response = await this.modelClient.generateOrchestratorResponse(prompt, {
+        projectId,
+        taskId,
+        maxTokens: 500,
+        temperature: 0.7
+      });
+
+      // Simulate AI call (would actually call agent model here)
+      const result = await this.simulateAgentWork(taskId, model, response);
+
+      // Cost is already recorded by modelClient.generateOrchestratorResponse
+      // Record additional cost for agent work if tokenEconomics is available
       if (this.tokenEconomics) {
         await this.tokenEconomics.recordCost({
           projectId: result.projectId,
@@ -352,13 +389,17 @@ class ZekkaOrchestrator {
 
       // Complete task
       await this.db.query(
-        `UPDATE tasks SET status = $1, completed_at = CURRENT_TIMESTAMP, output_data = $2 
+        `UPDATE tasks SET status = $1, completed_at = CURRENT_TIMESTAMP, output_data = $2
          WHERE task_id = $3`,
-        ['completed', JSON.stringify(result), taskId]
+        ['completed', JSON.stringify({
+          ...result,
+          orchestratorModel: response.model,
+          fallbackUsed: response.fallbackUsed
+        }), taskId]
       );
 
       const duration = Date.now() - startTime;
-      this.logger.info(`✅ Task ${taskId} completed in ${duration}ms`);
+      this.logger.info(`✅ Task ${taskId} completed in ${duration}ms using ${response.model}`);
 
       return result;
     } catch (error) {
@@ -371,7 +412,7 @@ class ZekkaOrchestrator {
     }
   }
 
-  async simulateAgentWork(taskId, model) {
+  async simulateAgentWork(taskId, model, orchestratorResponse) {
     // Get task details
     const result = await this.db.query('SELECT * FROM tasks WHERE task_id = $1', [taskId]);
     const task = result.rows[0];
@@ -391,6 +432,7 @@ class ZekkaOrchestrator {
       tokensInput,
       tokensOutput,
       result: `Simulated output for task ${taskId} using ${model}`,
+      orchestratorPlan: orchestratorResponse.text.substring(0, 200), // First 200 chars
       model
     };
   }
@@ -432,6 +474,12 @@ class ZekkaOrchestrator {
 
   async shutdown() {
     this.logger.info('🛑 Shutting down orchestrator...');
+
+    // Close model client connections
+    if (this.modelClient) {
+      await this.modelClient.close();
+    }
+
     await this.db.end();
     this.ready = false;
   }

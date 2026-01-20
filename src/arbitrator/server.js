@@ -3,25 +3,42 @@ const express = require('express');
 const crypto = require('crypto');
 const axios = require('axios');
 const ContextBus = require('../shared/context-bus');
+const ModelClient = require('../services/model-client');
 
 /**
  * Arbitrator Agent - AI-powered conflict resolution
  * Receives GitHub webhooks and resolves merge conflicts automatically
+ *
+ * The Arbitrator uses Claude Sonnet 4.5 as its primary model for:
+ * - Advanced reasoning in conflict resolution
+ * - Superior code understanding
+ * - Critical decision-making
+ *
+ * Falls back to Ollama when Claude is unavailable or budget is exceeded.
  */
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
 let contextBus;
+let modelClient;
 
-// Initialize Context Bus
+// Initialize Context Bus and Model Client
 async function initialize() {
   contextBus = new ContextBus({
     host: process.env.REDIS_HOST || 'localhost',
     port: parseInt(process.env.REDIS_PORT) || 6379
   });
   await contextBus.connect();
-  console.log('✅ Arbitrator Agent initialized');
+
+  // Initialize Model Client for AI-powered conflict resolution
+  // Arbitrator uses Claude Sonnet 4.5 by default with automatic fallback to Ollama
+  modelClient = new ModelClient({
+    logger: console,
+    contextBus: contextBus
+  });
+
+  console.log('✅ Arbitrator Agent initialized with Claude Sonnet 4.5');
 }
 
 // Middleware
@@ -132,22 +149,68 @@ async function resolveConflict(conflictId, pullRequest) {
   try {
     // Get conflict details
     const conflict = await contextBus.getConflict(conflictId);
-    
-    // Use AI to resolve (Ollama or Claude)
-    const model = process.env.ANTHROPIC_API_KEY ? 'claude' : 'ollama';
-    const resolution = await queryAI(model, {
-      task: 'resolve_conflict',
-      conflict,
-      pullRequest
+
+    // Build detailed prompt for the Arbitrator AI
+    // The Arbitrator uses Claude Sonnet 4.5 for advanced reasoning
+    const prompt = `You are the Zekka Arbitrator, an expert code conflict resolver.
+
+Analyze this merge conflict and provide a resolution:
+
+Pull Request: #${pullRequest.number} - ${pullRequest.title}
+Repository: ${pullRequest.base.repo.full_name}
+Branch: ${pullRequest.head.ref} → ${pullRequest.base.ref}
+Files Changed: ${pullRequest.changed_files}
+
+Conflict Details:
+${JSON.stringify(conflict, null, 2)}
+
+Your task:
+1. Analyze the conflicting changes
+2. Understand the intent of both changes
+3. Propose a resolution that preserves both intents if possible
+4. Explain your reasoning
+
+Respond with a JSON object containing:
+- resolution: "merge" | "reject" | "manual"
+- explanation: detailed explanation of your decision
+- suggestedChanges: specific code changes if resolution is "merge"
+- reasoning: step-by-step reasoning process`;
+
+    // Use the Model Client to generate resolution
+    // This automatically uses Claude Sonnet 4.5 with fallback to Ollama
+    const response = await modelClient.generateArbitratorResponse(prompt, {
+      taskId: conflictId,
+      maxTokens: 4000,
+      temperature: 0.3 // Lower temperature for deterministic decisions
     });
 
+    // Parse the AI response (attempt JSON parse, fallback to raw text)
+    let resolutionData;
+    try {
+      resolutionData = JSON.parse(response.text);
+    } catch {
+      resolutionData = {
+        resolution: 'manual',
+        explanation: response.text,
+        reasoning: 'AI provided non-JSON response'
+      };
+    }
+
     // Update conflict status
-    await contextBus.updateConflictStatus(conflictId, 'resolved', resolution);
+    await contextBus.updateConflictStatus(conflictId, 'resolved', {
+      ...resolutionData,
+      modelUsed: response.model,
+      fallbackUsed: response.fallbackUsed
+    });
+
+    console.log(`✅ Conflict ${conflictId} resolved using ${response.model}${response.fallbackUsed ? ' (fallback)' : ''}`);
 
     return {
       success: true,
-      explanation: resolution.explanation,
-      resolvedBy: model
+      explanation: resolutionData.explanation,
+      resolution: resolutionData.resolution,
+      resolvedBy: response.model,
+      fallbackUsed: response.fallbackUsed
     };
   } catch (error) {
     console.error('Error resolving conflict:', error);
@@ -158,47 +221,14 @@ async function resolveConflict(conflictId, pullRequest) {
   }
 }
 
-async function queryAI(model, data) {
-  if (model === 'claude' && process.env.ANTHROPIC_API_KEY) {
-    // Use Claude API
-    const response = await axios.post(
-      'https://api.anthropic.com/v1/messages',
-      {
-        model: 'claude-3-5-sonnet-20241022',
-        max_tokens: 2000,
-        messages: [{
-          role: 'user',
-          content: `You are an expert code arbitrator. Analyze this merge conflict and provide a resolution:\n\n${JSON.stringify(data, null, 2)}`
-        }]
-      },
-      {
-        headers: {
-          'x-api-key': process.env.ANTHROPIC_API_KEY,
-          'anthropic-version': '2023-06-01',
-          'content-type': 'application/json'
-        }
-      }
-    );
-
-    return {
-      explanation: response.data.content[0].text,
-      model: 'claude-3-5-sonnet'
-    };
-  } else {
-    // Use local Ollama
-    const ollamaHost = process.env.OLLAMA_HOST || 'http://localhost:11434';
-    const response = await axios.post(`${ollamaHost}/api/generate`, {
-      model: 'llama3.1:8b',
-      prompt: `You are an expert code arbitrator. Analyze this merge conflict and provide a resolution:\n\n${JSON.stringify(data, null, 2)}`,
-      stream: false
-    });
-
-    return {
-      explanation: response.data.response,
-      model: 'llama3.1:8b'
-    };
-  }
-}
+// NOTE: The queryAI function has been replaced by the ModelClient
+// All AI calls now go through modelClient.generateArbitratorResponse()
+// which handles:
+// - Primary model selection (Claude Sonnet 4.5)
+// - Automatic fallback to Ollama
+// - Error handling and retry logic
+// - Cost tracking
+// - Logging and monitoring
 
 async function postComment(pullRequest, comment) {
   if (!process.env.GITHUB_TOKEN) {

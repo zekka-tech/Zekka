@@ -170,13 +170,62 @@ const envSchema = joi.object({
   // Ollama
   OLLAMA_HOST: joi.string()
     .default('http://localhost:11434'),
-  
+
+  OLLAMA_MODEL: joi.string()
+    .default('llama3.1:8b'),
+
   DEFAULT_MODEL: joi.string()
     .default('ollama'),
-  
+
   MAX_CONCURRENT_AGENTS: joi.number()
-    .default(10)
-    
+    .default(10),
+
+  // Model Configuration
+  ARBITRATOR_MODEL: joi.string()
+    .default('claude-sonnet-4-5'),
+
+  ORCHESTRATOR_MODEL: joi.string()
+    .default('gemini-pro'),
+
+  FALLBACK_MODEL: joi.string()
+    .default('llama3.1:8b'),
+
+  // Gemini API Configuration
+  GEMINI_API_KEY: joi.string()
+    .allow('')
+    .default(''),
+
+  GEMINI_MODEL: joi.string()
+    .default('gemini-pro'),
+
+  GEMINI_TEMPERATURE: joi.number()
+    .min(0)
+    .max(1)
+    .default(0.7),
+
+  GEMINI_MAX_OUTPUT_TOKENS: joi.number()
+    .default(8192),
+
+  GEMINI_TOP_P: joi.number()
+    .min(0)
+    .max(1)
+    .default(0.95),
+
+  GEMINI_TOP_K: joi.number()
+    .default(40),
+
+  GEMINI_SAFETY_HARASSMENT: joi.string()
+    .default('BLOCK_MEDIUM_AND_ABOVE'),
+
+  GEMINI_SAFETY_HATE_SPEECH: joi.string()
+    .default('BLOCK_MEDIUM_AND_ABOVE'),
+
+  GEMINI_SAFETY_SEXUALLY_EXPLICIT: joi.string()
+    .default('BLOCK_MEDIUM_AND_ABOVE'),
+
+  GEMINI_SAFETY_DANGEROUS: joi.string()
+    .default('BLOCK_MEDIUM_AND_ABOVE')
+
 }).unknown(true); // Allow unknown env vars
 
 // Validate environment variables
@@ -300,6 +349,41 @@ const config = {
   agents: {
     defaultModel: env.DEFAULT_MODEL,
     maxConcurrent: env.MAX_CONCURRENT_AGENTS
+  },
+
+  // Model Configuration (NEW)
+  models: {
+    // Component-specific model assignments
+    arbitrator: {
+      primary: env.ARBITRATOR_MODEL || 'claude-sonnet-4-5',
+      fallback: env.FALLBACK_MODEL || 'llama3.1:8b',
+      description: 'AI-powered conflict resolution'
+    },
+    orchestrator: {
+      primary: env.ORCHESTRATOR_MODEL || 'gemini-pro',
+      fallback: env.FALLBACK_MODEL || 'llama3.1:8b',
+      description: 'Workflow coordination and planning'
+    },
+    // Gemini configuration
+    gemini: {
+      apiKey: env.GEMINI_API_KEY,
+      model: env.GEMINI_MODEL || 'gemini-pro',
+      temperature: parseFloat(env.GEMINI_TEMPERATURE) || 0.7,
+      maxOutputTokens: parseInt(env.GEMINI_MAX_OUTPUT_TOKENS) || 8192,
+      topP: parseFloat(env.GEMINI_TOP_P) || 0.95,
+      topK: parseInt(env.GEMINI_TOP_K) || 40,
+      safetySettings: {
+        harassment: env.GEMINI_SAFETY_HARASSMENT || 'BLOCK_MEDIUM_AND_ABOVE',
+        hateSpeech: env.GEMINI_SAFETY_HATE_SPEECH || 'BLOCK_MEDIUM_AND_ABOVE',
+        sexuallyExplicit: env.GEMINI_SAFETY_SEXUALLY_EXPLICIT || 'BLOCK_MEDIUM_AND_ABOVE',
+        dangerous: env.GEMINI_SAFETY_DANGEROUS || 'BLOCK_MEDIUM_AND_ABOVE'
+      }
+    },
+    // Ollama configuration
+    ollama: {
+      host: env.OLLAMA_HOST || 'http://localhost:11434',
+      model: env.OLLAMA_MODEL || 'llama3.1:8b'
+    }
   },
   
   // Monitoring
