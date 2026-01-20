@@ -1,35 +1,14 @@
 # ===================================================================
 # Docker Compose Configuration for Zekka Framework
-# 
-# Services:
-# - app: Main application
-# - postgres: PostgreSQL database
-# - redis: Redis cache
-# - prometheus: Metrics collection
-# - grafana: Monitoring dashboards
-# - node-exporter: System metrics
-# - postgres-exporter: Database metrics
-# - redis-exporter: Cache metrics
-# 
-# Usage:
-#   # Development
-#   docker-compose up -d
-#   
-#   # Production
-#   docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
-#   
-#   # Integration testing
-#   docker-compose -f docker-compose.test.yml up --abort-on-container-exit
 # ===================================================================
 
-version: '3.8'
+version: "3.9"
 
 networks:
   zekka-network:
     driver: bridge
 
 volumes:
-  postgres-data:
   redis-data:
   prometheus-data:
   grafana-data:
@@ -40,22 +19,21 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: zekka-app
+    container_name: app
     restart: unless-stopped
     ports:
       - "3000:3000"
     environment:
       - NODE_ENV=production
       - PORT=3000
-      - DB_HOST=postgres
-      - DB_PORT=5432
+      - DATABASE_URL=${DATABASE_URL}
+      - NODE_OPTIONS=--dns-result-order=ipv4first
       - REDIS_HOST=redis
       - REDIS_PORT=6379
     env_file:
+      - .env
       - .env.production
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
     networks:
@@ -66,34 +44,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-
-  # PostgreSQL Database
-  postgres:
-    image: postgres:15-alpine
-    container_name: zekka-postgres
-    restart: unless-stopped
-    ports:
-      - "5432:5432"
-    environment:
-      - POSTGRES_DB=${DB_NAME:-zekka_production}
-      - POSTGRES_USER=${DB_USER:-zekka_user}
-      - POSTGRES_PASSWORD=${DB_PASSWORD:-changeme}
-      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=en_US.UTF-8 --lc-ctype=en_US.UTF-8
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-      - ./migrations:/docker-entrypoint-initdb.d
-    networks:
-      - zekka-network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-zekka_user}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
     logging:
       driver: "json-file"
       options:
@@ -139,8 +89,6 @@ services:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
       - '--storage.tsdb.retention.time=30d'
-      - '--web.console.libraries=/etc/prometheus/console_libraries'
-      - '--web.console.templates=/etc/prometheus/consoles'
       - '--web.enable-lifecycle'
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
@@ -171,7 +119,6 @@ services:
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-changeme}
-      - GF_INSTALL_PLUGINS=grafana-piechart-panel
       - GF_SERVER_ROOT_URL=http://localhost:3001
     volumes:
       - grafana-data:/var/lib/grafana
@@ -211,25 +158,6 @@ services:
         max-size: "5m"
         max-file: "2"
 
-  # PostgreSQL Exporter
-  postgres-exporter:
-    image: prometheuscommunity/postgres-exporter:latest
-    container_name: zekka-postgres-exporter
-    restart: unless-stopped
-    ports:
-      - "9187:9187"
-    environment:
-      - DATA_SOURCE_NAME=postgresql://${DB_USER:-zekka_user}:${DB_PASSWORD:-changeme}@postgres:5432/${DB_NAME:-zekka_production}?sslmode=disable
-    networks:
-      - zekka-network
-    depends_on:
-      - postgres
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "5m"
-        max-file: "2"
-
   # Redis Exporter
   redis-exporter:
     image: oliver006/redis_exporter:latest
@@ -249,3 +177,4 @@ services:
       options:
         max-size: "5m"
         max-file: "2"
+

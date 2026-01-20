@@ -11,13 +11,16 @@ class ZekkaOrchestrator {
     this.tokenEconomics = options.tokenEconomics;
     this.logger = options.logger || console;
     this.config = options.config || {};
-    
+
+    if (!process.env.DATABASE_URL) {
+      throw new Error('DATABASE_URL is not set');
+    }
+
     this.db = new Pool({
-      host: process.env.POSTGRES_HOST || 'localhost',
-      port: parseInt(process.env.POSTGRES_PORT) || 5432,
-      database: process.env.POSTGRES_DB || 'zekka',
-      user: process.env.POSTGRES_USER || 'zekka',
-      password: process.env.POSTGRES_PASSWORD
+      connectionString: process.env.DATABASE_URL,
+      ssl: {
+        rejectUnauthorized: false, // required for Supabase
+      },
     });
 
     this.ready = false;
@@ -25,7 +28,7 @@ class ZekkaOrchestrator {
 
   async initialize() {
     this.logger.info('🔧 Initializing Orchestrator...');
-    
+
     // Test database connection
     try {
       await this.db.query('SELECT NOW()');
@@ -37,7 +40,9 @@ class ZekkaOrchestrator {
 
     // Test Ollama connection
     try {
-      await axios.get(`${this.config.ollamaHost}/api/tags`);
+      // Use config host or default to localhost
+      const host = this.config.ollamaHost || 'http://localhost:11434';
+      await axios.get(`${host}/api/tags`);
       this.logger.info('✅ Ollama connected');
     } catch (error) {
       this.logger.warn('⚠️  Ollama not available:', error.message);
@@ -57,9 +62,9 @@ class ZekkaOrchestrator {
 
   async createProject(data) {
     const projectId = `proj-${uuidv4().substring(0, 8)}`;
-    
+
     const { name, requirements, storyPoints, budget } = data;
-    
+
     // Insert into database
     await this.db.query(
       `INSERT INTO projects (project_id, name, description, story_points, budget_daily, budget_monthly, status)
@@ -69,8 +74,8 @@ class ZekkaOrchestrator {
         name,
         JSON.stringify(requirements),
         storyPoints || 8,
-        budget?.daily || this.tokenEconomics.dailyBudget,
-        budget?.monthly || this.tokenEconomics.monthlyBudget,
+        budget?.daily || this.tokenEconomics?.dailyBudget || 1000,
+        budget?.monthly || this.tokenEconomics?.monthlyBudget || 30000,
         'created'
       ]
     );
@@ -87,7 +92,7 @@ class ZekkaOrchestrator {
     });
 
     this.logger.info(`✅ Project created: ${projectId}`);
-    
+
     return { projectId, name, status: 'created' };
   }
 
@@ -137,7 +142,7 @@ class ZekkaOrchestrator {
 
   async executeProject(projectId) {
     this.logger.info(`🚀 Starting execution for project: ${projectId}`);
-    
+
     try {
       // Update project status
       await this.db.query(
@@ -145,8 +150,6 @@ class ZekkaOrchestrator {
         ['running', projectId]
       );
 
-      const project = await this.getProject(projectId);
-      
       // Execute stages sequentially
       const stages = [
         { number: 1, name: 'Authentication', complexity: 'low' },
@@ -170,11 +173,11 @@ class ZekkaOrchestrator {
       );
 
       this.logger.info(`✅ Project completed: ${projectId}`);
-      
+
       return { projectId, status: 'completed' };
     } catch (error) {
       this.logger.error(`❌ Project failed: ${projectId}`, error);
-      
+
       await this.db.query(
         'UPDATE projects SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE project_id = $2',
         ['failed', projectId]
@@ -186,18 +189,21 @@ class ZekkaOrchestrator {
 
   async executeStage(projectId, stageInfo) {
     const { number, name, complexity, agents: agentCount = 1 } = stageInfo;
-    
+
     this.logger.info(`📍 Stage ${number}: ${name} (${agentCount} agents)`);
-    
+
     // Select appropriate model based on complexity and budget
-    const model = await this.tokenEconomics.selectModel(complexity, projectId);
-    
+    // Ensure tokenEconomics exists before calling method
+    const model = this.tokenEconomics 
+      ? await this.tokenEconomics.selectModel(complexity, projectId) 
+      : 'llama3';
+
     // Create tasks for each agent
     const tasks = [];
     for (let i = 0; i < agentCount; i++) {
       const taskId = `task-${uuidv4().substring(0, 8)}`;
       const agentName = `agent-${number}-${i + 1}`;
-      
+
       const task = await this.createTask({
         taskId,
         projectId,
@@ -205,7 +211,7 @@ class ZekkaOrchestrator {
         agentName,
         model
       });
-      
+
       tasks.push(task);
     }
 
@@ -226,7 +232,7 @@ class ZekkaOrchestrator {
 
   async createTask(data) {
     const { taskId, projectId, stage, agentName, model } = data;
-    
+
     await this.db.query(
       `INSERT INTO tasks (task_id, project_id, stage, agent_name, status, input_data)
        VALUES ($1, $2, $3, $4, $5, $6)`,
@@ -245,7 +251,7 @@ class ZekkaOrchestrator {
   async executeTask(taskId, model) {
     // Simulate task execution
     const startTime = Date.now();
-    
+
     // Update task status
     await this.db.query(
       'UPDATE tasks SET status = $1, started_at = CURRENT_TIMESTAMP WHERE task_id = $2',
@@ -255,16 +261,18 @@ class ZekkaOrchestrator {
     try {
       // Simulate AI call (would actually call Ollama/Claude here)
       const result = await this.simulateAgentWork(taskId, model);
-      
-      // Record cost
-      await this.tokenEconomics.recordCost({
-        projectId: result.projectId,
-        taskId,
-        agentName: result.agentName,
-        model,
-        tokensInput: result.tokensInput,
-        tokensOutput: result.tokensOutput
-      });
+
+      // Record cost if tokenEconomics is available
+      if (this.tokenEconomics) {
+        await this.tokenEconomics.recordCost({
+          projectId: result.projectId,
+          taskId,
+          agentName: result.agentName,
+          model,
+          tokensInput: result.tokensInput,
+          tokensOutput: result.tokensOutput
+        });
+      }
 
       // Complete task
       await this.db.query(
@@ -275,14 +283,14 @@ class ZekkaOrchestrator {
 
       const duration = Date.now() - startTime;
       this.logger.info(`✅ Task ${taskId} completed in ${duration}ms`);
-      
+
       return result;
     } catch (error) {
       await this.db.query(
         'UPDATE tasks SET status = $1, error_message = $2 WHERE task_id = $3',
         ['failed', error.message, taskId]
       );
-      
+
       throw error;
     }
   }
@@ -291,14 +299,14 @@ class ZekkaOrchestrator {
     // Get task details
     const result = await this.db.query('SELECT * FROM tasks WHERE task_id = $1', [taskId]);
     const task = result.rows[0];
-    
+
     // Simulate processing time
     await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 1000));
-    
+
     // Simulate token usage (would be real from actual API calls)
     const tokensInput = Math.floor(Math.random() * 1000) + 500;
     const tokensOutput = Math.floor(Math.random() * 2000) + 1000;
-    
+
     return {
       projectId: task.project_id,
       taskId,
@@ -325,8 +333,8 @@ class ZekkaOrchestrator {
     const totalProjects = await this.db.query('SELECT COUNT(*) as count FROM projects');
     const runningTasks = await this.db.query("SELECT COUNT(*) as count FROM tasks WHERE status = 'running'");
     const completedTasks = await this.db.query("SELECT COUNT(*) as count FROM tasks WHERE status = 'completed'");
-    
-    const budgetStatus = await this.tokenEconomics.getBudgetStatus();
+
+    const budgetStatus = this.tokenEconomics ? await this.tokenEconomics.getBudgetStatus() : {};
     const contextMetrics = await this.contextBus.getMetrics();
 
     return {
