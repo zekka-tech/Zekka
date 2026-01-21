@@ -43,9 +43,13 @@ export const ResponsiveLayout = ({
           onClick={() => setLeftOpen(!leftOpen)}
           className={cn(
             "p-2 rounded hover:bg-muted transition-colors",
+            "focus:outline-none focus:ring-2 focus:ring-primary",
             !leftPanel && "opacity-50 cursor-not-allowed"
           )}
           disabled={!leftPanel}
+          aria-label={leftOpen && leftPanel ? 'Close left panel' : 'Open left panel'}
+          aria-expanded={leftOpen && !!leftPanel}
+          aria-controls={leftPanel?.id}
         >
           {leftOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
         </button>
@@ -56,9 +60,13 @@ export const ResponsiveLayout = ({
           onClick={() => setRightOpen(!rightOpen)}
           className={cn(
             "p-2 rounded hover:bg-muted transition-colors",
+            "focus:outline-none focus:ring-2 focus:ring-primary",
             !rightPanel && "opacity-50 cursor-not-allowed"
           )}
           disabled={!rightPanel}
+          aria-label={rightOpen && rightPanel ? 'Close right panel' : 'Open right panel'}
+          aria-expanded={rightOpen && !!rightPanel}
+          aria-controls={rightPanel?.id}
         >
           {rightOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
         </button>

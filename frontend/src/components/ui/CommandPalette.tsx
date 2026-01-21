@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { cn } from '@/lib/cn'
 import {
@@ -41,6 +41,8 @@ export const CommandPalette = ({ isDark, onThemeToggle }: CommandPaletteProps) =
   const [search, setSearch] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
   const navigate = useNavigate()
+  const paletteRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   // Track last key press for keyboard shortcuts (e.g., G+D for Go to Dashboard)
   const [lastKeyPress, setLastKeyPress] = useState<string>('')
@@ -147,9 +149,40 @@ export const CommandPalette = ({ isDark, onThemeToggle }: CommandPaletteProps) =
     )
   }, [search, commands])
 
+  // Handle focus trap
+  const handleFocusTrap = useCallback((e: KeyboardEvent) => {
+    if (!isOpen || !paletteRef.current) return
+
+    // Get all focusable elements within the palette
+    const focusableElements = paletteRef.current.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    )
+    const firstElement = focusableElements[0]
+    const lastElement = focusableElements[focusableElements.length - 1]
+
+    // Tab: move to next focusable element
+    if (e.key === 'Tab' && !e.shiftKey) {
+      if (document.activeElement === lastElement) {
+        e.preventDefault()
+        firstElement?.focus()
+      }
+    }
+
+    // Shift+Tab: move to previous focusable element
+    if (e.key === 'Tab' && e.shiftKey) {
+      if (document.activeElement === firstElement) {
+        e.preventDefault()
+        lastElement?.focus()
+      }
+    }
+  }, [isOpen])
+
   // Handle keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Handle focus trap
+      handleFocusTrap(e)
+
       // Cmd/Ctrl + K to open
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault()
@@ -226,12 +259,19 @@ export const CommandPalette = ({ isDark, onThemeToggle }: CommandPaletteProps) =
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isOpen, selectedIndex, filteredCommands, lastKeyPress])
+  }, [isOpen, selectedIndex, filteredCommands, lastKeyPress, handleFocusTrap])
 
   // Reset selection when search changes
   useEffect(() => {
     setSelectedIndex(0)
   }, [search])
+
+  // Focus input when palette opens
+  useEffect(() => {
+    if (isOpen) {
+      inputRef.current?.focus()
+    }
+  }, [isOpen])
 
   if (!isOpen) {
     return null
@@ -247,7 +287,13 @@ export const CommandPalette = ({ isDark, onThemeToggle }: CommandPaletteProps) =
 
       {/* Command Palette */}
       <div className="fixed inset-0 z-50 flex items-start justify-center pt-24 pointer-events-none">
-        <div className="pointer-events-auto w-full max-w-2xl mx-4">
+        <div
+          ref={paletteRef}
+          className="pointer-events-auto w-full max-w-2xl mx-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Command palette"
+        >
           <div className={cn(
             "rounded-lg border border-border",
             "bg-card shadow-xl",
@@ -261,7 +307,7 @@ export const CommandPalette = ({ isDark, onThemeToggle }: CommandPaletteProps) =
             )}>
               <Search className="w-5 h-5 text-muted-foreground flex-shrink-0" />
               <input
-                autoFocus
+                ref={inputRef}
                 type="text"
                 placeholder="Search commands..."
                 value={search}
