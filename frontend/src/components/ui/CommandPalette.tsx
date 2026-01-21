@@ -29,11 +29,21 @@ interface CommandPaletteProps {
   onThemeToggle?: () => void
 }
 
+// Custom event for opening create project dialog
+declare global {
+  interface WindowEventMap {
+    'open-create-project': CustomEvent
+  }
+}
+
 export const CommandPalette = ({ isDark, onThemeToggle }: CommandPaletteProps) => {
   const [isOpen, setIsOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
   const navigate = useNavigate()
+
+  // Track last key press for keyboard shortcuts (e.g., G+D for Go to Dashboard)
+  const [lastKeyPress, setLastKeyPress] = useState<string>('')
 
   const commands: Command[] = useMemo(() => [
     // Navigation
@@ -70,7 +80,8 @@ export const CommandPalette = ({ isDark, onThemeToggle }: CommandPaletteProps) =
       icon: <Zap className="w-4 h-4" />,
       action: () => {
         setIsOpen(false)
-        // Dispatch event or call parent callback
+        // Dispatch custom event for projects page to handle
+        window.dispatchEvent(new CustomEvent('open-create-project'))
       },
       category: 'action',
       shortcuts: ['C', 'P']
@@ -83,6 +94,7 @@ export const CommandPalette = ({ isDark, onThemeToggle }: CommandPaletteProps) =
       action: () => {
         navigator.clipboard.writeText(window.location.href)
         setIsOpen(false)
+        // Visual feedback would go here (toast notification)
       },
       category: 'action'
     },
@@ -139,12 +151,53 @@ export const CommandPalette = ({ isDark, onThemeToggle }: CommandPaletteProps) =
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Cmd/Ctrl + K to open
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault()
         setIsOpen(prev => !prev)
+        setSearch('')
+        setSelectedIndex(0)
+        return
       }
 
-      // Only handle keyboard navigation when open
+      // Handle keyboard shortcuts (G+D, G+P, C+P) when palette is closed
+      if (!isOpen && !search) {
+        const key = e.key.toLowerCase()
+        let shortcutCommand = null
+
+        // Track G+D (Go to Dashboard) or G+P (Go to Projects)
+        if (key === 'g' && !e.ctrlKey && !e.metaKey) {
+          setLastKeyPress('g')
+          setTimeout(() => setLastKeyPress(''), 1000)
+          return
+        }
+
+        if (lastKeyPress === 'g' && (key === 'd' || key === 'p')) {
+          shortcutCommand = key === 'd'
+            ? filteredCommands.find(c => c.id === 'nav-dashboard')
+            : filteredCommands.find(c => c.id === 'nav-projects')
+          if (shortcutCommand) {
+            shortcutCommand.action()
+            return
+          }
+        }
+
+        // C+P for Create Project
+        if (key === 'c' && !e.ctrlKey && !e.metaKey) {
+          setLastKeyPress('c')
+          setTimeout(() => setLastKeyPress(''), 1000)
+          return
+        }
+
+        if (lastKeyPress === 'c' && key === 'p') {
+          shortcutCommand = filteredCommands.find(c => c.id === 'action-new-project')
+          if (shortcutCommand) {
+            shortcutCommand.action()
+            return
+          }
+        }
+      }
+
+      // Only handle navigation when open
       if (!isOpen) return
 
       switch (e.key) {
@@ -173,7 +226,7 @@ export const CommandPalette = ({ isDark, onThemeToggle }: CommandPaletteProps) =
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isOpen, selectedIndex, filteredCommands])
+  }, [isOpen, selectedIndex, filteredCommands, lastKeyPress])
 
   // Reset selection when search changes
   useEffect(() => {
@@ -213,10 +266,13 @@ export const CommandPalette = ({ isDark, onThemeToggle }: CommandPaletteProps) =
                 placeholder="Search commands..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
+                aria-label="Search commands by name or description"
+                role="searchbox"
+                aria-expanded={isOpen}
                 className={cn(
                   "flex-1 bg-transparent outline-none",
                   "text-foreground placeholder:text-muted-foreground",
-                  "text-sm"
+                  "text-sm focus:outline-none"
                 )}
               />
               <kbd className={cn(
@@ -263,8 +319,12 @@ export const CommandPalette = ({ isDark, onThemeToggle }: CommandPaletteProps) =
                                 "flex items-center gap-3",
                                 isSelected
                                   ? 'bg-primary/10 text-primary'
-                                  : 'hover:bg-muted'
+                                  : 'hover:bg-muted',
+                                "focus:outline-none focus:ring-2 focus:ring-primary"
                               )}
+                              role="option"
+                              aria-selected={isSelected}
+                              aria-label={command.label}
                             >
                               <span className="text-muted-foreground">
                                 {command.icon}
