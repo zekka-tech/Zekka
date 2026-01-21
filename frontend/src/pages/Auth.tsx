@@ -7,6 +7,12 @@ import { Logo } from '@/components/shared/Logo'
 export const Auth = () => {
   const [isLogin, setIsLogin] = useState(true)
 
+  const handleAuthSuccess = () => {
+    // Auth hook will handle updating the app state
+    // Just reload to trigger re-render
+    window.location.reload()
+  }
+
   return (
     <div className={cn(
       "min-h-screen flex flex-col items-center justify-center",
@@ -35,10 +41,12 @@ export const Auth = () => {
         {/* Forms */}
         {isLogin ? (
           <LoginForm
+            onSuccess={handleAuthSuccess}
             onSignUpClick={() => setIsLogin(false)}
           />
         ) : (
           <RegisterForm
+            onSuccess={handleAuthSuccess}
             onLoginClick={() => setIsLogin(true)}
           />
         )}

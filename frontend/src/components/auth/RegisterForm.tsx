@@ -1,14 +1,15 @@
 import { useState } from 'react'
 import { cn } from '@/lib/cn'
 import { Eye, EyeOff, Loader, Check } from 'lucide-react'
+import { useAuth } from '@/hooks/useAuth'
 
 interface RegisterFormProps {
-  onSubmit?: (email: string, password: string, name: string) => Promise<void>
+  onSuccess?: () => void
   onLoginClick?: () => void
 }
 
 export const RegisterForm = ({
-  onSubmit,
+  onSuccess,
   onLoginClick
 }: RegisterFormProps) => {
   const [name, setName] = useState('')
@@ -17,8 +18,8 @@ export const RegisterForm = ({
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
+  const { registerAsync, isRegistering } = useAuth()
 
   const passwordStrength = {
     hasLength: password.length >= 8,
@@ -44,19 +45,11 @@ export const RegisterForm = ({
       return
     }
 
-    setIsLoading(true)
-
     try {
-      if (onSubmit) {
-        await onSubmit(email, password, name)
-      } else {
-        // Demo registration
-        console.log('Register:', { name, email, password })
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Registration failed')
-    } finally {
-      setIsLoading(false)
+      await registerAsync({ email, password, name })
+      onSuccess?.()
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Registration failed')
     }
   }
 
@@ -93,7 +86,7 @@ export const RegisterForm = ({
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="John Doe"
-            disabled={isLoading}
+            disabled={isRegistering}
             required
             className={cn(
               "w-full px-4 py-2 rounded-lg",
@@ -116,7 +109,7 @@ export const RegisterForm = ({
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="you@example.com"
-            disabled={isLoading}
+            disabled={isRegistering}
             required
             className={cn(
               "w-full px-4 py-2 rounded-lg",
@@ -140,7 +133,7 @@ export const RegisterForm = ({
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
-              disabled={isLoading}
+              disabled={isRegistering}
               required
               className={cn(
                 "w-full px-4 py-2 rounded-lg",
@@ -158,7 +151,7 @@ export const RegisterForm = ({
                 "text-muted-foreground hover:text-foreground",
                 "transition-colors"
               )}
-              disabled={isLoading}
+              disabled={isRegistering}
             >
               {showPassword ? (
                 <EyeOff className="w-5 h-5" />
@@ -215,7 +208,7 @@ export const RegisterForm = ({
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder="••••••••"
-              disabled={isLoading}
+              disabled={isRegistering}
               required
               className={cn(
                 "w-full px-4 py-2 rounded-lg",
@@ -234,7 +227,7 @@ export const RegisterForm = ({
                 "text-muted-foreground hover:text-foreground",
                 "transition-colors"
               )}
-              disabled={isLoading}
+              disabled={isRegistering}
             >
               {showConfirmPassword ? (
                 <EyeOff className="w-5 h-5" />
@@ -249,7 +242,7 @@ export const RegisterForm = ({
         <label className="flex items-start gap-2 text-sm">
           <input
             type="checkbox"
-            disabled={isLoading}
+            disabled={isRegistering}
             required
             className="mt-1"
           />
@@ -268,7 +261,7 @@ export const RegisterForm = ({
         {/* Submit Button */}
         <button
           type="submit"
-          disabled={isLoading || !isPasswordValid || !passwordMatch}
+          disabled={isRegistering || !isPasswordValid || !passwordMatch}
           className={cn(
             "w-full py-2 rounded-lg mt-6",
             "bg-primary text-primary-foreground font-medium",
@@ -277,8 +270,8 @@ export const RegisterForm = ({
             "flex items-center justify-center gap-2"
           )}
         >
-          {isLoading && <Loader className="w-4 h-4 animate-spin" />}
-          {isLoading ? 'Creating account...' : 'Create Account'}
+          {isRegistering && <Loader className="w-4 h-4 animate-spin" />}
+          {isRegistering ? 'Creating account...' : 'Create Account'}
         </button>
       </form>
 

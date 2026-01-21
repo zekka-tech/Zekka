@@ -26,6 +26,7 @@ ollama_data/
 
 # Project outputs
 projects/
+!frontend/src/components/projects/
 *.tar.gz
 *.zip
 

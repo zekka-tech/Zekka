@@ -1,21 +1,23 @@
 import { useState } from 'react'
 import { cn } from '@/lib/cn'
 import { Eye, EyeOff, Loader } from 'lucide-react'
+import { useAuth } from '@/hooks/useAuth'
 
 interface LoginFormProps {
-  onSubmit?: (email: string, password: string) => Promise<void>
+  onSuccess?: () => void
   onSignUpClick?: () => void
 }
 
 export const LoginForm = ({
-  onSubmit,
+  onSuccess,
   onSignUpClick
 }: LoginFormProps) => {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
+  const { loginAsync } = useAuth()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -23,14 +25,10 @@ export const LoginForm = ({
     setIsLoading(true)
 
     try {
-      if (onSubmit) {
-        await onSubmit(email, password)
-      } else {
-        // Demo login
-        console.log('Login:', { email, password })
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed')
+      await loginAsync({ email, password })
+      onSuccess?.()
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Login failed')
     } finally {
       setIsLoading(false)
     }

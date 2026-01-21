@@ -1,19 +1,24 @@
-import { useState, useEffect } from 'react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { RootLayout } from '@/components/layout/RootLayout'
 import { Dashboard } from '@/pages/Dashboard'
+import { Projects } from '@/pages/Projects'
 import { Auth } from '@/pages/Auth'
+import { useAuth } from '@/hooks/useAuth'
 import './styles/globals.css'
 
-function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
-  const [isLoading, setIsLoading] = useState(true)
+// Create a client for React Query
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 5, // 5 minutes
+      gcTime: 1000 * 60 * 10, // 10 minutes (formerly cacheTime)
+    },
+  },
+})
 
-  useEffect(() => {
-    // Check if user is already logged in
-    const token = localStorage.getItem('auth_token')
-    setIsAuthenticated(!!token)
-    setIsLoading(false)
-  }, [])
+function AppContent() {
+  const { user, isLoading, isAuthenticated } = useAuth()
 
   if (isLoading) {
     return (
@@ -26,14 +31,28 @@ function App() {
     )
   }
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated || !user) {
     return <Auth />
   }
 
   return (
     <RootLayout>
-      <Dashboard />
+      <Routes>
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/projects" element={<Projects />} />
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+      </Routes>
     </RootLayout>
+  )
+}
+
+function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <Router>
+        <AppContent />
+      </Router>
+    </QueryClientProvider>
   )
 }
 
