@@ -1,39 +1,19 @@
-import { useEffect, useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Moon, Sun } from 'lucide-react'
 import { cn } from '@/lib/cn'
+import { useTheme } from '@/contexts/ThemeContext'
 
 export const ThemeToggle = () => {
-  const [isDark, setIsDark] = useState<boolean>(false)
+  const { theme, resolvedTheme, setTheme } = useTheme()
   const [isMounted, setIsMounted] = useState(false)
 
-  // Initialize theme on mount
   useEffect(() => {
     setIsMounted(true)
-    const savedTheme = localStorage.getItem('theme') || 'system'
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-
-    if (savedTheme === 'dark' || (savedTheme === 'system' && prefersDark)) {
-      setIsDark(true)
-      document.documentElement.classList.add('dark')
-    } else {
-      setIsDark(false)
-      document.documentElement.classList.remove('dark')
-    }
   }, [])
 
   const toggleTheme = () => {
-    const newIsDark = !isDark
-    setIsDark(newIsDark)
-
-    // Update DOM
-    if (newIsDark) {
-      document.documentElement.classList.add('dark')
-    } else {
-      document.documentElement.classList.remove('dark')
-    }
-
-    // Save preference
-    localStorage.setItem('theme', newIsDark ? 'dark' : 'light')
+    const newTheme = resolvedTheme === 'dark' ? 'light' : 'dark'
+    setTheme(newTheme)
   }
 
   if (!isMounted) {
@@ -43,6 +23,8 @@ export const ThemeToggle = () => {
       </button>
     )
   }
+
+  const isDark = resolvedTheme === 'dark'
 
   return (
     <button
@@ -55,7 +37,7 @@ export const ThemeToggle = () => {
         "transition-colors duration-200",
         "focus-visible:outline-2 focus-visible:outline-primary"
       )}
-      aria-label="Toggle theme"
+      aria-label={`Toggle theme (currently ${theme})`}
       title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
     >
       {isDark ? (

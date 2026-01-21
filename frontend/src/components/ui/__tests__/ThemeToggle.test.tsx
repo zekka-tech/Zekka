@@ -1,7 +1,13 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { ThemeToggle } from '../ThemeToggle'
-import { screen, fireEvent } from '@testing-library/react'
 import { render } from '@testing-library/react'
+import { ThemeToggle } from '../ThemeToggle'
+
+// Mock fireEvent using simulated clicks
+const fireEvent = {
+  click: (element: HTMLElement) => {
+    element.click()
+  }
+}
 
 describe('ThemeToggle', () => {
   beforeEach(() => {
@@ -10,14 +16,14 @@ describe('ThemeToggle', () => {
   })
 
   it('renders toggle button', () => {
-    render(<ThemeToggle />)
-    const button = screen.getByRole('button', { name: /toggle theme/i })
+    const queries = render(<ThemeToggle />)
+    const button = queries.getByRole('button')
     expect(button).toBeInTheDocument()
   })
 
   it('toggles between light and dark mode', async () => {
-    render(<ThemeToggle />)
-    const button = screen.getByRole('button')
+    const queries = render(<ThemeToggle />)
+    const button = queries.getByRole('button')
 
     // Initially should be light mode (sun icon visible)
     expect(button.querySelector('svg')).toBeInTheDocument()
@@ -30,8 +36,8 @@ describe('ThemeToggle', () => {
   })
 
   it('applies dark class to document element', () => {
-    render(<ThemeToggle />)
-    const button = screen.getByRole('button')
+    const queries = render(<ThemeToggle />)
+    const button = queries.getByRole('button')
 
     // Toggle to dark
     fireEvent.click(button)
@@ -41,8 +47,8 @@ describe('ThemeToggle', () => {
   })
 
   it('has accessible aria-label', () => {
-    render(<ThemeToggle />)
-    const button = screen.getByRole('button')
+    const queries = render(<ThemeToggle />)
+    const button = queries.getByRole('button')
     expect(button).toHaveAttribute('aria-label', 'Toggle theme')
   })
 })

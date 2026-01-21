@@ -5,6 +5,7 @@ import {
   Search,
   Home,
   FolderOpen,
+  BarChart3Icon,
   Settings,
   Moon,
   Sun,
@@ -73,6 +74,18 @@ export const CommandPalette = ({ isDark, onThemeToggle }: CommandPaletteProps) =
       category: 'navigation',
       shortcuts: ['G', 'P']
     },
+    {
+      id: 'nav-analytics',
+      label: 'Go to Analytics',
+      description: 'View metrics and cost analysis',
+      icon: <BarChart3Icon className="w-4 h-4" />,
+      action: () => {
+        navigate('/analytics')
+        setIsOpen(false)
+      },
+      category: 'navigation',
+      shortcuts: ['G', 'A']
+    },
 
     // Actions
     {
@@ -120,10 +133,11 @@ export const CommandPalette = ({ isDark, onThemeToggle }: CommandPaletteProps) =
       description: 'Open settings and preferences',
       icon: <Settings className="w-4 h-4" />,
       action: () => {
-        // TODO: Navigate to settings
+        navigate('/settings')
         setIsOpen(false)
       },
-      category: 'settings'
+      category: 'settings',
+      shortcuts: ['G', 'S']
     },
     {
       id: 'help',
