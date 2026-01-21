@@ -5,6 +5,7 @@ import { SettingToggle } from '@/components/settings/SettingToggle'
 import { SettingSelect } from '@/components/settings/SettingSelect'
 import { usePreferences } from '@/hooks/usePreferences'
 import { useTheme } from '@/contexts/ThemeContext'
+import { useToast } from '@/components/ui/Toast'
 import { Button } from '@/components/ui/Button'
 
 export const Settings = () => {
@@ -18,16 +19,17 @@ export const Settings = () => {
     importPreferences,
   } = usePreferences()
   const { theme, setTheme } = useTheme()
+  const { success: successToast, error: errorToast } = useToast()
 
   const handleFileImport = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (file) {
       importPreferences(file)
         .then(() => {
-          alert('Preferences imported successfully')
+          successToast('Preferences imported successfully')
         })
         .catch((error) => {
-          alert(`Failed to import preferences: ${error.message}`)
+          errorToast('Failed to import preferences', error instanceof Error ? error.message : 'Unknown error')
         })
     }
   }

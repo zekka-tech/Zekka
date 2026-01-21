@@ -9,6 +9,7 @@ import { Settings } from '@/pages/Settings'
 import { Auth } from '@/pages/Auth'
 import { CommandPalette } from '@/components/ui/CommandPalette'
 import { ThemeProvider } from '@/contexts/ThemeContext'
+import { ToastProvider } from '@/components/ui/Toast'
 import { useAuth } from '@/hooks/useAuth'
 import { useTheme } from '@/contexts/ThemeContext'
 import './styles/globals.css'
@@ -70,9 +71,11 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
-        <Router>
-          <AppContentInner />
-        </Router>
+        <ToastProvider>
+          <Router>
+            <AppContentInner />
+          </Router>
+        </ToastProvider>
       </ThemeProvider>
     </QueryClientProvider>
   )

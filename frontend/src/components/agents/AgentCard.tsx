@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { cn } from '@/lib/cn'
 import type { Agent } from '@/types/agent.types'
 import { Zap, Brain, Wrench, Sparkles, AlertCircle } from 'lucide-react'
@@ -6,7 +7,7 @@ interface AgentCardProps {
   agent: Agent
 }
 
-export const AgentCard = ({ agent }: AgentCardProps) => {
+const AgentCardComponent = ({ agent }: AgentCardProps) => {
   const getAgentIcon = () => {
     switch (agent.type) {
       case 'strategic':
@@ -133,3 +134,9 @@ export const AgentCard = ({ agent }: AgentCardProps) => {
     </div>
   )
 }
+
+/**
+ * Memoized AgentCard to prevent re-renders when parent updates
+ * Only re-renders if agent prop actually changes
+ */
+export const AgentCard = memo(AgentCardComponent)

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { memo, useState } from 'react'
 import { cn } from '@/lib/cn'
 import { useProject, useProjectStats } from '@/hooks/useProjects'
 import { MoreVerticalIcon, EditIcon, TrashIcon, ArchiveIcon, MessageSquareIcon } from 'lucide-react'
@@ -8,7 +8,7 @@ interface ProjectCardProps {
   project: Project
 }
 
-export const ProjectCard = ({ project }: ProjectCardProps) => {
+const ProjectCardComponent = ({ project }: ProjectCardProps) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
@@ -213,3 +213,9 @@ export const ProjectCard = ({ project }: ProjectCardProps) => {
     </div>
   )
 }
+
+/**
+ * Memoized ProjectCard to prevent re-renders when parent updates
+ * Only re-renders if project prop actually changes
+ */
+export const ProjectCard = memo(ProjectCardComponent)

@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { cn } from '@/lib/cn'
 import type { Message } from '@/types/chat.types'
 import { InlineCitation } from './InlineCitation'
@@ -7,7 +8,7 @@ interface MessageBubbleProps {
   message: Message
 }
 
-export const MessageBubble = ({ message }: MessageBubbleProps) => {
+const MessageBubbleComponent = ({ message }: MessageBubbleProps) => {
   const isUser = message.role === 'user'
 
   return (
@@ -56,3 +57,9 @@ export const MessageBubble = ({ message }: MessageBubbleProps) => {
     </div>
   )
 }
+
+/**
+ * Memoized MessageBubble to prevent re-renders when parent updates
+ * Only re-renders if message prop actually changes
+ */
+export const MessageBubble = memo(MessageBubbleComponent)
