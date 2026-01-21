@@ -1,5 +1,26 @@
 # 🚀 DEPLOYMENT GUIDE - For Beginners
 
+## 🆕 Version 3.0.0 Updates
+
+### What's Fixed in v3.0.0
+- ✅ **Vault Container Health Check** - Fixed "dependency failed to start" error
+- ✅ **Improved Docker Reliability** - Services start consistently on first attempt
+- ✅ **Better Error Messages** - Clear diagnostics for troubleshooting
+- ✅ **Enhanced Documentation** - Comprehensive Docker troubleshooting guide
+
+### Quick Fix for Existing Deployments
+If upgrading from v2.0.0, simply pull and restart:
+
+```bash
+git pull origin main
+docker-compose down -v
+docker-compose up -d
+```
+
+See [VAULT_FIX_2026-01-21.md](./VAULT_FIX_2026-01-21.md) for details.
+
+---
+
 ## ✅ What You Have Now
 
 A complete, production-ready Zekka Framework with:
