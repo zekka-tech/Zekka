@@ -4,6 +4,29 @@
 
 This document outlines the architectural design for Zekka Framework v3.0.0, implementing the comprehensive 10-stage workflow system with 50+ external integrations as defined in the Zekka Framework PDF.
 
+### Version 3.0.0 Updates (January 21, 2026)
+
+**Infrastructure Reliability Improvements:**
+- ✅ Fixed Vault container health check issues in Docker deployment
+- ✅ Simplified Docker Compose configuration for better reliability
+- ✅ Enhanced documentation with comprehensive troubleshooting guides
+- ✅ Improved deployment consistency and startup reliability
+- ✅ Removed problematic volume mounts that caused container startup failures
+
+**Key Changes:**
+- **Docker Compose:** Removed non-existent `./vault/config` volume mount from Vault service
+- **Vault Service:** Streamlined configuration for dev mode deployment
+- **Documentation:** Added Docker troubleshooting section to README.md
+- **Fix Documentation:** Created VAULT_FIX_2026-01-21.md with detailed analysis
+- **Health Checks:** Vault container now passes health checks consistently
+- **User Experience:** Eliminated "dependency failed to start" errors during deployment
+
+**Technical Details:**
+- Vault in dev mode requires only data volume (`vault-data:/vault/data`)
+- Configuration is handled through environment variables and command flags
+- Health check endpoint: `http://localhost:8200/v1/sys/health`
+- All services now start reliably on first attempt without manual intervention
+
 ---
 
 ## 🏗️ System Architecture

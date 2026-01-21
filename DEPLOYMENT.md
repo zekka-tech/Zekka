@@ -230,6 +230,132 @@ cd zekka-framework
 
 ---
 
+## 🐳 Docker Troubleshooting (v3.0.0+)
+
+### Common Docker Issues
+
+#### Issue 1: Vault Container Unhealthy
+
+**Symptom:**
+```
+❌ dependency failed to start: container zekka-vault is unhealthy
+```
+
+**Solution (Fixed in v3.0.0):**
+```bash
+# Pull latest version with fix
+git pull origin main
+
+# Clean restart
+docker-compose down -v
+docker-compose up -d
+
+# Verify vault is healthy
+docker-compose ps vault
+```
+
+**Details:** Earlier versions had a problematic `./vault/config` directory mount. This has been fixed in v3.0.0. See [VAULT_FIX_2026-01-21.md](./VAULT_FIX_2026-01-21.md) for details.
+
+#### Issue 2: Port Already in Use
+
+**Symptom:**
+```
+Error: bind: address already in use
+```
+
+**Solution:**
+```bash
+# Find what's using the port
+lsof -i :3000  # or :8200, :6379
+
+# Kill the process
+kill -9 <PID>
+
+# Or change ports in docker-compose.yml
+nano docker-compose.yml
+# Change "3000:3000" to "3001:3000"
+```
+
+#### Issue 3: Build Failures
+
+**Symptom:**
+```
+npm ERR! network timeout
+```
+
+**Solution:**
+```bash
+# Clean build with no cache
+docker-compose down
+docker system prune -a
+docker-compose build --no-cache
+docker-compose up -d
+```
+
+#### Issue 4: Container Keeps Restarting
+
+**Solution:**
+```bash
+# Check container logs
+docker-compose logs -f app
+docker-compose logs -f vault
+docker-compose logs -f redis
+
+# Common fixes:
+# 1. Check environment variables in .env
+# 2. Verify all required secrets are set
+# 3. Check for port conflicts
+# 4. Ensure enough disk space (df -h)
+# 5. Check memory availability (free -h)
+```
+
+#### Issue 5: Services Not Connecting
+
+**Solution:**
+```bash
+# Verify network connectivity
+docker-compose exec app ping redis
+docker-compose exec app ping vault
+
+# Check service health
+docker-compose ps
+
+# Restart all services
+docker-compose restart
+```
+
+### Docker Best Practices
+
+1. **Always use latest version:**
+   ```bash
+   git pull origin main
+   docker-compose pull
+   ```
+
+2. **Clean restart when updating:**
+   ```bash
+   docker-compose down -v
+   docker-compose up -d --build
+   ```
+
+3. **Monitor container health:**
+   ```bash
+   docker-compose ps
+   docker stats
+   ```
+
+4. **Check logs regularly:**
+   ```bash
+   docker-compose logs -f --tail=100
+   ```
+
+5. **Backup before major changes:**
+   ```bash
+   docker-compose exec postgres pg_dump -U zekka zekka > backup.sql
+   ```
+
+---
+
 ## 🔒 Production Security Checklist
 
 ### Before Going Live:

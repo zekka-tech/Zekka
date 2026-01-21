@@ -1,16 +1,25 @@
-# 🤖 Zekka Framework v2.0.0 - Secure Production Release
+# 🤖 Zekka Framework v3.0.0 - Production Release with Docker Fixes
 
 **Multi-Agent AI Orchestration Platform with Enterprise-Grade Security**
 
 [![Security](https://img.shields.io/badge/Security-92%2F100-green)](./SECURITY_AUDIT_REPORT.md)
 [![Production Ready](https://img.shields.io/badge/Production-Ready-brightgreen)]()
 [![License](https://img.shields.io/badge/License-MIT-blue)]()
+[![Version](https://img.shields.io/badge/Version-3.0.0-blue)]()
 
-Transform your development process with 50+ AI agents working together seamlessly. Now with **enterprise-grade security** and **database-backed authentication**.
+Transform your development process with 50+ AI agents working together seamlessly. Now with **enterprise-grade security**, **database-backed authentication**, and **reliable Docker deployment**.
 
 ---
 
-## 🔒 **NEW: Enhanced Security (v2.0.0)**
+## 🆕 **What's New in v3.0.0**
+
+### Docker & Infrastructure Improvements
+- ✅ **Fixed Vault Container Health Check** - Resolved unhealthy container issue
+- ✅ **Improved Docker Compose Configuration** - Removed problematic volume mounts
+- ✅ **Enhanced Documentation** - Added Docker troubleshooting guide
+- ✅ **Better Error Messages** - Clearer startup diagnostics
+
+### Previous Security Features (v2.0.0)
 
 ### ✅ Phase 1 Security Features (COMPLETE)
 
@@ -531,11 +540,17 @@ MIT License - see [LICENSE](./LICENSE) file for details
 
 ## 🏆 Project Status
 
-**Version:** 2.0.0-secure  
+**Version:** 3.0.0  
 **Security Score:** 92/100  
 **Production Ready:** ✅ YES  
 **Test Coverage:** ~95%  
 **Last Updated:** January 2026
+
+### Recent Updates (v3.0.0)
+- ✅ Fixed Vault container health check issue
+- ✅ Improved Docker deployment reliability
+- ✅ Enhanced documentation with troubleshooting guides
+- ✅ Removed problematic vault config directory mount
 
 ---
 
