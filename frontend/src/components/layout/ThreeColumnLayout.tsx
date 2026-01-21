@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/cn'
@@ -28,16 +28,21 @@ export const ThreeColumnLayout = ({
   const [isRightCollapsed, setIsRightCollapsed] = useState(false)
   const [isDraggingLeft, setIsDraggingLeft] = useState(false)
   const [isDraggingRight, setIsDraggingRight] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
 
   // Load layout preferences from localStorage
   useEffect(() => {
     const saved = localStorage.getItem('layout-state')
     if (saved) {
-      const state = JSON.parse(saved)
-      setLeftWidth(state.leftWidth || 280)
-      setRightWidth(state.rightWidth || 360)
-      setIsLeftCollapsed(state.isLeftCollapsed || false)
-      setIsRightCollapsed(state.isRightCollapsed || false)
+      try {
+        const state = JSON.parse(saved)
+        if (state.leftWidth) setLeftWidth(state.leftWidth)
+        if (state.rightWidth) setRightWidth(state.rightWidth)
+        if (state.isLeftCollapsed !== undefined) setIsLeftCollapsed(state.isLeftCollapsed)
+        if (state.isRightCollapsed !== undefined) setIsRightCollapsed(state.isRightCollapsed)
+      } catch (e) {
+        console.error('Failed to load layout state:', e)
+      }
     }
   }, [])
 
@@ -63,12 +68,14 @@ export const ThreeColumnLayout = ({
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      if (isDraggingLeft) {
-        const newWidth = Math.max(200, Math.min(500, e.clientX - 8))
+      if (isDraggingLeft && containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect()
+        const newWidth = Math.max(200, Math.min(500, e.clientX - rect.left))
         setLeftWidth(newWidth)
       }
-      if (isDraggingRight) {
-        const newWidth = Math.max(200, Math.min(600, window.innerWidth - e.clientX - 8))
+      if (isDraggingRight && containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect()
+        const newWidth = Math.max(200, Math.min(600, rect.right - e.clientX))
         setRightWidth(newWidth)
       }
     }
@@ -81,26 +88,32 @@ export const ThreeColumnLayout = ({
     if (isDraggingLeft || isDraggingRight) {
       document.addEventListener('mousemove', handleMouseMove)
       document.addEventListener('mouseup', handleMouseUp)
+      document.body.style.userSelect = 'none'
+      document.body.style.cursor = 'col-resize'
     }
 
     return () => {
       document.removeEventListener('mousemove', handleMouseMove)
       document.removeEventListener('mouseup', handleMouseUp)
+      document.body.style.userSelect = ''
+      document.body.style.cursor = ''
     }
   }, [isDraggingLeft, isDraggingRight])
 
   return (
-    <div className="flex w-full h-full overflow-hidden">
+    <div ref={containerRef} className="flex w-full h-full overflow-hidden">
       {/* Left Panel */}
       <div
         className={cn(
           "flex flex-col border-r border-border bg-card",
-          "transition-all duration-200 overflow-hidden",
-          isLeftCollapsed ? 'w-0' : 'w-0'
+          "overflow-hidden"
         )}
-        style={{ width: isLeftCollapsed ? 0 : leftWidth }}
+        style={{
+          width: isLeftCollapsed ? 0 : leftWidth,
+          transition: isDraggingLeft ? 'none' : 'width 0.2s ease-out'
+        }}
       >
-        <div className="flex-1 overflow-hidden">{leftPanel.children}</div>
+        <div className="flex-1 overflow-auto">{leftPanel.children}</div>
       </div>
 
       {/* Left Resize Handle */}
@@ -138,12 +151,14 @@ export const ThreeColumnLayout = ({
       <div
         className={cn(
           "flex flex-col border-l border-border bg-card",
-          "transition-all duration-200 overflow-hidden",
-          isRightCollapsed ? 'w-0' : 'w-0'
+          "overflow-hidden"
         )}
-        style={{ width: isRightCollapsed ? 0 : rightWidth }}
+        style={{
+          width: isRightCollapsed ? 0 : rightWidth,
+          transition: isDraggingRight ? 'none' : 'width 0.2s ease-out'
+        }}
       >
-        <div className="flex-1 overflow-hidden">{rightPanel.children}</div>
+        <div className="flex-1 overflow-auto">{rightPanel.children}</div>
       </div>
 
       {/* Collapse Buttons */}
@@ -151,13 +166,14 @@ export const ThreeColumnLayout = ({
         <button
           onClick={() => setIsLeftCollapsed(!isLeftCollapsed)}
           className={cn(
-            "absolute left-0 top-20 z-10",
+            "fixed left-0 top-20 z-10",
             "w-8 h-8 rounded-r-md",
             "bg-primary hover:bg-primary/90",
             "text-white flex items-center justify-center",
             "transition-colors duration-200"
           )}
           aria-label="Toggle left panel"
+          title={isLeftCollapsed ? 'Show left panel' : 'Hide left panel'}
         >
           {isLeftCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
         </button>
@@ -167,13 +183,14 @@ export const ThreeColumnLayout = ({
         <button
           onClick={() => setIsRightCollapsed(!isRightCollapsed)}
           className={cn(
-            "absolute right-0 top-20 z-10",
+            "fixed right-0 top-20 z-10",
             "w-8 h-8 rounded-l-md",
             "bg-primary hover:bg-primary/90",
             "text-white flex items-center justify-center",
             "transition-colors duration-200"
           )}
           aria-label="Toggle right panel"
+          title={isRightCollapsed ? 'Show right panel' : 'Hide right panel'}
         >
           {isRightCollapsed ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
         </button>

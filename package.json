@@ -89,6 +89,7 @@
     "morgan": "^1.10.0",
     "node-cache": "^5.1.2",
     "pg": "^8.17.1",
+    "prism-react-renderer": "^2.4.1",
     "prom-client": "^15.1.0",
     "qrcode": "^1.5.3",
     "redis": "^4.7.1",
