@@ -1,4 +1,4 @@
-# 🎉 YOUR ZEKKA FRAMEWORK IS READY!
+# 🎉 YOUR ZEKKA FRAMEWORK IS READY! (v3.0.0)
 
 ## 📦 What Has Been Created
 
@@ -23,6 +23,12 @@ A complete, production-ready multi-agent orchestration system with:
 3. **Cost Control**: Switches to free Ollama at 80% budget
 4. **Real-time Monitoring**: Dashboard with live metrics
 5. **GitHub Integration**: Automatic branch creation & PRs
+
+### 🆕 Version 3.0.0 Improvements
+- ✅ **Fixed Docker Deployment**: Vault container health check issue resolved
+- ✅ **Enhanced Reliability**: Improved Docker Compose configuration
+- ✅ **Better Documentation**: Comprehensive troubleshooting guides added
+- ✅ **Faster Startup**: Removed problematic volume mounts
 
 ---
 

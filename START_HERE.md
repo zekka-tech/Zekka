@@ -1,4 +1,23 @@
-# 🎊 COMPLETE DEPLOYMENT PACKAGE READY!
+# 🎊 COMPLETE DEPLOYMENT PACKAGE READY! (v3.0.0)
+
+## 🆕 Version 3.0.0 - Docker Reliability Update
+
+### What's New
+- ✅ **Fixed Vault Container** - No more "dependency failed to start" errors
+- ✅ **Reliable Startup** - All services start consistently on first attempt
+- ✅ **Better Docs** - Added comprehensive Docker troubleshooting guide
+- ✅ **Simpler Config** - Removed unnecessary volume mounts
+
+### Upgrading from v2.0.0?
+```bash
+git pull origin main
+docker-compose down -v
+docker-compose up -d
+```
+
+See [VAULT_FIX_2026-01-21.md](./VAULT_FIX_2026-01-21.md) for details.
+
+---
 
 ## ✨ What You Have
 

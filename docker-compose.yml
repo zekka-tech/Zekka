@@ -114,7 +114,6 @@ services:
       - IPC_LOCK
     volumes:
       - vault-data:/vault/data
-      - ./vault/config:/vault/config
     networks:
       - zekka-network
     command: server -dev -dev-root-token-id=${VAULT_DEV_ROOT_TOKEN:-zekka-dev-token}

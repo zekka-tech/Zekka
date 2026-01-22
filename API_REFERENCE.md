@@ -3,7 +3,7 @@
 Complete API documentation for Zekka Framework - Multi-Agent AI Orchestration Platform
 
 **Base URL:** `http://localhost:3000`  
-**API Version:** 2.0.0
+**API Version:** 3.0.0
 
 ---
 

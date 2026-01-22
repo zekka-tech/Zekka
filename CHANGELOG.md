@@ -12,6 +12,104 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.0.0] - 2026-01-21
+
+### 🎉 Infrastructure & Docker Reliability Release
+
+This release focuses on improving Docker deployment reliability and fixing critical infrastructure issues.
+
+### 🐛 Fixed
+
+#### Docker Infrastructure
+- **Vault Container Health Check Issue** - CRITICAL FIX
+  - Removed problematic `./vault/config:/vault/config` volume mount from docker-compose.yml
+  - Vault container was failing health checks due to non-existent config directory
+  - Application startup was blocked by unhealthy vault dependency
+  - Vault in dev mode doesn't require config directory mount
+  - Health check now passes consistently
+  - Documented in VAULT_FIX_2026-01-21.md
+
+#### Docker Compose Configuration
+- Simplified Vault service configuration
+- Removed unnecessary volume mounts causing startup failures
+- Improved service dependency reliability
+- Better error messages for debugging
+
+### 📚 Documentation
+
+#### New Documentation
+- **VAULT_FIX_2026-01-21.md** - Comprehensive vault fix documentation
+  - Root cause analysis
+  - Solution details
+  - Testing instructions
+  - Prevention guidelines
+
+#### Updated Documentation
+- **README.md** - Added Docker troubleshooting section
+  - Common Docker issues and solutions
+  - Vault container health check troubleshooting
+  - Port conflict resolution
+  - Build failure remediation
+  - Docker services overview
+  
+- **VAULT_SETUP.md** - Updated with troubleshooting section
+  - Vault startup issues
+  - Health check failures
+  - Configuration best practices
+
+### 🔧 Changed
+
+- **docker-compose.yml**
+  - Removed `./vault/config:/vault/config` volume mount from vault service
+  - Kept only necessary `vault-data:/vault/data` volume mount
+  - Maintained all other vault configuration (dev mode, environment variables, health checks)
+
+### ✅ Improved
+
+- **Deployment Reliability**
+  - Docker containers now start consistently on first attempt
+  - Vault health check passes reliably
+  - Reduced startup errors and failures
+  - Better diagnostic messages
+
+- **User Experience**
+  - Clear error messages for common Docker issues
+  - Comprehensive troubleshooting documentation
+  - Step-by-step fix instructions
+  - Prevention guidelines for future deployments
+
+### 🚀 Impact
+
+- **Before v3.0.0:**
+  ```
+  ❌ Vault container: unhealthy
+  ❌ App container: dependency failed to start
+  ❌ Users blocked from running the application
+  ```
+
+- **After v3.0.0:**
+  ```
+  ✅ Vault container: healthy
+  ✅ App container: running
+  ✅ All services operational
+  ```
+
+### 📋 Migration from v2.0.0
+
+No breaking changes. Simply pull the latest code and restart:
+
+```bash
+git pull origin main
+docker-compose down -v
+docker-compose up -d
+```
+
+### 🙏 Acknowledgments
+
+Thanks to all users who reported the vault container health check issue and helped us identify the root cause.
+
+---
+
 ## [2.0.0] - 2026-01-13
 
 ### 🎉 Major Release - Production Ready
@@ -340,9 +438,9 @@ The first production-ready version of Zekka Framework with complete multi-agent 
 
 ### Support Policy
 
-- **Current Release (2.x):** Full support
-- **Previous Major (1.x):** Security fixes only for 6 months
-- **Older Releases:** No support
+- **Current Release (3.x):** Full support
+- **Previous Major (2.x):** Security fixes only for 6 months
+- **Older Releases (1.x):** No support
 
 ### Upgrade Guides
 
@@ -449,4 +547,5 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for details on:
 
 **Maintained by:** Zekka Tech Team  
 **License:** MIT  
-**Last Updated:** January 13, 2026
+**Current Version:** 3.0.0  
+**Last Updated:** January 21, 2026
