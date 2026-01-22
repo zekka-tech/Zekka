@@ -1,177 +1,322 @@
 /**
- * WebSocket Handler
- * Provides real-time updates for project execution
+ * WebSocket Middleware
+ *
+ * Socket.IO setup with authentication, connection handling, and event routing
+ * Provides real-time communication for messages, agents, metrics, and projects
+ *
+ * @module middleware/websocket
  */
 
 const socketIO = require('socket.io');
+const { authenticateSocket, getUserId } = require('../utils/socket-auth');
+const { setupMessageEvents } = require('../events/message.events');
+const { setupAgentEvents } = require('../events/agent.events');
+const { setupMetricsEvents } = require('../events/metrics.events');
+const { setupProjectEvents } = require('../events/project.events');
+const { handleSocketError } = require('./socket-error-handler');
 
 let io = null;
 
+// Connection tracking
+const connections = new Map(); // socketId -> { userId, rooms, connectedAt }
+const userSockets = new Map(); // userId -> Set of socketIds
+
 /**
- * Initialize WebSocket server
+ * Initialize WebSocket server with authentication and event handlers
+ *
+ * @param {Object} server - HTTP server instance
+ * @param {Object} logger - Winston logger instance
+ * @returns {Object} - Socket.IO instance
  */
 function initializeWebSocket(server, logger) {
   io = socketIO(server, {
     cors: {
-      origin: '*',
-      methods: ['GET', 'POST']
+      origin: process.env.CORS_ORIGIN || '*',
+      methods: ['GET', 'POST'],
+      credentials: true
     },
-    path: '/ws'
+    path: '/ws',
+    pingTimeout: 60000,
+    pingInterval: 25000,
+    upgradeTimeout: 30000,
+    maxHttpBufferSize: 1e6, // 1MB
+    transports: ['websocket', 'polling'],
+    allowEIO3: true
   });
-  
+
+  // Authentication middleware
+  io.use(authenticateSocket);
+
+  // Connection handler
   io.on('connection', (socket) => {
-    logger.info(`🔌 WebSocket client connected: ${socket.id}`);
-    
-    // Send welcome message
-    socket.emit('connected', {
-      message: 'Connected to Zekka Framework',
-      socketId: socket.id,
-      timestamp: new Date().toISOString()
-    });
-    
-    // Handle project subscription
-    socket.on('subscribe:project', (projectId) => {
-      logger.info(`📡 Client ${socket.id} subscribed to project: ${projectId}`);
-      socket.join(`project:${projectId}`);
-      socket.emit('subscribed', { projectId });
-    });
-    
-    // Handle project unsubscription
-    socket.on('unsubscribe:project', (projectId) => {
-      logger.info(`📴 Client ${socket.id} unsubscribed from project: ${projectId}`);
-      socket.leave(`project:${projectId}`);
-      socket.emit('unsubscribed', { projectId });
-    });
-    
-    // Handle system metrics subscription
-    socket.on('subscribe:metrics', () => {
-      logger.info(`📊 Client ${socket.id} subscribed to system metrics`);
-      socket.join('system:metrics');
-      socket.emit('subscribed:metrics', { success: true });
-    });
-    
-    // Handle ping
-    socket.on('ping', () => {
-      socket.emit('pong', { timestamp: new Date().toISOString() });
-    });
-    
-    // Handle disconnection
+    handleConnection(socket, logger);
+
+    // Setup event handlers
+    setupMessageEvents(io, socket, logger);
+    setupAgentEvents(io, socket, logger);
+    setupMetricsEvents(io, socket, logger);
+    setupProjectEvents(io, socket, logger);
+
+    // Setup error handler
+    handleSocketError(socket, logger);
+
+    // Disconnection handler
     socket.on('disconnect', (reason) => {
-      logger.info(`🔌 WebSocket client disconnected: ${socket.id} (${reason})`);
+      handleDisconnection(socket, reason, logger);
+    });
+
+    // Heartbeat/ping-pong
+    socket.on('ping', () => {
+      socket.emit('pong', { timestamp: Date.now() });
+    });
+
+    // Connection health check
+    socket.on('health', () => {
+      socket.emit('health:response', {
+        status: 'ok',
+        timestamp: Date.now(),
+        uptime: process.uptime()
+      });
     });
   });
-  
-  logger.info('✅ WebSocket server initialized on path: /ws');
+
+  // Periodic connection cleanup (every 5 minutes)
+  setInterval(() => {
+    cleanupStaleConnections(logger);
+  }, 5 * 60 * 1000);
+
+  logger.info(`✅ WebSocket server initialized on path: /ws`);
+  logger.info(`📊 Max connections: ${process.env.MAX_WS_CONNECTIONS || '5000'}`);
+  logger.info(`🔒 Authentication: Required`);
+
   return io;
 }
 
 /**
- * Broadcast project update to subscribed clients
+ * Handle new WebSocket connection
+ *
+ * @param {Object} socket - Socket.IO socket instance
+ * @param {Object} logger - Winston logger instance
  */
-function broadcastProjectUpdate(projectId, update) {
-  if (!io) return;
-  
-  io.to(`project:${projectId}`).emit('project:update', {
-    projectId,
-    timestamp: new Date().toISOString(),
-    ...update
+function handleConnection(socket, logger) {
+  const userId = getUserId(socket);
+
+  // Track connection
+  connections.set(socket.id, {
+    userId,
+    username: socket.user?.username,
+    rooms: new Set(),
+    connectedAt: Date.now(),
+    lastActivity: Date.now()
   });
+
+  // Track user's sockets
+  if (userId) {
+    if (!userSockets.has(userId)) {
+      userSockets.set(userId, new Set());
+    }
+    userSockets.get(userId).add(socket.id);
+  }
+
+  logger.info(`🔌 WebSocket connected: ${socket.id}`, {
+    userId,
+    username: socket.user?.username,
+    ip: socket.metadata?.ip,
+    userAgent: socket.metadata?.userAgent
+  });
+
+  // Send welcome message
+  socket.emit('connected', {
+    message: 'Connected to Zekka Framework',
+    socketId: socket.id,
+    userId,
+    timestamp: Date.now(),
+    features: {
+      messages: true,
+      agents: true,
+      metrics: true,
+      projects: true
+    }
+  });
+
+  // Check connection limits
+  const totalConnections = connections.size;
+  const maxConnections = parseInt(process.env.MAX_WS_CONNECTIONS || '5000', 10);
+
+  if (totalConnections >= maxConnections) {
+    logger.warn(`⚠️  Connection limit approaching: ${totalConnections}/${maxConnections}`);
+
+    // Notify admins
+    io.to('admin').emit('system:warning', {
+      type: 'connection_limit',
+      current: totalConnections,
+      max: maxConnections,
+      timestamp: Date.now()
+    });
+  }
 }
 
 /**
- * Broadcast project stage update
+ * Handle WebSocket disconnection
+ *
+ * @param {Object} socket - Socket.IO socket instance
+ * @param {string} reason - Disconnection reason
+ * @param {Object} logger - Winston logger instance
  */
-function broadcastStageUpdate(projectId, stage, data) {
-  if (!io) return;
-  
-  io.to(`project:${projectId}`).emit('project:stage', {
-    projectId,
-    stage,
-    timestamp: new Date().toISOString(),
-    ...data
+function handleDisconnection(socket, reason, logger) {
+  const userId = getUserId(socket);
+  const connectionData = connections.get(socket.id);
+
+  logger.info(`🔌 WebSocket disconnected: ${socket.id} (${reason})`, {
+    userId,
+    username: socket.user?.username,
+    duration: connectionData ? Date.now() - connectionData.connectedAt : 0
   });
+
+  // Clean up connection tracking
+  if (connectionData) {
+    // Leave all rooms
+    connectionData.rooms.forEach(room => {
+      socket.leave(room);
+    });
+
+    connections.delete(socket.id);
+  }
+
+  // Clean up user sockets tracking
+  if (userId && userSockets.has(userId)) {
+    userSockets.get(userId).delete(socket.id);
+
+    // Remove user entry if no more sockets
+    if (userSockets.get(userId).size === 0) {
+      userSockets.delete(userId);
+    }
+  }
 }
 
 /**
- * Broadcast agent activity
+ * Clean up stale connections
+ * Removes connections that haven't had activity in 30 minutes
+ *
+ * @param {Object} logger - Winston logger instance
  */
-function broadcastAgentActivity(projectId, agent, activity) {
-  if (!io) return;
-  
-  io.to(`project:${projectId}`).emit('project:agent', {
-    projectId,
-    agent,
-    activity,
-    timestamp: new Date().toISOString()
+function cleanupStaleConnections(logger) {
+  const now = Date.now();
+  const staleThreshold = 30 * 60 * 1000; // 30 minutes
+  let staleCount = 0;
+
+  connections.forEach((data, socketId) => {
+    if (now - data.lastActivity > staleThreshold) {
+      const socket = io.sockets.sockets.get(socketId);
+      if (socket) {
+        socket.disconnect(true);
+        staleCount++;
+      }
+      connections.delete(socketId);
+    }
   });
+
+  if (staleCount > 0) {
+    logger.info(`🧹 Cleaned up ${staleCount} stale WebSocket connections`);
+  }
 }
 
 /**
- * Broadcast conflict resolution
+ * Update connection activity timestamp
+ *
+ * @param {string} socketId - Socket ID
  */
-function broadcastConflict(projectId, conflict) {
-  if (!io) return;
-  
-  io.to(`project:${projectId}`).emit('project:conflict', {
-    projectId,
-    timestamp: new Date().toISOString(),
-    ...conflict
-  });
+function updateActivity(socketId) {
+  const connection = connections.get(socketId);
+  if (connection) {
+    connection.lastActivity = Date.now();
+  }
 }
 
 /**
- * Broadcast cost update
+ * Track room membership
+ *
+ * @param {string} socketId - Socket ID
+ * @param {string} room - Room name
  */
-function broadcastCostUpdate(projectId, cost) {
-  if (!io) return;
-  
-  io.to(`project:${projectId}`).emit('project:cost', {
-    projectId,
-    cost,
-    timestamp: new Date().toISOString()
-  });
+function trackRoom(socketId, room) {
+  const connection = connections.get(socketId);
+  if (connection) {
+    connection.rooms.add(room);
+  }
 }
 
 /**
- * Broadcast system metrics
+ * Untrack room membership
+ *
+ * @param {string} socketId - Socket ID
+ * @param {string} room - Room name
  */
-function broadcastMetrics(metrics) {
-  if (!io) return;
-  
-  io.to('system:metrics').emit('system:metrics', {
-    timestamp: new Date().toISOString(),
-    ...metrics
-  });
+function untrackRoom(socketId, room) {
+  const connection = connections.get(socketId);
+  if (connection) {
+    connection.rooms.delete(room);
+  }
 }
 
 /**
- * Broadcast project completion
+ * Get all socket IDs for a user
+ *
+ * @param {string} userId - User ID
+ * @returns {Set<string>} - Set of socket IDs
  */
-function broadcastProjectComplete(projectId, result) {
-  if (!io) return;
-  
-  io.to(`project:${projectId}`).emit('project:complete', {
-    projectId,
-    timestamp: new Date().toISOString(),
-    ...result
-  });
+function getUserSocketIds(userId) {
+  return userSockets.get(userId) || new Set();
 }
 
 /**
- * Broadcast project error
+ * Get connection statistics
+ *
+ * @returns {Object} - Connection stats
  */
-function broadcastProjectError(projectId, error) {
-  if (!io) return;
-  
-  io.to(`project:${projectId}`).emit('project:error', {
-    projectId,
-    error: error.message || error,
-    timestamp: new Date().toISOString()
+function getConnectionStats() {
+  const roomCounts = {};
+  connections.forEach(data => {
+    data.rooms.forEach(room => {
+      roomCounts[room] = (roomCounts[room] || 0) + 1;
+    });
   });
+
+  return {
+    total: connections.size,
+    users: userSockets.size,
+    rooms: roomCounts,
+    timestamp: Date.now()
+  };
+}
+
+/**
+ * Get Socket.IO instance
+ *
+ * @returns {Object} - Socket.IO instance
+ */
+function getIO() {
+  if (!io) {
+    throw new Error('WebSocket not initialized. Call initializeWebSocket first.');
+  }
+  return io;
+}
+
+/**
+ * Broadcast to all connected clients
+ *
+ * @param {string} event - Event name
+ * @param {Object} data - Event data
+ */
+function broadcastToAll(event, data) {
+  if (!io) return;
+  io.emit(event, data);
 }
 
 /**
  * Get connected clients count
+ *
+ * @returns {number} - Number of connected clients
  */
 function getConnectedClients() {
   if (!io) return 0;
@@ -180,13 +325,37 @@ function getConnectedClients() {
 
 module.exports = {
   initializeWebSocket,
-  broadcastProjectUpdate,
-  broadcastStageUpdate,
-  broadcastAgentActivity,
-  broadcastConflict,
-  broadcastCostUpdate,
-  broadcastMetrics,
-  broadcastProjectComplete,
-  broadcastProjectError,
-  getConnectedClients
+  getIO,
+  broadcastToAll,
+  getConnectedClients,
+  getConnectionStats,
+  getUserSocketIds,
+  updateActivity,
+  trackRoom,
+  untrackRoom,
+  // Legacy exports for backward compatibility
+  broadcastProjectUpdate: (projectId, update) => {
+    if (io) io.to(`project:${projectId}`).emit('project:update', update);
+  },
+  broadcastStageUpdate: (projectId, stage, data) => {
+    if (io) io.to(`project:${projectId}`).emit('project:stage', { stage, ...data });
+  },
+  broadcastAgentActivity: (projectId, agent, activity) => {
+    if (io) io.to(`project:${projectId}`).emit('project:agent', { agent, activity });
+  },
+  broadcastConflict: (projectId, conflict) => {
+    if (io) io.to(`project:${projectId}`).emit('project:conflict', conflict);
+  },
+  broadcastCostUpdate: (projectId, cost) => {
+    if (io) io.to(`project:${projectId}`).emit('project:cost', { cost });
+  },
+  broadcastMetrics: (metrics) => {
+    if (io) io.to('system:metrics').emit('system:metrics', metrics);
+  },
+  broadcastProjectComplete: (projectId, result) => {
+    if (io) io.to(`project:${projectId}`).emit('project:complete', result);
+  },
+  broadcastProjectError: (projectId, error) => {
+    if (io) io.to(`project:${projectId}`).emit('project:error', { error: error.message || error });
+  }
 };

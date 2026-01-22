@@ -15,14 +15,14 @@
  * - OAuth 2.0 integration
  */
 
-import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
-import crypto from 'crypto';
-import speakeasy from 'speakeasy';
-import qrcode from 'qrcode';
-import pool from '../config/database.js';
-import redis from '../config/redis.js';
-import auditService from './audit-service.js';
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
+const speakeasy = require('speakeasy');
+const qrcode = require('qrcode');
+const pool = require('../config/database.js');
+const redis = require('../config/redis.js');
+const auditService = require('./audit-service.js');
 
 const SALT_ROUNDS = 10;
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -908,4 +908,4 @@ class AuthService {
   }
 }
 
-export default new AuthService();
+module.exports = new AuthService();

@@ -19,6 +19,13 @@ const { authenticate, optionalAuth, register, login, getUser } = require('./midd
 const { metricsMiddleware, getMetrics, trackProject, trackAgent, trackCost } = require('./middleware/metrics');
 const websocket = require('./middleware/websocket');
 
+// API Routes
+const projectsRoutes = require('./routes/projects.routes');
+const conversationsRoutes = require('./routes/conversations.routes');
+const analyticsRoutes = require('./routes/analytics.routes');
+const agentsRoutes = require('./routes/agents.routes');
+const sourcesRoutes = require('./routes/sources.routes');
+
 // Logger setup
 const logger = createLogger({
   level: process.env.LOG_LEVEL || 'info',
@@ -519,6 +526,13 @@ app.get('/api/metrics', apiLimiter, optionalAuth, async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+// Register API v1 routes (Team 3 - Core Services)
+app.use('/api/v1/projects', projectsRoutes);
+app.use('/api/v1/conversations', conversationsRoutes);
+app.use('/api/v1/analytics', analyticsRoutes);
+app.use('/api/v1/agents', agentsRoutes);
+app.use('/api/v1/sources', sourcesRoutes);
 
 // Serve static files (frontend)
 app.use(express.static('public'));
