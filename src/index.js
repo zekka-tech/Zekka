@@ -11,12 +11,20 @@ const swaggerSpec = require('./swagger');
 const ContextBus = require('./shared/context-bus');
 const TokenEconomics = require('./shared/token-economics');
 const ZekkaOrchestrator = require('./orchestrator/orchestrator');
+const { initVault } = require('./config/vault');
 
 // Middleware
 const { apiLimiter, createProjectLimiter, authLimiter } = require('./middleware/rateLimit');
 const { authenticate, optionalAuth, register, login, getUser } = require('./middleware/auth');
 const { metricsMiddleware, getMetrics, trackProject, trackAgent, trackCost } = require('./middleware/metrics');
 const websocket = require('./middleware/websocket');
+
+// API Routes
+const projectsRoutes = require('./routes/projects.routes');
+const conversationsRoutes = require('./routes/conversations.routes');
+const analyticsRoutes = require('./routes/analytics.routes');
+const agentsRoutes = require('./routes/agents.routes');
+const sourcesRoutes = require('./routes/sources.routes');
 
 // Logger setup
 const logger = createLogger({
@@ -51,19 +59,30 @@ app.use(morgan('combined', { stream: { write: msg => logger.info(msg.trim()) } }
 app.use(metricsMiddleware);
 
 // Initialize core services
-let contextBus, tokenEconomics, orchestrator;
+let contextBus, tokenEconomics, orchestrator, vault;
 
 async function initializeServices() {
   try {
     logger.info('🚀 Initializing Zekka Framework services...');
-    
+
     // Initialize WebSocket
     websocket.initializeWebSocket(server, logger);
-    
-    // Initialize Context Bus (Redis)
+
+    // Initialize Vault (if enabled)
+    try {
+      vault = await initVault(logger);
+      if (vault) {
+        logger.info('✅ Vault service ready');
+      }
+    } catch (vaultError) {
+      logger.warn('⚠️  Vault initialization failed, using environment variables:', vaultError.message);
+    }
+
+    // Initialize Context Bus (Redis) with password authentication
     contextBus = new ContextBus({
       host: process.env.REDIS_HOST || 'localhost',
-      port: parseInt(process.env.REDIS_PORT) || 6379
+      port: parseInt(process.env.REDIS_PORT) || 6379,
+      password: process.env.REDIS_PASSWORD || ''
     });
     await contextBus.connect();
     logger.info('✅ Context Bus connected');
@@ -508,6 +527,13 @@ app.get('/api/metrics', apiLimiter, optionalAuth, async (req, res) => {
   }
 });
 
+// Register API v1 routes (Team 3 - Core Services)
+app.use('/api/v1/projects', projectsRoutes);
+app.use('/api/v1/conversations', conversationsRoutes);
+app.use('/api/v1/analytics', analyticsRoutes);
+app.use('/api/v1/agents', agentsRoutes);
+app.use('/api/v1/sources', sourcesRoutes);
+
 // Serve static files (frontend)
 app.use(express.static('public'));
 
@@ -528,10 +554,14 @@ app.use((err, req, res, next) => {
 // Graceful shutdown
 process.on('SIGTERM', async () => {
   logger.info('SIGTERM received, shutting down gracefully...');
-  
+
+  if (vault) {
+    const { shutdownVault } = require('./config/vault');
+    await shutdownVault();
+  }
   if (contextBus) await contextBus.disconnect();
   if (orchestrator) await orchestrator.shutdown();
-  
+
   process.exit(0);
 });
 

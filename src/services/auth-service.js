@@ -15,18 +15,22 @@
  * - OAuth 2.0 integration
  */
 
-import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
-import crypto from 'crypto';
-import speakeasy from 'speakeasy';
-import qrcode from 'qrcode';
-import pool from '../config/database.js';
-import redis from '../config/redis.js';
-import auditService from './audit-service.js';
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
+const speakeasy = require('speakeasy');
+const qrcode = require('qrcode');
+const pool = require('../config/database.js');
+const redis = require('../config/redis.js');
+const auditService = require('./audit-service.js');
 
 const SALT_ROUNDS = 10;
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '1h';
+
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is required for authentication service');
+}
 const REFRESH_TOKEN_EXPIRES_IN = '7d';
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOCKOUT_TIME_MINUTES = 15;
@@ -904,4 +908,4 @@ class AuthService {
   }
 }
 
-export default new AuthService();
+module.exports = new AuthService();

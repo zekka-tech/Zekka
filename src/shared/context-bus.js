@@ -2,33 +2,145 @@ const redis = require('redis');
 const { v4: uuidv4 } = require('uuid');
 
 /**
- * Context Bus - Centralized state management and file locking
- * Prevents agent collisions and ensures consistency
+ * Context Bus - Centralized State Management and File Locking System
+ *
+ * The Context Bus is a critical component of the Zekka Framework that provides:
+ * - Centralized state management for multi-agent workflows
+ * - Distributed file locking to prevent agent collisions
+ * - Real-time pub/sub communication between agents
+ * - Project and agent context persistence
+ * - Conflict detection and resolution support
+ *
+ * @module shared/context-bus
+ * @requires redis - Redis client for distributed state management
+ * @requires uuid - UUID generation for unique identifiers
+ *
+ * @description
+ * The Context Bus uses Redis as a distributed store to coordinate multiple
+ * AI agents working on the same project. It ensures data consistency and
+ * prevents race conditions when agents modify shared resources.
+ *
+ * Key Features:
+ * - **File Locking**: Prevents multiple agents from editing the same file
+ * - **State Management**: Tracks agent status, project context, and task state
+ * - **Pub/Sub**: Real-time notifications for context updates
+ * - **Conflict Detection**: Records and manages conflicts for arbitration
+ * - **Caching**: General-purpose caching with TTL support
+ * - **Metrics**: Counter-based metrics for monitoring
+ *
+ * @example
+ * // Initialize and connect
+ * const contextBus = new ContextBus({
+ *   host: 'redis',
+ *   port: 6379,
+ *   password: 'secure-password'
+ * });
+ * await contextBus.connect();
+ *
+ * @example
+ * // File locking
+ * const acquired = await contextBus.requestFileLock(taskId, 'agent-1', 'src/index.js');
+ * if (acquired) {
+ *   // Safe to edit file
+ *   await contextBus.releaseFileLock(taskId, 'agent-1', 'src/index.js');
+ * }
+ *
+ * @author Zekka Technologies
+ * @version 2.0.0
+ * @since 1.0.0
  */
 class ContextBus {
+  /**
+   * Create a new Context Bus instance.
+   *
+   * @param {Object} options - Configuration options
+   * @param {string} [options.host='localhost'] - Redis server hostname
+   * @param {number} [options.port=6379] - Redis server port
+   * @param {string} [options.password=''] - Redis authentication password
+   * @param {string} [options.keyPrefix='zekka:'] - Prefix for all Redis keys
+   * @param {number} [options.connectTimeout=5000] - Connection timeout in ms
+   * @param {number} [options.maxRetries=3] - Maximum connection retry attempts
+   */
   constructor(options = {}) {
     this.host = options.host || 'localhost';
     this.port = options.port || 6379;
+    this.password = options.password || process.env.REDIS_PASSWORD || '';
+    this.keyPrefix = options.keyPrefix || 'zekka:';
+    this.connectTimeout = options.connectTimeout || 5000;
+    this.maxRetries = options.maxRetries || 3;
+
     this.client = null;
     this.subscriber = null;
     this.publisher = null;
+    this._connectionAttempts = 0;
   }
 
+  /**
+   * Connect to Redis server with authentication support.
+   *
+   * Establishes three connections:
+   * - Main client for read/write operations
+   * - Subscriber client for pub/sub subscriptions
+   * - Publisher client for pub/sub publishing
+   *
+   * @async
+   * @returns {Promise<void>}
+   * @throws {Error} If connection fails after max retries
+   *
+   * @fires ContextBus#connected
+   * @fires ContextBus#error
+   */
   async connect() {
-    // Main client for operations
-    this.client = redis.createClient({
+    // Build Redis connection options with optional password
+    const connectionOptions = {
       socket: {
         host: this.host,
-        port: this.port
+        port: this.port,
+        connectTimeout: this.connectTimeout,
+        reconnectStrategy: (retries) => {
+          if (retries > this.maxRetries) {
+            console.error(`❌ Redis connection failed after ${retries} attempts`);
+            return new Error('Max reconnection attempts reached');
+          }
+          // Exponential backoff: 100ms, 200ms, 400ms, ...
+          const delay = Math.min(retries * 100, 3000);
+          console.log(`⏳ Redis reconnecting in ${delay}ms (attempt ${retries}/${this.maxRetries})`);
+          return delay;
+        }
       }
+    };
+
+    // Add password authentication if configured
+    if (this.password && this.password.length > 0) {
+      connectionOptions.password = this.password;
+    }
+
+    // Main client for operations
+    this.client = redis.createClient(connectionOptions);
+
+    // Set up error handling
+    this.client.on('error', (err) => {
+      console.error('❌ Redis Client Error:', err.message);
     });
 
-    this.client.on('error', (err) => console.error('Redis Client Error:', err));
+    this.client.on('reconnecting', () => {
+      console.log('🔄 Redis client reconnecting...');
+    });
+
     await this.client.connect();
 
-    // Pub/Sub clients
+    // Pub/Sub clients (duplicate main client config)
     this.subscriber = this.client.duplicate();
     this.publisher = this.client.duplicate();
+
+    this.subscriber.on('error', (err) => {
+      console.error('❌ Redis Subscriber Error:', err.message);
+    });
+
+    this.publisher.on('error', (err) => {
+      console.error('❌ Redis Publisher Error:', err.message);
+    });
+
     await this.subscriber.connect();
     await this.publisher.connect();
 

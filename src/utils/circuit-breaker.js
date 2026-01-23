@@ -4,7 +4,8 @@
  * PERFORMANCE FIX: Phase 3 - Circuit breakers for resilience
  */
 
-const CircuitBreaker = require('opossum');
+const Opossum = require('opossum');
+const CircuitBreaker = Opossum.default || Opossum;
 
 /**
  * Create circuit breaker with default options
@@ -167,6 +168,7 @@ function getCircuitBreakerStats() {
 }
 
 module.exports = {
+  CircuitBreaker,
   createCircuitBreaker,
   githubBreaker,
   anthropicBreaker,

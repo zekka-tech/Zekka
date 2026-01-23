@@ -1,23 +1,111 @@
 const { Pool } = require('pg');
 const { v4: uuidv4 } = require('uuid');
 const axios = require('axios');
+const ModelClient = require('../services/model-client');
 
 /**
- * Zekka Orchestrator - Central coordination for multi-agent workflows
+ * Zekka Orchestrator - Central Coordination for Multi-Agent Workflows
+ *
+ * The Orchestrator is the brain of the Zekka Framework, responsible for:
+ * - Creating and managing software development projects
+ * - Coordinating multiple AI agents working on tasks
+ * - Managing workflow stages from research to deployment
+ * - Tracking costs and budget through Token Economics
+ * - Monitoring project progress and metrics
+ *
+ * @module orchestrator/orchestrator
+ * @requires pg - PostgreSQL client for project/task persistence
+ * @requires uuid - Unique identifier generation
+ * @requires axios - HTTP client for external API calls (Ollama, etc.)
+ *
+ * @description
+ * The Orchestrator implements a staged workflow for software development:
+ * 1. Authentication - Verify user and project access
+ * 2. Security Setup - Configure security policies
+ * 3. Research - AI agents research requirements (3 agents)
+ * 4. Documentation - Generate technical documentation
+ * 5. Development - Code implementation (6 agents)
+ * 6. Testing - Automated testing (2 agents)
+ * 7. Validation - Code review and validation
+ * 8. Deployment - Deploy to target environment
+ *
+ * @example
+ * // Initialize orchestrator
+ * const orchestrator = new ZekkaOrchestrator({
+ *   contextBus,
+ *   tokenEconomics,
+ *   logger,
+ *   config: { githubToken, anthropicKey, ollamaHost }
+ * });
+ * await orchestrator.initialize();
+ *
+ * @example
+ * // Create and execute a project
+ * const project = await orchestrator.createProject({
+ *   name: 'My App',
+ *   requirements: ['User authentication', 'Dashboard'],
+ *   storyPoints: 13,
+ *   budget: { daily: 50, monthly: 1000 }
+ * });
+ * await orchestrator.executeProject(project.projectId);
+ *
+ * @author Zekka Technologies
+ * @version 2.0.0
+ * @since 1.0.0
  */
 class ZekkaOrchestrator {
+  /**
+   * Create a new Orchestrator instance.
+   *
+   * @param {Object} options - Configuration options
+   * @param {Object} options.contextBus - Context Bus instance for state management
+   * @param {Object} options.tokenEconomics - Token Economics instance for cost tracking
+   * @param {Object} [options.logger=console] - Logger instance
+   * @param {Object} [options.config={}] - Additional configuration
+   * @param {string} [options.config.githubToken] - GitHub API token
+   * @param {string} [options.config.anthropicKey] - Anthropic API key
+   * @param {string} [options.config.openaiKey] - OpenAI API key
+   * @param {string} [options.config.ollamaHost] - Ollama server URL
+   * @param {number} [options.config.maxConcurrentAgents=10] - Max parallel agents
+   * @param {string} [options.config.defaultModel='ollama'] - Default LLM model
+   *
+   * @throws {Error} If DATABASE_URL environment variable is not set
+   */
   constructor(options = {}) {
     this.contextBus = options.contextBus;
     this.tokenEconomics = options.tokenEconomics;
     this.logger = options.logger || console;
     this.config = options.config || {};
-    
+
+    // Initialize the unified Model Client for AI interactions
+    // The Orchestrator uses Gemini Pro by default with automatic fallback to Ollama
+    this.modelClient = new ModelClient({
+      logger: this.logger,
+      tokenEconomics: this.tokenEconomics,
+      contextBus: this.contextBus
+    });
+
+    // Validate required environment variables
+    if (!process.env.DATABASE_URL) {
+      throw new Error('DATABASE_URL environment variable is required');
+    }
+
+    // Initialize database connection pool
+    // Uses connection pooling for efficient resource management
     this.db = new Pool({
-      host: process.env.POSTGRES_HOST || 'localhost',
-      port: parseInt(process.env.POSTGRES_PORT) || 5432,
-      database: process.env.POSTGRES_DB || 'zekka',
-      user: process.env.POSTGRES_USER || 'zekka',
-      password: process.env.POSTGRES_PASSWORD
+      connectionString: process.env.DATABASE_URL,
+      ssl: {
+        rejectUnauthorized: false, // Required for Supabase and similar cloud providers
+      },
+      min: 2,                      // Minimum pool size
+      max: 10,                     // Maximum pool size
+      idleTimeoutMillis: 30000,    // Close idle connections after 30s
+      connectionTimeoutMillis: 5000 // Timeout for new connections
+    });
+
+    // Handle pool errors gracefully
+    this.db.on('error', (err) => {
+      this.logger.error('Unexpected database pool error:', err.message);
     });
 
     this.ready = false;
@@ -25,7 +113,7 @@ class ZekkaOrchestrator {
 
   async initialize() {
     this.logger.info('🔧 Initializing Orchestrator...');
-    
+
     // Test database connection
     try {
       await this.db.query('SELECT NOW()');
@@ -37,7 +125,9 @@ class ZekkaOrchestrator {
 
     // Test Ollama connection
     try {
-      await axios.get(`${this.config.ollamaHost}/api/tags`);
+      // Use config host or default to localhost
+      const host = this.config.ollamaHost || 'http://localhost:11434';
+      await axios.get(`${host}/api/tags`);
       this.logger.info('✅ Ollama connected');
     } catch (error) {
       this.logger.warn('⚠️  Ollama not available:', error.message);
@@ -57,9 +147,9 @@ class ZekkaOrchestrator {
 
   async createProject(data) {
     const projectId = `proj-${uuidv4().substring(0, 8)}`;
-    
+
     const { name, requirements, storyPoints, budget } = data;
-    
+
     // Insert into database
     await this.db.query(
       `INSERT INTO projects (project_id, name, description, story_points, budget_daily, budget_monthly, status)
@@ -69,8 +159,8 @@ class ZekkaOrchestrator {
         name,
         JSON.stringify(requirements),
         storyPoints || 8,
-        budget?.daily || this.tokenEconomics.dailyBudget,
-        budget?.monthly || this.tokenEconomics.monthlyBudget,
+        budget?.daily || this.tokenEconomics?.dailyBudget || 1000,
+        budget?.monthly || this.tokenEconomics?.monthlyBudget || 30000,
         'created'
       ]
     );
@@ -87,7 +177,7 @@ class ZekkaOrchestrator {
     });
 
     this.logger.info(`✅ Project created: ${projectId}`);
-    
+
     return { projectId, name, status: 'created' };
   }
 
@@ -137,7 +227,7 @@ class ZekkaOrchestrator {
 
   async executeProject(projectId) {
     this.logger.info(`🚀 Starting execution for project: ${projectId}`);
-    
+
     try {
       // Update project status
       await this.db.query(
@@ -145,8 +235,6 @@ class ZekkaOrchestrator {
         ['running', projectId]
       );
 
-      const project = await this.getProject(projectId);
-      
       // Execute stages sequentially
       const stages = [
         { number: 1, name: 'Authentication', complexity: 'low' },
@@ -170,11 +258,11 @@ class ZekkaOrchestrator {
       );
 
       this.logger.info(`✅ Project completed: ${projectId}`);
-      
+
       return { projectId, status: 'completed' };
     } catch (error) {
       this.logger.error(`❌ Project failed: ${projectId}`, error);
-      
+
       await this.db.query(
         'UPDATE projects SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE project_id = $2',
         ['failed', projectId]
@@ -186,18 +274,22 @@ class ZekkaOrchestrator {
 
   async executeStage(projectId, stageInfo) {
     const { number, name, complexity, agents: agentCount = 1 } = stageInfo;
-    
+
     this.logger.info(`📍 Stage ${number}: ${name} (${agentCount} agents)`);
-    
+
     // Select appropriate model based on complexity and budget
-    const model = await this.tokenEconomics.selectModel(complexity, projectId);
-    
+    // The Orchestrator uses Gemini Pro by default for workflow coordination
+    // Falls back to Ollama if Gemini is unavailable or budget is exceeded
+    const model = this.tokenEconomics
+      ? await this.tokenEconomics.selectModel(complexity, projectId)
+      : 'gemini-pro';
+
     // Create tasks for each agent
     const tasks = [];
     for (let i = 0; i < agentCount; i++) {
       const taskId = `task-${uuidv4().substring(0, 8)}`;
       const agentName = `agent-${number}-${i + 1}`;
-      
+
       const task = await this.createTask({
         taskId,
         projectId,
@@ -205,13 +297,13 @@ class ZekkaOrchestrator {
         agentName,
         model
       });
-      
+
       tasks.push(task);
     }
 
     // Execute tasks (simplified simulation)
     for (const task of tasks) {
-      await this.executeTask(task.task_id, model);
+      await this.executeTask(task.task_id, model, projectId);
     }
 
     // Check for conflicts
@@ -226,7 +318,7 @@ class ZekkaOrchestrator {
 
   async createTask(data) {
     const { taskId, projectId, stage, agentName, model } = data;
-    
+
     await this.db.query(
       `INSERT INTO tasks (task_id, project_id, stage, agent_name, status, input_data)
        VALUES ($1, $2, $3, $4, $5, $6)`,
@@ -242,10 +334,10 @@ class ZekkaOrchestrator {
     return { task_id: taskId, agent_name: agentName, status: 'pending' };
   }
 
-  async executeTask(taskId, model) {
-    // Simulate task execution
+  async executeTask(taskId, model, projectId) {
+    // Execute task using the Model Client for AI coordination
     const startTime = Date.now();
-    
+
     // Update task status
     await this.db.query(
       'UPDATE tasks SET status = $1, started_at = CURRENT_TIMESTAMP WHERE task_id = $2',
@@ -253,52 +345,85 @@ class ZekkaOrchestrator {
     );
 
     try {
-      // Simulate AI call (would actually call Ollama/Claude here)
-      const result = await this.simulateAgentWork(taskId, model);
-      
-      // Record cost
-      await this.tokenEconomics.recordCost({
-        projectId: result.projectId,
+      // Get task details
+      const taskResult = await this.db.query('SELECT * FROM tasks WHERE task_id = $1', [taskId]);
+      const task = taskResult.rows[0];
+
+      // Generate task execution plan using the Orchestrator's model (Gemini Pro)
+      // This uses the unified Model Client which handles fallback automatically
+      const prompt = `You are the Zekka Orchestrator coordinating task execution.
+
+Task Details:
+- Task ID: ${taskId}
+- Agent: ${task.agent_name}
+- Stage: ${task.stage}
+- Project: ${projectId}
+
+Generate a brief execution plan for this task. Respond with a JSON object containing:
+- steps: array of execution steps
+- estimatedDuration: estimated duration in seconds
+- dependencies: any dependencies needed`;
+
+      const response = await this.modelClient.generateOrchestratorResponse(prompt, {
+        projectId,
         taskId,
-        agentName: result.agentName,
-        model,
-        tokensInput: result.tokensInput,
-        tokensOutput: result.tokensOutput
+        maxTokens: 500,
+        temperature: 0.7
       });
+
+      // Simulate AI call (would actually call agent model here)
+      const result = await this.simulateAgentWork(taskId, model, response);
+
+      // Cost is already recorded by modelClient.generateOrchestratorResponse
+      // Record additional cost for agent work if tokenEconomics is available
+      if (this.tokenEconomics) {
+        await this.tokenEconomics.recordCost({
+          projectId: result.projectId,
+          taskId,
+          agentName: result.agentName,
+          model,
+          tokensInput: result.tokensInput,
+          tokensOutput: result.tokensOutput
+        });
+      }
 
       // Complete task
       await this.db.query(
-        `UPDATE tasks SET status = $1, completed_at = CURRENT_TIMESTAMP, output_data = $2 
+        `UPDATE tasks SET status = $1, completed_at = CURRENT_TIMESTAMP, output_data = $2
          WHERE task_id = $3`,
-        ['completed', JSON.stringify(result), taskId]
+        ['completed', JSON.stringify({
+          ...result,
+          orchestratorModel: response.model,
+          fallbackUsed: response.fallbackUsed
+        }), taskId]
       );
 
       const duration = Date.now() - startTime;
-      this.logger.info(`✅ Task ${taskId} completed in ${duration}ms`);
-      
+      this.logger.info(`✅ Task ${taskId} completed in ${duration}ms using ${response.model}`);
+
       return result;
     } catch (error) {
       await this.db.query(
         'UPDATE tasks SET status = $1, error_message = $2 WHERE task_id = $3',
         ['failed', error.message, taskId]
       );
-      
+
       throw error;
     }
   }
 
-  async simulateAgentWork(taskId, model) {
+  async simulateAgentWork(taskId, model, orchestratorResponse) {
     // Get task details
     const result = await this.db.query('SELECT * FROM tasks WHERE task_id = $1', [taskId]);
     const task = result.rows[0];
-    
+
     // Simulate processing time
     await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 1000));
-    
+
     // Simulate token usage (would be real from actual API calls)
     const tokensInput = Math.floor(Math.random() * 1000) + 500;
     const tokensOutput = Math.floor(Math.random() * 2000) + 1000;
-    
+
     return {
       projectId: task.project_id,
       taskId,
@@ -307,6 +432,7 @@ class ZekkaOrchestrator {
       tokensInput,
       tokensOutput,
       result: `Simulated output for task ${taskId} using ${model}`,
+      orchestratorPlan: orchestratorResponse.text.substring(0, 200), // First 200 chars
       model
     };
   }
@@ -325,8 +451,8 @@ class ZekkaOrchestrator {
     const totalProjects = await this.db.query('SELECT COUNT(*) as count FROM projects');
     const runningTasks = await this.db.query("SELECT COUNT(*) as count FROM tasks WHERE status = 'running'");
     const completedTasks = await this.db.query("SELECT COUNT(*) as count FROM tasks WHERE status = 'completed'");
-    
-    const budgetStatus = await this.tokenEconomics.getBudgetStatus();
+
+    const budgetStatus = this.tokenEconomics ? await this.tokenEconomics.getBudgetStatus() : {};
     const contextMetrics = await this.contextBus.getMetrics();
 
     return {
@@ -348,6 +474,12 @@ class ZekkaOrchestrator {
 
   async shutdown() {
     this.logger.info('🛑 Shutting down orchestrator...');
+
+    // Close model client connections
+    if (this.modelClient) {
+      await this.modelClient.close();
+    }
+
     await this.db.end();
     this.ready = false;
   }

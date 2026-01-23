@@ -35,7 +35,11 @@ describe('Core Services Integration Tests', () => {
       quit: jest.fn()
     };
 
-    Pool.mockImplementation(() => mockPool);
+    // Mock Pool constructor - when Pool is called as constructor, return mockPool
+    Pool.prototype = mockPool;
+    Pool.mockReturnValue(mockPool);
+
+    // Mock Redis.createClient
     Redis.createClient = jest.fn(() => mockRedis);
   });
 

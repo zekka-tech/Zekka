@@ -11,14 +11,26 @@ class TokenEconomics {
     this.contextBus = options.contextBus;
     
     // Cost per 1K tokens (USD)
+    // Updated 2025-01-20 with latest pricing from providers
     this.costs = {
-      'claude-opus': { input: 0.015, output: 0.075 },
-      'claude-sonnet-4': { input: 0.003, output: 0.015 },
-      'claude-haiku': { input: 0.00025, output: 0.00125 },
+      // Anthropic Claude Models (Updated pricing)
+      'claude-opus-4-5': { input: 0.015, output: 0.075 },      // Latest Opus model
+      'claude-sonnet-4-5': { input: 0.003, output: 0.015 },    // Latest Sonnet model (Arbitrator default)
+      'claude-sonnet-4': { input: 0.003, output: 0.015 },      // Legacy naming
+      'claude-haiku': { input: 0.00025, output: 0.00125 },     // Most economical Claude
+
+      // Google Gemini Models (NEW - Orchestrator default)
+      'gemini-pro': { input: 0.000125, output: 0.000375 },     // Most cost-effective for high volume
+      'gemini-pro-vision': { input: 0.000125, output: 0.000375 },
+      'gemini-1.5-pro': { input: 0.00125, output: 0.005 },     // Long context version
+
+      // OpenAI Models
       'gpt-4-turbo': { input: 0.01, output: 0.03 },
       'gpt-4': { input: 0.03, output: 0.06 },
       'gpt-3.5-turbo': { input: 0.0005, output: 0.0015 },
-      'llama3.1:8b': { input: 0.0001, output: 0.0001 }, // Ollama (local, minimal cost)
+
+      // Ollama (Local) Models - Minimal computational cost
+      'llama3.1:8b': { input: 0.0001, output: 0.0001 },        // Fallback model
       'mistral': { input: 0.0001, output: 0.0001 },
       'codellama': { input: 0.0001, output: 0.0001 }
     };
@@ -128,35 +140,40 @@ class TokenEconomics {
 
   async selectModel(taskComplexity, projectId = null) {
     const budgetStatus = await this.getBudgetStatus(projectId);
-    
+
     // If over 95% of daily budget, use only Ollama
     if (budgetStatus.daily.percent > 95) {
       console.log('⚠️  Daily budget at 95%+ - forcing Ollama');
       return this.selectOllamaModel(taskComplexity);
     }
-    
+
     // If over 80% of daily budget, switch to cheaper models
     if (budgetStatus.daily.percent > 80) {
       console.log('⚠️  Daily budget at 80%+ - using economic models');
-      return taskComplexity === 'high' ? 'claude-haiku' : this.selectOllamaModel(taskComplexity);
+      // Use Gemini Pro (very cost-effective) for high complexity, Ollama for others
+      return taskComplexity === 'high' ? 'gemini-pro' : this.selectOllamaModel(taskComplexity);
     }
-    
+
     // If over 90% of monthly budget, be conservative
     if (budgetStatus.monthly.percent > 90) {
       console.log('⚠️  Monthly budget at 90%+ - using economic models');
-      return taskComplexity === 'high' ? 'claude-haiku' : this.selectOllamaModel(taskComplexity);
+      return taskComplexity === 'high' ? 'gemini-pro' : this.selectOllamaModel(taskComplexity);
     }
-    
+
     // Normal budget - select based on task complexity
+    // Model selection strategy:
+    // - High complexity: Claude Sonnet 4.5 (best reasoning)
+    // - Medium complexity: Gemini Pro (cost-effective, good quality)
+    // - Low complexity: Ollama (free, fast)
     switch (taskComplexity) {
       case 'high':
-        return 'claude-sonnet-4'; // Complex reasoning
+        return 'claude-sonnet-4-5'; // Complex reasoning tasks
       case 'medium':
-        return 'claude-haiku'; // Moderate tasks
+        return 'gemini-pro'; // Moderate tasks, cost-effective
       case 'low':
         return this.selectOllamaModel('low'); // Simple tasks
       default:
-        return 'claude-haiku';
+        return 'gemini-pro'; // Default to cost-effective Gemini
     }
   }
 

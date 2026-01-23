@@ -65,7 +65,14 @@ class AuditLogger {
    */
   ensureLogDirectory() {
     if (!fs.existsSync(this.logDir)) {
-      fs.mkdirSync(this.logDir, { recursive: true });
+      try {
+        fs.mkdirSync(this.logDir, { recursive: true });
+      } catch (err) {
+        // Fall back to /tmp if we can't write to logs directory
+        console.warn(`Cannot write to ${this.logDir}, falling back to /tmp`);
+        this.logDir = path.join('/tmp', 'zekka-logs', 'audit');
+        fs.mkdirSync(this.logDir, { recursive: true });
+      }
     }
   }
   
