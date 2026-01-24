@@ -3,7 +3,7 @@ import { cn } from '@/lib/cn'
 import type { Message } from '@/types/chat.types'
 import { MessageList } from './MessageList'
 import { InputArea } from './InputArea'
-import { useConversation } from '@/hooks/useConversations'
+import { useConversation, useConversations } from '@/hooks/useConversations'
 import { useWebSocket } from '@/hooks/useWebSocket'
 
 interface ChatInterfaceProps {
@@ -16,11 +16,12 @@ export const ChatInterface = ({ conversationId }: ChatInterfaceProps) => {
     messages: historyMessages, 
     sendMessage, 
     isSendingMessage,
-    createConversation,
     isLoading: isHistoryLoading
   } = useConversation(conversationId || null)
   
-  const { on, off } = useWebSocket()
+  const { createConversation } = useConversations()
+  
+  const { on } = useWebSocket()
   
   const [messages, setMessages] = useState<Message[]>([])
   const [streamingContent, setStreamingContent] = useState('')
@@ -52,14 +53,14 @@ export const ChatInterface = ({ conversationId }: ChatInterfaceProps) => {
       })
     }
 
-    on('chat:stream', handleStream)
-    on('chat:complete', handleComplete)
+    const unsubStream = on('chat:stream', handleStream)
+    const unsubComplete = on('chat:complete', handleComplete)
 
     return () => {
-      off('chat:stream', handleStream)
-      off('chat:complete', handleComplete)
+      unsubStream()
+      unsubComplete()
     }
-  }, [on, off])
+  }, [on])
 
   const handleSendMessage = useCallback((content: string) => {
     const tempId = 'temp-' + Date.now()
@@ -78,14 +79,9 @@ export const ChatInterface = ({ conversationId }: ChatInterfaceProps) => {
     if (!conversationId) {
        // Create new conversation with title from message
        createConversation({ title: content.substring(0, 30) + '...' }, {
-           onSuccess: (newConv) => {
+           onSuccess: (_newConv: any) => {
                // We need to reload the page or update state to select this new conversation
-               // Ideally ChatPanel should handle this via `activeId` state lifting
-               // But for now we can try to send message to the new conversation if we had access to it.
-               // Since `sendMessage` from hook is bound to `conversationId` (which is null), we can't use it directly here
-               // unless we use `apiService` directly or refactor.
-               // For this implementation, let's just refresh/redirect or wait for ChatPanel to pick it up.
-               window.location.reload(); // Simple brute force for now to pick up new conversation
+               window.location.reload(); 
            }
        })
        return

@@ -6,7 +6,7 @@ import { useQueryClient } from '@tanstack/react-query'
 
 export const AgentPanel = () => {
   const { agents, isLoading } = useAgents()
-  const { on, off } = useWebSocket()
+  const { on } = useWebSocket()
   const queryClient = useQueryClient()
 
   useEffect(() => {
@@ -26,14 +26,14 @@ export const AgentPanel = () => {
       })
     }
 
-    on('agent:update', handleAgentUpdate)
-    on('agent:status', handleAgentUpdate)
+    const unsubUpdate = on('agent:update', handleAgentUpdate)
+    const unsubStatus = on('agent:status', handleAgentUpdate)
     
     return () => {
-      off('agent:update', handleAgentUpdate)
-      off('agent:status', handleAgentUpdate)
+      unsubUpdate()
+      unsubStatus()
     }
-  }, [on, off, queryClient])
+  }, [on, queryClient])
 
   // Show loading state or dashboard
   // Even if loading, we might want to show dashboard with skeletons, but simpler for now
