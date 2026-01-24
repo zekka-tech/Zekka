@@ -18,6 +18,7 @@ const { apiLimiter, createProjectLimiter, authLimiter } = require('./middleware/
 const { authenticate, optionalAuth, register, login, getUser } = require('./middleware/auth');
 const { metricsMiddleware, getMetrics, trackProject, trackAgent, trackCost } = require('./middleware/metrics');
 const websocket = require('./middleware/websocket');
+const { csrfTokenGenerator, csrfTokenValidator } = require('./middleware/csrf');
 
 // API Routes
 const projectsRoutes = require('./routes/projects.routes');
@@ -25,6 +26,7 @@ const conversationsRoutes = require('./routes/conversations.routes');
 const analyticsRoutes = require('./routes/analytics.routes');
 const agentsRoutes = require('./routes/agents.routes');
 const sourcesRoutes = require('./routes/sources.routes');
+const preferencesRoutes = require('./routes/preferences.routes');
 
 // Logger setup
 const logger = createLogger({
@@ -57,6 +59,10 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('combined', { stream: { write: msg => logger.info(msg.trim()) } }));
 app.use(metricsMiddleware);
+
+// CSRF Protection
+app.use(csrfTokenGenerator); // Generate CSRF tokens
+// CSRF validation for state-changing requests (applied to API routes below)
 
 // Initialize core services
 let contextBus, tokenEconomics, orchestrator, vault;
@@ -533,6 +539,7 @@ app.use('/api/v1/conversations', conversationsRoutes);
 app.use('/api/v1/analytics', analyticsRoutes);
 app.use('/api/v1/agents', agentsRoutes);
 app.use('/api/v1/sources', sourcesRoutes);
+app.use('/api/v1/preferences', preferencesRoutes);
 
 // Serve static files (frontend)
 app.use(express.static('public'));
