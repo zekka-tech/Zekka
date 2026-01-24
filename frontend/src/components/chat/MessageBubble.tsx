@@ -3,6 +3,7 @@ import { cn } from '@/lib/cn'
 import type { Message } from '@/types/chat.types'
 import { InlineCitation } from './InlineCitation'
 import { Loader } from 'lucide-react'
+import { ActionButtons } from './ActionButtons'
 
 interface MessageBubbleProps {
   message: Message
@@ -52,6 +53,14 @@ const MessageBubbleComponent = ({ message }: MessageBubbleProps) => {
           <div className="mt-2 text-xs opacity-70">
             {message.metadata.tokenUsage.input} in | {message.metadata.tokenUsage.output} out
           </div>
+        )}
+        
+        {/* Action Buttons for Assistant */}
+        {!isUser && message.status === 'complete' && (
+             <ActionButtons 
+                content={message.content} 
+                className="mt-2 pt-2 border-t border-border/10"
+             />
         )}
       </div>
     </div>

@@ -67,7 +67,7 @@ describe('GlobalSearch', () => {
       <GlobalSearch isOpen={true} onClose={onClose} />
     )
     const closeButton = container.querySelector('button[class*="hover:bg-muted"]')
-    fireEvent.click(closeButton!)
+    fireEvent.click(closeButton! as HTMLElement)
     expect(onClose).toHaveBeenCalled()
   })
 
@@ -77,7 +77,7 @@ describe('GlobalSearch', () => {
       <GlobalSearch isOpen={true} onClose={onClose} />
     )
     const backdrop = container.querySelector('.bg-black\\/30')
-    fireEvent.click(backdrop!)
+    fireEvent.click(backdrop! as HTMLElement)
     expect(onClose).toHaveBeenCalled()
   })
 
@@ -87,7 +87,7 @@ describe('GlobalSearch', () => {
       <GlobalSearch isOpen={true} onClose={onClose} />
     )
     const input = getByPlaceholderText(/Search projects/)
-    fireEvent.keyDown(input, { key: 'Escape' })
+    fireEvent.keyDown(input as HTMLElement, { key: 'Escape' })
     expect(onClose).toHaveBeenCalled()
   })
 
@@ -112,7 +112,7 @@ describe('GlobalSearch', () => {
       <GlobalSearch isOpen={true} onClose={vi.fn()} />
     )
     const input = getByPlaceholderText(/Search projects/)
-    fireEvent.change(input, { target: { value: 'React' } })
+    fireEvent.change(input as HTMLInputElement, { target: { value: 'React' } })
     // Results should be displayed
     expect(input).toBeInTheDocument()
   })
@@ -122,10 +122,10 @@ describe('GlobalSearch', () => {
       <GlobalSearch isOpen={true} onClose={vi.fn()} />
     )
     const input = getByPlaceholderText(/Search projects/)
-    fireEvent.change(input, { target: { value: 'test' } })
+    fireEvent.change(input as HTMLInputElement, { target: { value: 'test' } })
 
     // Arrow down
-    fireEvent.keyDown(input, { key: 'ArrowDown' })
+    fireEvent.keyDown(input as HTMLElement, { key: 'ArrowDown' })
     const highlights = container.querySelectorAll('[class*="bg-primary/10"]')
     expect(highlights.length).toBeGreaterThan(0)
   })
@@ -154,7 +154,7 @@ describe('GlobalSearch', () => {
       <GlobalSearch isOpen={true} onClose={vi.fn()} />
     )
     const input = getByPlaceholderText(/Search projects/)
-    fireEvent.change(input, { target: { value: 'xyznonexistent' } })
+    fireEvent.change(input as HTMLInputElement, { target: { value: 'xyznonexistent' } })
     // Wait for search to complete
     setTimeout(() => {
       expect(getByText(/No results found/)).toBeInTheDocument()
@@ -174,7 +174,7 @@ describe('GlobalSearch', () => {
       <GlobalSearch isOpen={true} onClose={vi.fn()} />
     )
     const input = getByPlaceholderText(/Search projects/)
-    fireEvent.change(input, { target: { value: 'test' } })
+    fireEvent.change(input as HTMLInputElement, { target: { value: 'test' } })
     expect(getByText(/Advanced Filters/i)).toBeInTheDocument()
   })
 

@@ -16,10 +16,7 @@ export const useWebSocket = () => {
 
     // Try to connect if not already connected
     if (!webSocketService.isReady()) {
-      webSocketService.connect({}).catch(err => {
-        console.error('Failed to connect:', err)
-        // Don't fail, we'll use fallback behavior
-      })
+      webSocketService.connect()
     }
 
     return () => {

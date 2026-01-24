@@ -114,7 +114,7 @@ export function useMediaQuery(query: string): boolean {
  * Useful for animations, transitions, comparing changes
  */
 export function usePrevious<T>(value: T): T | undefined {
-  const ref = useRef<T>()
+  const ref = useRef<T | undefined>(undefined)
 
   useEffect(() => {
     ref.current = value
@@ -293,7 +293,7 @@ export function useAsync<T, E = Error>(
  */
 export function useIdleDetection(timeout: number = 5 * 60 * 1000) {
   const [isIdle, setIsIdle] = useState(false)
-  const timeoutRef = useRef<NodeJS.Timeout>()
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   useEffect(() => {
     const handleActivity = () => {

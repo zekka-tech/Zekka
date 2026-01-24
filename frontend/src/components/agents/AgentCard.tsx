@@ -1,7 +1,9 @@
 import { memo } from 'react'
 import { cn } from '@/lib/cn'
 import type { Agent } from '@/types/agent.types'
-import { Zap, Brain, Wrench, Sparkles, AlertCircle } from 'lucide-react'
+import { Zap, Brain, Wrench, Sparkles } from 'lucide-react'
+import { AgentStatusBadge } from './AgentStatusBadge'
+import { AgentMetrics } from './AgentMetrics'
 
 interface AgentCardProps {
   agent: Agent
@@ -38,21 +40,6 @@ const AgentCardComponent = ({ agent }: AgentCardProps) => {
     }
   }
 
-  const getStatusText = () => {
-    switch (agent.status) {
-      case 'active':
-      case 'processing':
-        return 'Active'
-      case 'waiting':
-        return 'Waiting'
-      case 'error':
-        return 'Error'
-      case 'idle':
-      default:
-        return 'Idle'
-    }
-  }
-
   return (
     <div className={cn(
       "p-4 rounded-lg border-2 transition-all",
@@ -78,24 +65,7 @@ const AgentCardComponent = ({ agent }: AgentCardProps) => {
         </div>
 
         {/* Status Badge */}
-        <div className={cn(
-          "flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium",
-          agent.status === 'active' || agent.status === 'processing'
-            ? 'bg-success/20 text-success'
-            : agent.status === 'error'
-            ? 'bg-destructive/20 text-destructive'
-            : agent.status === 'waiting'
-            ? 'bg-warning/20 text-warning'
-            : 'bg-muted/20 text-muted-foreground'
-        )}>
-          {(agent.status === 'active' || agent.status === 'processing') && (
-            <div className="w-2 h-2 rounded-full bg-success animate-pulse" />
-          )}
-          {agent.status === 'error' && (
-            <AlertCircle className="w-3 h-3" />
-          )}
-          {getStatusText()}
-        </div>
+        <AgentStatusBadge status={agent.status} />
       </div>
 
       {/* Current Task */}
@@ -115,22 +85,7 @@ const AgentCardComponent = ({ agent }: AgentCardProps) => {
       )}
 
       {/* Token Usage */}
-      {agent.tokenUsage && (
-        <div className="text-xs text-muted-foreground space-y-1">
-          <div className="flex justify-between">
-            <span>Input:</span>
-            <span>{agent.tokenUsage.input.toLocaleString()}</span>
-          </div>
-          <div className="flex justify-between">
-            <span>Output:</span>
-            <span>{agent.tokenUsage.output.toLocaleString()}</span>
-          </div>
-          <div className="flex justify-between font-medium">
-            <span>Cost:</span>
-            <span className="text-foreground">${agent.tokenUsage.cost.toFixed(4)}</span>
-          </div>
-        </div>
-      )}
+      <AgentMetrics tokenUsage={agent.tokenUsage} />
     </div>
   )
 }

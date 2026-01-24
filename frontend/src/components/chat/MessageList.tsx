@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { cn } from '@/lib/cn'
 import type { Message } from '@/types/chat.types'
 import { MessageBubble } from './MessageBubble'
+import { StreamingMessage } from './StreamingMessage'
 
 interface MessageListProps {
   messages: Message[]
@@ -36,9 +37,19 @@ export const MessageList = ({ messages, isLoading }: MessageListProps) => {
         ) : (
           <>
             {messages.map((message) => (
-              <MessageBubble key={message.id} message={message} />
+                message.status === 'streaming' && message.role === 'assistant' ? (
+                    <StreamingMessage 
+                        key={message.id} 
+                        messageId={message.id}
+                        initialContent={message.content}
+                        role={message.role}
+                        isStreaming={true}
+                    />
+                ) : (
+                    <MessageBubble key={message.id} message={message} />
+                )
             ))}
-            {isLoading && (
+            {isLoading && !messages.some(m => m.status === 'streaming') && (
               <div className="flex justify-start mb-4">
                 <div className={cn(
                   "bg-card text-card-foreground",
