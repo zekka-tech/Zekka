@@ -28,7 +28,7 @@
     "load-test:stress": "k6 run --vus 100 --duration 5m load-tests/k6-load-test.js",
     "metrics": "node src/cli/metrics.js",
     "backup": "node src/cli/backup.js",
-    "validate:env": "node scripts/validate-environment.js",
+    "validate:env": "node scripts/validate-env.js",
     "docs:generate": "node scripts/generate-swagger-docs.js",
     "docker:build": "docker build -t zekka-framework:latest .",
     "docker:up": "docker-compose up -d",

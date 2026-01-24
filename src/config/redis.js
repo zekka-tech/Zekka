@@ -308,8 +308,10 @@ const cache = {
   }
 };
 
-// Auto-connect on module load
-connectRedis().catch(console.error);
+// Auto-connect on module load unless in test environment
+if (process.env.NODE_ENV !== 'test') {
+  connectRedis().catch(console.error);
+}
 
 module.exports = redis;
 module.exports.connectRedis = connectRedis;
