@@ -48,8 +48,9 @@ COPY scripts ./scripts
 # Build TypeScript and prepare for production
 RUN npm run build || echo "Build step completed"
 
-# Remove dev dependencies
-RUN npm prune --production --legacy-peer-deps
+# Note: Skipping npm prune --production to preserve transitive runtime dependencies
+# Some packages like lru-cache are required at runtime but not in direct dependencies
+# RUN npm prune --production --legacy-peer-deps
 
 # ===================================================================
 # Stage 3: Production Runtime
