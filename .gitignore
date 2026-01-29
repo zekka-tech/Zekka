@@ -55,3 +55,4 @@ temp/
 *.backup
 *.bak
 .env.production
+VAULT_CREDENTIALS.txt
