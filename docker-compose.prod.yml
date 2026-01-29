@@ -182,14 +182,12 @@ services:
     networks:
       - zekka-prod-network
       - zekka-db-network
-    ports:
-      - "127.0.0.1:3000:3000"
+    expose:
+      - "3000"
     depends_on:
       postgres:
         condition: service_healthy
       redis:
-        condition: service_healthy
-      vault:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
@@ -226,8 +224,8 @@ services:
     container_name: zekka-nginx-prod
     restart: always
     ports:
-      - "80:80"
-      - "443:443"
+      - "8080:80"
+      - "8443:443"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
@@ -271,7 +269,6 @@ services:
       - IPC_LOCK
     volumes:
       - vault-data:/vault/data
-      - ./vault/config:/vault/config:ro
       - ./vault/policies:/vault/policies:ro
     networks:
       - zekka-prod-network
