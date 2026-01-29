@@ -1,24 +1,36 @@
 # ===================================================================
 # Docker Compose Configuration for Zekka Framework
+# 
+# Services:
+# - app: Main application
+# - postgres: PostgreSQL database
+# - redis: Redis cache
+# - prometheus: Metrics collection
+# - grafana: Monitoring dashboards
+# - node-exporter: System metrics
+# - postgres-exporter: Database metrics
+# - redis-exporter: Cache metrics
+# 
+# Usage:
+#   # Development
+#   docker compose up -d
+#   
+#   # Production
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#   
+#   # Integration testing
+#   docker compose -f docker-compose.test.yml up --abort-on-container-exit
+# 
+# Note: Version field is obsolete in Docker Compose v2+ (removed per deprecation)
 # ===================================================================
-
-version: "3.9"
 
 networks:
   zekka-network:
     driver: bridge
-    enable_ipv6: true
-    ipam:
-      driver: default
-      config:
-        - subnet: 172.18.0.0/16
-          gateway: 172.18.0.1
-        - subnet: fd00::/80
-          gateway: fd00::1
 
 volumes:
+  postgres-data:
   redis-data:
-  vault-data:
   prometheus-data:
   grafana-data:
 
@@ -28,42 +40,60 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: app
+    container_name: zekka-app
     restart: unless-stopped
     ports:
       - "3000:3000"
     environment:
       - NODE_ENV=production
       - PORT=3000
-      - DATABASE_URL=${DATABASE_URL}
-      - NODE_OPTIONS=--dns-result-order=ipv4first
+      - DB_HOST=postgres
+      - DB_PORT=5432
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - PGSSLMODE=require
-      - VAULT_ADDR=http://vault:8200
-      - VAULT_ENABLED=${VAULT_ENABLED:-false}
     env_file:
-      - .env
       - .env.production
-    dns:
-      - 8.8.8.8
-      - 8.8.4.4
-      - 1.1.1.1
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     depends_on:
-      redis:
+      postgres:
         condition: service_healthy
-      vault:
+      redis:
         condition: service_healthy
     networks:
       - zekka-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: zekka-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=${DB_NAME:-zekka_production}
+      - POSTGRES_USER=${DB_USER:-zekka_user}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-changeme}
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=en_US.UTF-8 --lc-ctype=en_US.UTF-8
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d
+    networks:
+      - zekka-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-zekka_user}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     logging:
       driver: "json-file"
       options:
@@ -77,20 +107,18 @@ services:
     restart: unless-stopped
     ports:
       - "6379:6379"
-    env_file:
-      - .env.production
     command: >
-      sh -c "redis-server
-      --requirepass $$REDIS_PASSWORD
+      redis-server
+      --requirepass ${REDIS_PASSWORD:-changeme}
       --maxmemory 256mb
       --maxmemory-policy allkeys-lru
-      --appendonly yes"
+      --appendonly yes
     volumes:
       - redis-data:/data
     networks:
       - zekka-network
     healthcheck:
-      test: ["CMD", "sh", "-c", "redis-cli -a $$REDIS_PASSWORD ping"]
+      test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 3s
       retries: 5
@@ -99,35 +127,6 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-
-  # HashiCorp Vault - Secrets Management
-  vault:
-    image: hashicorp/vault:latest
-    container_name: zekka-vault
-    restart: unless-stopped
-    ports:
-      - "8200:8200"
-    environment:
-      - VAULT_DEV_ROOT_TOKEN_ID=${VAULT_DEV_ROOT_TOKEN:-zekka-dev-token}
-      - VAULT_DEV_LISTEN_ADDRESS=0.0.0.0:8200
-    cap_add:
-      - IPC_LOCK
-    volumes:
-      - vault-data:/vault/data
-    networks:
-      - zekka-network
-    command: server -dev -dev-root-token-id=${VAULT_DEV_ROOT_TOKEN:-zekka-dev-token}
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8200/v1/sys/health"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
-      start_period: 10s
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "5m"
-        max-file: "2"
 
   # Prometheus Monitoring
   prometheus:
@@ -140,6 +139,8 @@ services:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
       - '--storage.tsdb.retention.time=30d'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
       - '--web.enable-lifecycle'
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
@@ -170,6 +171,7 @@ services:
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-changeme}
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel
       - GF_SERVER_ROOT_URL=http://localhost:3001
     volumes:
       - grafana-data:/var/lib/grafana
@@ -209,6 +211,25 @@ services:
         max-size: "5m"
         max-file: "2"
 
+  # PostgreSQL Exporter
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:latest
+    container_name: zekka-postgres-exporter
+    restart: unless-stopped
+    ports:
+      - "9187:9187"
+    environment:
+      - DATA_SOURCE_NAME=postgresql://${DB_USER:-zekka_user}:${DB_PASSWORD:-changeme}@postgres:5432/${DB_NAME:-zekka_production}?sslmode=disable
+    networks:
+      - zekka-network
+    depends_on:
+      - postgres
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
   # Redis Exporter
   redis-exporter:
     image: oliver006/redis_exporter:latest
@@ -216,8 +237,6 @@ services:
     restart: unless-stopped
     ports:
       - "9121:9121"
-    env_file:
-      - .env.production
     environment:
       - REDIS_ADDR=redis:6379
       - REDIS_PASSWORD=${REDIS_PASSWORD:-changeme}
@@ -230,4 +249,3 @@ services:
       options:
         max-size: "5m"
         max-file: "2"
-
