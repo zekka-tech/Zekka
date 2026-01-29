@@ -31,7 +31,7 @@ NC='\033[0m' # No Color
 # Configuration
 VAULT_ADDR="${VAULT_ADDR:-http://localhost:8200}"
 VAULT_TOKEN="${VAULT_DEV_ROOT_TOKEN:-zekka-dev-token}"
-VAULT_CONTAINER="${VAULT_CONTAINER:-zekka-vault}"
+VAULT_CONTAINER="${VAULT_CONTAINER:-zekka-vault-prod}"
 
 echo -e "${BLUE}╔════════════════════════════════════════════════════════╗${NC}"
 echo -e "${BLUE}║       Zekka Framework - Vault Initialization        ║${NC}"
@@ -86,7 +86,9 @@ fi
 # Create Zekka policy
 echo ""
 echo -e "${BLUE}📋${NC} Creating Zekka access policy..."
-$VAULT_CMD policy write zekka-policy - <<EOF
+
+# Create policy file
+cat > /tmp/zekka-policy.hcl <<EOF
 # KV v2 secrets access
 path "kv/data/*" {
   capabilities = ["create", "read", "update", "delete", "list"]
@@ -106,6 +108,16 @@ path "auth/token/lookup-self" {
   capabilities = ["read"]
 }
 EOF
+
+# Upload policy to Vault
+if command -v vault &> /dev/null; then
+    vault policy write zekka-policy /tmp/zekka-policy.hcl
+else
+    docker cp /tmp/zekka-policy.hcl $VAULT_CONTAINER:/tmp/zekka-policy.hcl
+    docker exec -e VAULT_TOKEN=$VAULT_TOKEN $VAULT_CONTAINER vault policy write zekka-policy /tmp/zekka-policy.hcl
+fi
+
+rm -f /tmp/zekka-policy.hcl
 echo -e "${GREEN}✓${NC} Policy 'zekka-policy' created"
 
 # Create AppRole

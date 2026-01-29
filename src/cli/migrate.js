@@ -18,17 +18,48 @@ const MigrationManager = require('../utils/migration-manager');
 const fs = require('fs').promises;
 const path = require('path');
 
+// Parse DATABASE_URL if individual DB_* variables aren't set
+function parseDatabaseConfig() {
+  // If individual variables are set, use them
+  if (process.env.DB_HOST) {
+    return {
+      host: process.env.DB_HOST,
+      port: parseInt(process.env.DB_PORT || '5432'),
+      database: process.env.DB_NAME || 'zekka',
+      user: process.env.DB_USER || 'postgres',
+      password: process.env.DB_PASSWORD || '',
+      ssl: process.env.DB_SSL === 'true'
+    };
+  }
+
+  // Otherwise, parse DATABASE_URL
+  if (process.env.DATABASE_URL) {
+    const url = new URL(process.env.DATABASE_URL);
+    return {
+      host: url.hostname,
+      port: parseInt(url.port || '5432'),
+      database: url.pathname.slice(1).split('?')[0], // Remove leading / and query params
+      user: url.username,
+      password: url.password,
+      ssl: url.searchParams.get('sslmode') !== 'disable'
+    };
+  }
+
+  // Default fallback
+  return {
+    host: 'localhost',
+    port: 5432,
+    database: 'zekka',
+    user: 'postgres',
+    password: '',
+    ssl: false
+  };
+}
+
 // Database configuration from environment
 const config = {
   migrationsDir: path.join(__dirname, '../../migrations'),
-  database: {
-    host: process.env.DB_HOST || 'localhost',
-    port: parseInt(process.env.DB_PORT || '5432'),
-    database: process.env.DB_NAME || 'zekka',
-    user: process.env.DB_USER || 'postgres',
-    password: process.env.DB_PASSWORD || '',
-    ssl: process.env.DB_SSL === 'true'
-  }
+  database: parseDatabaseConfig()
 };
 
 const commands = {

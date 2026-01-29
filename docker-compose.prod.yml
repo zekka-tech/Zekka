@@ -162,6 +162,12 @@ services:
       - NODE_ENV=production
       - PORT=3000
       - DATABASE_URL=postgresql://${POSTGRES_USER:-zekka_admin}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-zekka_production}?sslmode=disable
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=${POSTGRES_DB:-zekka_production}
+      - DB_USER=${POSTGRES_USER:-zekka_admin}
+      - DB_PASSWORD=${POSTGRES_PASSWORD}
+      - DB_SSL=false
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_PASSWORD=${REDIS_PASSWORD}
@@ -261,6 +267,7 @@ services:
     image: hashicorp/vault:latest
     container_name: zekka-vault-prod
     restart: always
+    user: "0:0"  # Run as root to avoid permission issues with volume
     environment:
       VAULT_ADDR: http://0.0.0.0:8200
       VAULT_API_ADDR: http://0.0.0.0:8200
