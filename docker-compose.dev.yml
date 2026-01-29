@@ -1,0 +1,169 @@
+version: '3.9'
+
+networks:
+  zekka-dev:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: zekka-postgres-dev
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-zekka_dev}
+      POSTGRES_USER: ${POSTGRES_USER:-zekka}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-zekka_dev_password}
+      POSTGRES_INITDB_ARGS: "-c shared_buffers=256MB -c max_connections=100"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - zekka-dev
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-zekka}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: zekka-redis-dev
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks:
+      - zekka-dev
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Node.js Backend
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: zekka-backend-dev
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-zekka}:${POSTGRES_PASSWORD:-zekka_dev_password}@postgres:5432/${POSTGRES_DB:-zekka_dev}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ""
+      LOG_LEVEL: debug
+    volumes:
+      - ./src:/app/src
+      - ./tests:/app/tests
+      - /app/node_modules
+    networks:
+      - zekka-dev
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # React Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: zekka-frontend-dev
+    restart: unless-stopped
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_API_URL: http://localhost:3000/api/v1
+      VITE_WS_URL: http://localhost:3000
+      NODE_ENV: development
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
+      - /app/node_modules
+    networks:
+      - zekka-dev
+    depends_on:
+      - backend
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # PgAdmin for Database Management (Optional)
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: zekka-pgadmin-dev
+    restart: unless-stopped
+    ports:
+      - "5050:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+      SCRIPT_NAME: /pgadmin
+    volumes:
+      - ./scripts/pgadmin-servers.json:/pgadmin4/servers.json:ro
+    networks:
+      - zekka-dev
+    depends_on:
+      - postgres
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  # Redis Commander for Redis Management (Optional)
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: zekka-redis-commander-dev
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      REDIS_HOSTS: local:redis:6379
+    networks:
+      - zekka-dev
+    depends_on:
+      - redis
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
