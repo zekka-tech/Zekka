@@ -1,6 +1,6 @@
 /**
  * Enhanced Error Handling System
- * 
+ *
  * Features:
  * - Standardized error codes
  * - Error classification and categorization
@@ -19,7 +19,7 @@ const ErrorCodes = {
   SERVICE_UNAVAILABLE: 'ERR_SERVICE_UNAVAILABLE',
   TIMEOUT: 'ERR_TIMEOUT',
   RATE_LIMIT_EXCEEDED: 'ERR_RATE_LIMIT',
-  
+
   // Authentication errors (2000-2999)
   UNAUTHORIZED: 'ERR_UNAUTHORIZED',
   INVALID_CREDENTIALS: 'ERR_INVALID_CREDENTIALS',
@@ -30,12 +30,12 @@ const ErrorCodes = {
   ACCOUNT_DISABLED: 'ERR_ACCOUNT_DISABLED',
   PASSWORD_EXPIRED: 'ERR_PASSWORD_EXPIRED',
   MFA_REQUIRED: 'ERR_MFA_REQUIRED',
-  
+
   // Authorization errors (3000-3999)
   FORBIDDEN: 'ERR_FORBIDDEN',
   INSUFFICIENT_PERMISSIONS: 'ERR_INSUFFICIENT_PERMISSIONS',
   ACCESS_DENIED: 'ERR_ACCESS_DENIED',
-  
+
   // Validation errors (4000-4999)
   VALIDATION_ERROR: 'ERR_VALIDATION',
   INVALID_INPUT: 'ERR_INVALID_INPUT',
@@ -46,13 +46,13 @@ const ErrorCodes = {
   INVALID_EMAIL: 'ERR_INVALID_EMAIL',
   WEAK_PASSWORD: 'ERR_WEAK_PASSWORD',
   PASSWORD_REUSED: 'ERR_PASSWORD_REUSED',
-  
+
   // Resource errors (5000-5999)
   NOT_FOUND: 'ERR_NOT_FOUND',
   ALREADY_EXISTS: 'ERR_ALREADY_EXISTS',
   CONFLICT: 'ERR_CONFLICT',
   GONE: 'ERR_GONE',
-  
+
   // Database errors (6000-6999)
   DATABASE_ERROR: 'ERR_DATABASE',
   QUERY_ERROR: 'ERR_QUERY',
@@ -60,19 +60,19 @@ const ErrorCodes = {
   TRANSACTION_ERROR: 'ERR_TRANSACTION',
   CONSTRAINT_VIOLATION: 'ERR_CONSTRAINT',
   DEADLOCK: 'ERR_DEADLOCK',
-  
+
   // External service errors (7000-7999)
   EXTERNAL_SERVICE_ERROR: 'ERR_EXTERNAL_SERVICE',
   API_ERROR: 'ERR_API',
   NETWORK_ERROR: 'ERR_NETWORK',
   UPSTREAM_TIMEOUT: 'ERR_UPSTREAM_TIMEOUT',
-  
+
   // Business logic errors (8000-8999)
   BUSINESS_RULE_VIOLATION: 'ERR_BUSINESS_RULE',
   INSUFFICIENT_BALANCE: 'ERR_INSUFFICIENT_BALANCE',
   QUOTA_EXCEEDED: 'ERR_QUOTA_EXCEEDED',
   OPERATION_NOT_ALLOWED: 'ERR_OPERATION_NOT_ALLOWED',
-  
+
   // Security errors (9000-9999)
   CSRF_VIOLATION: 'ERR_CSRF',
   XSS_DETECTED: 'ERR_XSS',
@@ -114,10 +114,10 @@ class ApplicationError extends Error {
     this.details = details;
     this.timestamp = new Date();
     this.isOperational = true; // vs programmer error
-    
+
     // Capture stack trace
     Error.captureStackTrace(this, this.constructor);
-    
+
     // Set defaults
     this.statusCode = details.statusCode || 500;
     this.severity = details.severity || ErrorSeverity.MEDIUM;
@@ -126,7 +126,7 @@ class ApplicationError extends Error {
     this.retryable = details.retryable || false;
     this.userMessage = details.userMessage || message;
   }
-  
+
   /**
    * Convert to JSON
    */
@@ -140,16 +140,22 @@ class ApplicationError extends Error {
         ...(this.details.field && { field: this.details.field }),
         ...(this.details.value && { value: this.details.value }),
         ...(this.recoverable && { recoverable: true }),
-        ...(this.retryable && { retryable: true, retryAfter: this.details.retryAfter })
+        ...(this.retryable && {
+          retryable: true,
+          retryAfter: this.details.retryAfter
+        })
       }
     };
   }
-  
+
   /**
    * Get recovery suggestion
    */
   getRecoverySuggestion() {
-    return this.details.recoverySuggestion || 'Please try again later or contact support.';
+    return (
+      this.details.recoverySuggestion
+      || 'Please try again later or contact support.'
+    );
   }
 }
 
@@ -278,12 +284,13 @@ class SecurityError extends ApplicationError {
 class ErrorHandler {
   constructor(options = {}) {
     this.options = {
-      includeStackTrace: options.includeStackTrace || process.env.NODE_ENV !== 'production',
+      includeStackTrace:
+        options.includeStackTrace || process.env.NODE_ENV !== 'production',
       logErrors: options.logErrors !== false,
       logger: options.logger,
       ...options
     };
-    
+
     this.errorStats = {
       total: 0,
       byCode: new Map(),
@@ -291,44 +298,42 @@ class ErrorHandler {
       bySeverity: new Map()
     };
   }
-  
+
   /**
    * Handle error
    */
   handle(error, req, res) {
     // Track error statistics
     this.trackError(error);
-    
+
     // Log error
     if (this.options.logErrors && this.options.logger) {
       this.logError(error, req);
     }
-    
+
     // Convert to ApplicationError if needed
     if (!(error instanceof ApplicationError)) {
       error = this.normalizeError(error);
     }
-    
+
     // Build response
     const response = this.buildResponse(error, req);
-    
+
     // Send response
     res.status(error.statusCode || 500).json(response);
   }
-  
+
   /**
    * Normalize error to ApplicationError
    */
   normalizeError(error) {
     // Handle specific error types
     if (error.name === 'ValidationError') {
-      return new ValidationError(
-        ErrorCodes.VALIDATION_ERROR,
-        error.message,
-        { originalError: error }
-      );
+      return new ValidationError(ErrorCodes.VALIDATION_ERROR, error.message, {
+        originalError: error
+      });
     }
-    
+
     if (error.name === 'UnauthorizedError' || error.statusCode === 401) {
       return new AuthenticationError(
         ErrorCodes.UNAUTHORIZED,
@@ -336,7 +341,7 @@ class ErrorHandler {
         { originalError: error }
       );
     }
-    
+
     if (error.code === 'EBADCSRFTOKEN') {
       return new SecurityError(
         ErrorCodes.CSRF_VIOLATION,
@@ -344,7 +349,7 @@ class ErrorHandler {
         { originalError: error }
       );
     }
-    
+
     // Default to internal server error
     return new ApplicationError(
       ErrorCodes.INTERNAL_SERVER_ERROR,
@@ -356,18 +361,18 @@ class ErrorHandler {
       }
     );
   }
-  
+
   /**
    * Build error response
    */
   buildResponse(error, req) {
     const response = error.toJSON();
-    
+
     // Add request ID for tracking
     if (req && req.id) {
       response.error.requestId = req.id;
     }
-    
+
     // Add recovery suggestions
     if (error.recoverable) {
       response.error.recovery = {
@@ -378,18 +383,18 @@ class ErrorHandler {
         })
       };
     }
-    
+
     // Add documentation link
     response.error.documentation = `/docs/errors/${error.code}`;
-    
+
     // Add stack trace in development
     if (this.options.includeStackTrace && error.stack) {
       response.error.stack = error.stack;
     }
-    
+
     return response;
   }
-  
+
   /**
    * Log error
    */
@@ -407,43 +412,48 @@ class ErrorHandler {
       userAgent: req?.get('user-agent'),
       stack: error.stack
     };
-    
+
     const level = this.getLogLevel(error.severity);
     this.options.logger.log(level, 'Application error', logData);
   }
-  
+
   /**
    * Get log level from severity
    */
   getLogLevel(severity) {
     switch (severity) {
-      case ErrorSeverity.CRITICAL: return 'error';
-      case ErrorSeverity.HIGH: return 'error';
-      case ErrorSeverity.MEDIUM: return 'warn';
-      case ErrorSeverity.LOW: return 'info';
-      default: return 'error';
+    case ErrorSeverity.CRITICAL:
+      return 'error';
+    case ErrorSeverity.HIGH:
+      return 'error';
+    case ErrorSeverity.MEDIUM:
+      return 'warn';
+    case ErrorSeverity.LOW:
+      return 'info';
+    default:
+      return 'error';
     }
   }
-  
+
   /**
    * Track error statistics
    */
   trackError(error) {
     this.errorStats.total++;
-    
+
     // By code
     const codeCount = this.errorStats.byCode.get(error.code) || 0;
     this.errorStats.byCode.set(error.code, codeCount + 1);
-    
+
     // By category
     const categoryCount = this.errorStats.byCategory.get(error.category) || 0;
     this.errorStats.byCategory.set(error.category, categoryCount + 1);
-    
+
     // By severity
     const severityCount = this.errorStats.bySeverity.get(error.severity) || 0;
     this.errorStats.bySeverity.set(error.severity, severityCount + 1);
   }
-  
+
   /**
    * Get error statistics
    */
@@ -455,7 +465,7 @@ class ErrorHandler {
       bySeverity: Object.fromEntries(this.errorStats.bySeverity)
     };
   }
-  
+
   /**
    * Reset statistics
    */
@@ -493,11 +503,11 @@ module.exports = {
   ExternalServiceError,
   BusinessError,
   SecurityError,
-  
+
   // Error handler
   ErrorHandler,
   getErrorHandler,
-  
+
   // Constants
   ErrorCodes,
   ErrorSeverity,

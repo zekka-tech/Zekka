@@ -1,7 +1,7 @@
 /**
  * Enhanced Error Handling System
  * ===============================
- * 
+ *
  * Comprehensive error handling with:
  * - Standardized error codes and messages
  * - Internationalization (i18n) support
@@ -10,7 +10,7 @@
  * - User-friendly error responses
  * - Development vs Production error details
  * - Error tracking and monitoring
- * 
+ *
  * Industry Standards:
  * - RFC 7807 (Problem Details for HTTP APIs)
  * - HTTP status codes (RFC 7231)
@@ -18,6 +18,7 @@
  */
 
 import auditService from '../services/audit-service.js';
+import logger from '../utils/logger.js';
 
 // Environment
 const NODE_ENV = process.env.NODE_ENV || 'development';
@@ -25,7 +26,7 @@ const IS_PRODUCTION = NODE_ENV === 'production';
 
 /**
  * Standard Error Codes
- * 
+ *
  * Format: CATEGORY_SUBCATEGORY_DESCRIPTION
  * Example: AUTH_TOKEN_EXPIRED, VALIDATION_FIELD_REQUIRED
  */
@@ -94,25 +95,31 @@ export const ErrorCodes = {
  */
 const ERROR_MESSAGES_EN = {
   [ErrorCodes.AUTH_INVALID_CREDENTIALS]: 'Invalid email or password',
-  [ErrorCodes.AUTH_TOKEN_EXPIRED]: 'Your session has expired. Please log in again',
+  [ErrorCodes.AUTH_TOKEN_EXPIRED]:
+    'Your session has expired. Please log in again',
   [ErrorCodes.AUTH_TOKEN_INVALID]: 'Invalid authentication token',
   [ErrorCodes.AUTH_TOKEN_MISSING]: 'Authentication token is required',
   [ErrorCodes.AUTH_MFA_REQUIRED]: 'Multi-factor authentication is required',
   [ErrorCodes.AUTH_MFA_INVALID]: 'Invalid MFA code',
-  [ErrorCodes.AUTH_ACCOUNT_LOCKED]: 'Account is temporarily locked due to multiple failed login attempts',
+  [ErrorCodes.AUTH_ACCOUNT_LOCKED]:
+    'Account is temporarily locked due to multiple failed login attempts',
   [ErrorCodes.AUTH_ACCOUNT_DISABLED]: 'Account has been disabled',
-  [ErrorCodes.AUTH_PASSWORD_EXPIRED]: 'Your password has expired. Please change your password',
-  [ErrorCodes.AUTH_SESSION_EXPIRED]: 'Your session has expired. Please log in again',
+  [ErrorCodes.AUTH_PASSWORD_EXPIRED]:
+    'Your password has expired. Please change your password',
+  [ErrorCodes.AUTH_SESSION_EXPIRED]:
+    'Your session has expired. Please log in again',
 
   [ErrorCodes.AUTHZ_PERMISSION_DENIED]: 'Permission denied',
-  [ErrorCodes.AUTHZ_INSUFFICIENT_PRIVILEGES]: 'Insufficient privileges to perform this action',
+  [ErrorCodes.AUTHZ_INSUFFICIENT_PRIVILEGES]:
+    'Insufficient privileges to perform this action',
   [ErrorCodes.AUTHZ_RESOURCE_FORBIDDEN]: 'Access to this resource is forbidden',
   [ErrorCodes.AUTHZ_IP_NOT_WHITELISTED]: 'Your IP address is not authorized',
 
   [ErrorCodes.VALIDATION_FIELD_REQUIRED]: 'This field is required',
   [ErrorCodes.VALIDATION_FIELD_INVALID]: 'Invalid field value',
   [ErrorCodes.VALIDATION_EMAIL_INVALID]: 'Invalid email address',
-  [ErrorCodes.VALIDATION_PASSWORD_WEAK]: 'Password does not meet security requirements',
+  [ErrorCodes.VALIDATION_PASSWORD_WEAK]:
+    'Password does not meet security requirements',
   [ErrorCodes.VALIDATION_LENGTH_EXCEEDED]: 'Value exceeds maximum length',
   [ErrorCodes.VALIDATION_FORMAT_INVALID]: 'Invalid format',
 
@@ -121,7 +128,8 @@ const ERROR_MESSAGES_EN = {
   [ErrorCodes.RESOURCE_CONFLICT]: 'Resource conflict',
   [ErrorCodes.RESOURCE_DELETED]: 'Resource has been deleted',
 
-  [ErrorCodes.RATE_LIMIT_EXCEEDED]: 'Rate limit exceeded. Please try again later',
+  [ErrorCodes.RATE_LIMIT_EXCEEDED]:
+    'Rate limit exceeded. Please try again later',
   [ErrorCodes.RATE_LIMIT_IP_EXCEEDED]: 'Too many requests from your IP address',
   [ErrorCodes.RATE_LIMIT_USER_EXCEEDED]: 'Too many requests. Please slow down',
 
@@ -130,7 +138,8 @@ const ERROR_MESSAGES_EN = {
   [ErrorCodes.DATABASE_CONSTRAINT_VIOLATION]: 'Database constraint violation',
   [ErrorCodes.DATABASE_DEADLOCK]: 'Database deadlock detected',
 
-  [ErrorCodes.EXTERNAL_SERVICE_UNAVAILABLE]: 'External service is currently unavailable',
+  [ErrorCodes.EXTERNAL_SERVICE_UNAVAILABLE]:
+    'External service is currently unavailable',
   [ErrorCodes.EXTERNAL_SERVICE_TIMEOUT]: 'External service request timed out',
   [ErrorCodes.EXTERNAL_SERVICE_ERROR]: 'External service error',
 
@@ -182,7 +191,7 @@ export class AppError extends Error {
     cause = null
   }) {
     super(message || ERROR_MESSAGES_EN[code] || 'An error occurred');
-    
+
     this.name = 'AppError';
     this.code = code;
     this.statusCode = statusCode;
@@ -191,7 +200,7 @@ export class AppError extends Error {
     this.details = details;
     this.cause = cause;
     this.timestamp = new Date().toISOString();
-    
+
     Error.captureStackTrace(this, this.constructor);
   }
 
@@ -219,7 +228,9 @@ export const getErrorMessage = (code, language = 'en') => {
     en: ERROR_MESSAGES_EN
   };
 
-  return messages[language]?.[code] || ERROR_MESSAGES_EN[code] || 'An error occurred';
+  return (
+    messages[language]?.[code] || ERROR_MESSAGES_EN[code] || 'An error occurred'
+  );
 };
 
 /**
@@ -227,7 +238,7 @@ export const getErrorMessage = (code, language = 'en') => {
  */
 export const createErrorResponse = (error, req) => {
   const language = req.get('Accept-Language')?.split(',')[0]?.split('-')[0] || 'en';
-  
+
   // Handle AppError
   if (error instanceof AppError) {
     return {
@@ -238,10 +249,12 @@ export const createErrorResponse = (error, req) => {
         category: error.category,
         severity: error.severity,
         timestamp: error.timestamp,
-        ...(IS_PRODUCTION ? {} : {
-          details: error.details,
-          stack: error.stack
-        }),
+        ...(IS_PRODUCTION
+          ? {}
+          : {
+            details: error.details,
+            stack: error.stack
+          }),
         requestId: req.id,
         path: req.path
       }
@@ -254,15 +267,17 @@ export const createErrorResponse = (error, req) => {
       success: false,
       error: {
         code: ErrorCodes.INTERNAL_SERVER_ERROR,
-        message: IS_PRODUCTION 
+        message: IS_PRODUCTION
           ? getErrorMessage(ErrorCodes.INTERNAL_SERVER_ERROR, language)
           : error.message,
         category: ErrorCategory.INTERNAL,
         severity: ErrorSeverity.HIGH,
         timestamp: new Date().toISOString(),
-        ...(IS_PRODUCTION ? {} : {
-          stack: error.stack
-        }),
+        ...(IS_PRODUCTION
+          ? {}
+          : {
+            stack: error.stack
+          }),
         requestId: req.id,
         path: req.path
       }
@@ -323,7 +338,7 @@ export const errorHandler = async (err, req, res, next) => {
     res.json(errorResponse);
   } catch (error) {
     // Fallback error handling
-    console.error('Error handler failed:', error);
+    logger.error('Error handler failed:', error);
     res.status(500).json({
       success: false,
       error: {
@@ -358,104 +373,88 @@ export const notFoundHandler = (req, res) => {
  * Async handler wrapper
  * Catches async errors and passes them to error handler
  */
-export const asyncHandler = (fn) => {
-  return (req, res, next) => {
-    Promise.resolve(fn(req, res, next)).catch(next);
-  };
+export const asyncHandler = (fn) => (req, res, next) => {
+  Promise.resolve(fn(req, res, next)).catch(next);
 };
 
 /**
  * Validation error helper
  */
-export const validationError = (field, message, details = {}) => {
-  return new AppError({
-    code: ErrorCodes.VALIDATION_FIELD_INVALID,
-    message: message || `Invalid value for field: ${field}`,
-    statusCode: 400,
-    severity: ErrorSeverity.LOW,
-    category: ErrorCategory.VALIDATION,
-    details: { field, ...details }
-  });
-};
+export const validationError = (field, message, details = {}) => new AppError({
+  code: ErrorCodes.VALIDATION_FIELD_INVALID,
+  message: message || `Invalid value for field: ${field}`,
+  statusCode: 400,
+  severity: ErrorSeverity.LOW,
+  category: ErrorCategory.VALIDATION,
+  details: { field, ...details }
+});
 
 /**
  * Authentication error helper
  */
-export const authenticationError = (code = ErrorCodes.AUTH_TOKEN_INVALID) => {
-  return new AppError({
-    code,
-    statusCode: 401,
-    severity: ErrorSeverity.MEDIUM,
-    category: ErrorCategory.AUTHENTICATION
-  });
-};
+export const authenticationError = (code = ErrorCodes.AUTH_TOKEN_INVALID) => new AppError({
+  code,
+  statusCode: 401,
+  severity: ErrorSeverity.MEDIUM,
+  category: ErrorCategory.AUTHENTICATION
+});
 
 /**
  * Authorization error helper
  */
-export const authorizationError = (code = ErrorCodes.AUTHZ_PERMISSION_DENIED) => {
-  return new AppError({
-    code,
-    statusCode: 403,
-    severity: ErrorSeverity.MEDIUM,
-    category: ErrorCategory.AUTHORIZATION
-  });
-};
+export const authorizationError = (code = ErrorCodes.AUTHZ_PERMISSION_DENIED) => new AppError({
+  code,
+  statusCode: 403,
+  severity: ErrorSeverity.MEDIUM,
+  category: ErrorCategory.AUTHORIZATION
+});
 
 /**
  * Not found error helper
  */
-export const notFoundError = (resource = 'Resource') => {
-  return new AppError({
-    code: ErrorCodes.RESOURCE_NOT_FOUND,
-    message: `${resource} not found`,
-    statusCode: 404,
-    severity: ErrorSeverity.LOW,
-    category: ErrorCategory.RESOURCE
-  });
-};
+export const notFoundError = (resource = 'Resource') => new AppError({
+  code: ErrorCodes.RESOURCE_NOT_FOUND,
+  message: `${resource} not found`,
+  statusCode: 404,
+  severity: ErrorSeverity.LOW,
+  category: ErrorCategory.RESOURCE
+});
 
 /**
  * Rate limit error helper
  */
-export const rateLimitError = (retryAfter = 60) => {
-  return new AppError({
-    code: ErrorCodes.RATE_LIMIT_EXCEEDED,
-    statusCode: 429,
-    severity: ErrorSeverity.MEDIUM,
-    category: ErrorCategory.RATE_LIMIT,
-    details: { retryAfter }
-  });
-};
+export const rateLimitError = (retryAfter = 60) => new AppError({
+  code: ErrorCodes.RATE_LIMIT_EXCEEDED,
+  statusCode: 429,
+  severity: ErrorSeverity.MEDIUM,
+  category: ErrorCategory.RATE_LIMIT,
+  details: { retryAfter }
+});
 
 /**
  * Database error helper
  */
-export const databaseError = (message, cause = null) => {
-  return new AppError({
-    code: ErrorCodes.DATABASE_QUERY_FAILED,
-    message,
-    statusCode: 500,
-    severity: ErrorSeverity.HIGH,
-    category: ErrorCategory.DATABASE,
-    cause
-  });
-};
+export const databaseError = (message, cause = null) => new AppError({
+  code: ErrorCodes.DATABASE_QUERY_FAILED,
+  message,
+  statusCode: 500,
+  severity: ErrorSeverity.HIGH,
+  category: ErrorCategory.DATABASE,
+  cause
+});
 
 /**
  * External service error helper
  */
-export const externalServiceError = (serviceName, cause = null) => {
-  return new AppError({
-    code: ErrorCodes.EXTERNAL_SERVICE_ERROR,
-    message: `${serviceName} service error`,
-    statusCode: 502,
-    severity: ErrorSeverity.HIGH,
-    category: ErrorCategory.EXTERNAL_SERVICE,
-    details: { service: serviceName },
-    cause
-  });
-};
+export const externalServiceError = (serviceName, cause = null) => new AppError({
+  code: ErrorCodes.EXTERNAL_SERVICE_ERROR,
+  message: `${serviceName} service error`,
+  statusCode: 502,
+  severity: ErrorSeverity.HIGH,
+  category: ErrorCategory.EXTERNAL_SERVICE,
+  details: { service: serviceName },
+  cause
+});
 
 export default {
   ErrorCodes,

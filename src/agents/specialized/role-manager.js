@@ -27,7 +27,14 @@ class AgentRoleManager extends EventEmitter {
       'frontend-developer': {
         category: 'development',
         name: 'Frontend Developer Agent',
-        expertise: ['React', 'Vue', 'Angular', 'TypeScript', 'HTML/CSS', 'UI/UX'],
+        expertise: [
+          'React',
+          'Vue',
+          'Angular',
+          'TypeScript',
+          'HTML/CSS',
+          'UI/UX'
+        ],
         capabilities: [
           'Build responsive user interfaces',
           'Implement component-based architecture',
@@ -61,12 +68,23 @@ class AgentRoleManager extends EventEmitter {
           'Monitoring and logging',
           'Automated deployments'
         ],
-        tools: ['GitHub Actions', 'Jenkins', 'Terraform', 'Kubernetes', 'Prometheus']
+        tools: [
+          'GitHub Actions',
+          'Jenkins',
+          'Terraform',
+          'Kubernetes',
+          'Prometheus'
+        ]
       },
       'qa-engineer': {
         category: 'development',
         name: 'QA Engineer Agent',
-        expertise: ['Testing', 'Automation', 'Quality Assurance', 'Test Strategies'],
+        expertise: [
+          'Testing',
+          'Automation',
+          'Quality Assurance',
+          'Test Strategies'
+        ],
         capabilities: [
           'Create comprehensive test plans',
           'Implement automated testing',
@@ -87,14 +105,26 @@ class AgentRoleManager extends EventEmitter {
           'App store deployment',
           'Push notifications and offline sync'
         ],
-        tools: ['React Native', 'Flutter', 'Xcode', 'Android Studio', 'Firebase']
+        tools: [
+          'React Native',
+          'Flutter',
+          'Xcode',
+          'Android Studio',
+          'Firebase'
+        ]
       },
 
       // Technical Specialist Agents (5 roles)
       'database-architect': {
         category: 'technical-specialist',
         name: 'Database Architect Agent',
-        expertise: ['Database Design', 'SQL', 'NoSQL', 'Performance Tuning', 'Data Modeling'],
+        expertise: [
+          'Database Design',
+          'SQL',
+          'NoSQL',
+          'Performance Tuning',
+          'Data Modeling'
+        ],
         capabilities: [
           'Design optimal database schemas',
           'Query optimization',
@@ -107,7 +137,12 @@ class AgentRoleManager extends EventEmitter {
       'security-specialist': {
         category: 'technical-specialist',
         name: 'Security Specialist Agent',
-        expertise: ['Security Audits', 'Penetration Testing', 'OWASP', 'Compliance'],
+        expertise: [
+          'Security Audits',
+          'Penetration Testing',
+          'OWASP',
+          'Compliance'
+        ],
         capabilities: [
           'Conduct security audits',
           'Penetration testing',
@@ -120,7 +155,12 @@ class AgentRoleManager extends EventEmitter {
       'performance-engineer': {
         category: 'technical-specialist',
         name: 'Performance Engineer Agent',
-        expertise: ['Performance Optimization', 'Load Testing', 'Profiling', 'Caching'],
+        expertise: [
+          'Performance Optimization',
+          'Load Testing',
+          'Profiling',
+          'Caching'
+        ],
         capabilities: [
           'Performance profiling and analysis',
           'Load and stress testing',
@@ -161,7 +201,12 @@ class AgentRoleManager extends EventEmitter {
       'product-manager': {
         category: 'product-business',
         name: 'Product Manager Agent',
-        expertise: ['Product Strategy', 'Roadmap', 'Requirements', 'Stakeholder Management'],
+        expertise: [
+          'Product Strategy',
+          'Roadmap',
+          'Requirements',
+          'Stakeholder Management'
+        ],
         capabilities: [
           'Define product vision and strategy',
           'Create and manage product roadmap',
@@ -174,7 +219,12 @@ class AgentRoleManager extends EventEmitter {
       'ux-designer': {
         category: 'product-business',
         name: 'UX Designer Agent',
-        expertise: ['User Research', 'Wireframing', 'Prototyping', 'User Testing'],
+        expertise: [
+          'User Research',
+          'Wireframing',
+          'Prototyping',
+          'User Testing'
+        ],
         capabilities: [
           'Conduct user research',
           'Create wireframes and prototypes',
@@ -187,7 +237,12 @@ class AgentRoleManager extends EventEmitter {
       'ui-designer': {
         category: 'product-business',
         name: 'UI Designer Agent',
-        expertise: ['Visual Design', 'Brand Identity', 'Design Systems', 'Accessibility'],
+        expertise: [
+          'Visual Design',
+          'Brand Identity',
+          'Design Systems',
+          'Accessibility'
+        ],
         capabilities: [
           'Create visual designs',
           'Build design systems',
@@ -195,12 +250,22 @@ class AgentRoleManager extends EventEmitter {
           'Accessibility compliance',
           'Responsive design'
         ],
-        tools: ['Figma', 'Adobe Creative Suite', 'Sketch', 'Zeplin', 'Storybook']
+        tools: [
+          'Figma',
+          'Adobe Creative Suite',
+          'Sketch',
+          'Zeplin',
+          'Storybook'
+        ]
       },
       'business-analyst': {
         category: 'product-business',
         name: 'Business Analyst Agent',
-        expertise: ['Requirements Analysis', 'Process Modeling', 'Documentation'],
+        expertise: [
+          'Requirements Analysis',
+          'Process Modeling',
+          'Documentation'
+        ],
         capabilities: [
           'Gather business requirements',
           'Process analysis and modeling',
@@ -213,7 +278,13 @@ class AgentRoleManager extends EventEmitter {
       'data-analyst': {
         category: 'product-business',
         name: 'Data Analyst Agent',
-        expertise: ['Data Analysis', 'Reporting', 'Visualization', 'SQL', 'Statistics'],
+        expertise: [
+          'Data Analysis',
+          'Reporting',
+          'Visualization',
+          'SQL',
+          'Statistics'
+        ],
         capabilities: [
           'Analyze complex datasets',
           'Create reports and dashboards',
@@ -228,7 +299,12 @@ class AgentRoleManager extends EventEmitter {
       'documentation-writer': {
         category: 'domain-specialist',
         name: 'Documentation Writer Agent',
-        expertise: ['Technical Writing', 'API Documentation', 'User Guides', 'Tutorials'],
+        expertise: [
+          'Technical Writing',
+          'API Documentation',
+          'User Guides',
+          'Tutorials'
+        ],
         capabilities: [
           'Write technical documentation',
           'Create user guides and tutorials',
@@ -241,7 +317,12 @@ class AgentRoleManager extends EventEmitter {
       'content-creator': {
         category: 'domain-specialist',
         name: 'Content Creator Agent',
-        expertise: ['Content Marketing', 'Copywriting', 'Blog Posts', 'Social Media'],
+        expertise: [
+          'Content Marketing',
+          'Copywriting',
+          'Blog Posts',
+          'Social Media'
+        ],
         capabilities: [
           'Create marketing content',
           'Blog post writing',
@@ -254,7 +335,12 @@ class AgentRoleManager extends EventEmitter {
       'seo-specialist': {
         category: 'domain-specialist',
         name: 'SEO Specialist Agent',
-        expertise: ['SEO', 'Keyword Research', 'Content Optimization', 'Link Building'],
+        expertise: [
+          'SEO',
+          'Keyword Research',
+          'Content Optimization',
+          'Link Building'
+        ],
         capabilities: [
           'Keyword research and analysis',
           'On-page SEO optimization',
@@ -262,12 +348,24 @@ class AgentRoleManager extends EventEmitter {
           'Link building strategies',
           'SEO performance tracking'
         ],
-        tools: ['Google Analytics', 'SEMrush', 'Ahrefs', 'Moz', 'Screaming Frog']
+        tools: [
+          'Google Analytics',
+          'SEMrush',
+          'Ahrefs',
+          'Moz',
+          'Screaming Frog'
+        ]
       },
       'compliance-officer': {
         category: 'domain-specialist',
         name: 'Compliance Officer Agent',
-        expertise: ['GDPR', 'SOC2', 'HIPAA', 'Regulatory Compliance', 'Privacy'],
+        expertise: [
+          'GDPR',
+          'SOC2',
+          'HIPAA',
+          'Regulatory Compliance',
+          'Privacy'
+        ],
         capabilities: [
           'Ensure regulatory compliance',
           'Privacy policy creation',
@@ -275,12 +373,23 @@ class AgentRoleManager extends EventEmitter {
           'Data protection strategies',
           'Risk assessment'
         ],
-        tools: ['OneTrust', 'TrustArc', 'Vanta', 'Drata', 'Compliance frameworks']
+        tools: [
+          'OneTrust',
+          'TrustArc',
+          'Vanta',
+          'Drata',
+          'Compliance frameworks'
+        ]
       },
       'customer-support': {
         category: 'domain-specialist',
         name: 'Customer Support Agent',
-        expertise: ['Customer Service', 'Issue Resolution', 'Knowledge Base', 'Support Tools'],
+        expertise: [
+          'Customer Service',
+          'Issue Resolution',
+          'Knowledge Base',
+          'Support Tools'
+        ],
         capabilities: [
           'Handle customer inquiries',
           'Troubleshoot issues',
@@ -295,7 +404,12 @@ class AgentRoleManager extends EventEmitter {
       'project-coordinator': {
         category: 'orchestration',
         name: 'Project Coordinator Agent',
-        expertise: ['Project Management', 'Sprint Planning', 'Team Coordination', 'Agile'],
+        expertise: [
+          'Project Management',
+          'Sprint Planning',
+          'Team Coordination',
+          'Agile'
+        ],
         capabilities: [
           'Coordinate project activities',
           'Sprint planning and execution',
@@ -308,7 +422,12 @@ class AgentRoleManager extends EventEmitter {
       'integration-specialist': {
         category: 'orchestration',
         name: 'Integration Specialist Agent',
-        expertise: ['API Integration', 'Third-party Services', 'Webhooks', 'Data Sync'],
+        expertise: [
+          'API Integration',
+          'Third-party Services',
+          'Webhooks',
+          'Data Sync'
+        ],
         capabilities: [
           'Integrate third-party services',
           'API connectivity',
@@ -321,7 +440,12 @@ class AgentRoleManager extends EventEmitter {
       'release-manager': {
         category: 'orchestration',
         name: 'Release Manager Agent',
-        expertise: ['Release Management', 'Version Control', 'Deployment', 'Rollback'],
+        expertise: [
+          'Release Management',
+          'Version Control',
+          'Deployment',
+          'Rollback'
+        ],
         capabilities: [
           'Manage release cycles',
           'Version control',
@@ -377,7 +501,9 @@ class AgentRoleManager extends EventEmitter {
    * Execute task with specialized agent
    */
   async executeTask(agentId, task) {
-    this.logger.info(`[AgentRole] Agent ${agentId} executing task: ${task.name}`);
+    this.logger.info(
+      `[AgentRole] Agent ${agentId} executing task: ${task.name}`
+    );
 
     const agent = this.activeAgents.get(agentId);
     if (!agent) {
@@ -408,11 +534,10 @@ class AgentRoleManager extends EventEmitter {
       });
 
       return execution;
-
     } catch (error) {
       execution.status = 'failed';
       execution.error = error.message;
-      this.logger.error(`[AgentRole] Task execution failed:`, error);
+      this.logger.error('[AgentRole] Task execution failed:', error);
       throw error;
     }
   }
@@ -434,26 +559,54 @@ class AgentRoleManager extends EventEmitter {
 
     // Add role-specific outputs
     switch (agent.category) {
-      case 'development':
-        result.artifacts = ['Code files', 'Unit tests', 'Documentation'];
-        result.recommendations = ['Follow coding standards', 'Add more tests', 'Optimize performance'];
-        break;
-      case 'technical-specialist':
-        result.artifacts = ['Technical analysis', 'Recommendations', 'Implementation plan'];
-        result.recommendations = ['Best practices applied', 'Security measures in place', 'Performance optimized'];
-        break;
-      case 'product-business':
-        result.artifacts = ['Requirements document', 'User stories', 'Acceptance criteria'];
-        result.recommendations = ['User feedback incorporated', 'Market analysis complete', 'Features prioritized'];
-        break;
-      case 'domain-specialist':
-        result.artifacts = ['Documentation', 'Guidelines', 'Templates'];
-        result.recommendations = ['Standards followed', 'Quality assured', 'Best practices documented'];
-        break;
-      case 'orchestration':
-        result.artifacts = ['Project plan', 'Status report', 'Risk assessment'];
-        result.recommendations = ['Timeline optimized', 'Resources allocated', 'Dependencies managed'];
-        break;
+    case 'development':
+      result.artifacts = ['Code files', 'Unit tests', 'Documentation'];
+      result.recommendations = [
+        'Follow coding standards',
+        'Add more tests',
+        'Optimize performance'
+      ];
+      break;
+    case 'technical-specialist':
+      result.artifacts = [
+        'Technical analysis',
+        'Recommendations',
+        'Implementation plan'
+      ];
+      result.recommendations = [
+        'Best practices applied',
+        'Security measures in place',
+        'Performance optimized'
+      ];
+      break;
+    case 'product-business':
+      result.artifacts = [
+        'Requirements document',
+        'User stories',
+        'Acceptance criteria'
+      ];
+      result.recommendations = [
+        'User feedback incorporated',
+        'Market analysis complete',
+        'Features prioritized'
+      ];
+      break;
+    case 'domain-specialist':
+      result.artifacts = ['Documentation', 'Guidelines', 'Templates'];
+      result.recommendations = [
+        'Standards followed',
+        'Quality assured',
+        'Best practices documented'
+      ];
+      break;
+    case 'orchestration':
+      result.artifacts = ['Project plan', 'Status report', 'Risk assessment'];
+      result.recommendations = [
+        'Timeline optimized',
+        'Resources allocated',
+        'Dependencies managed'
+      ];
+      break;
     }
 
     return result;
@@ -479,7 +632,12 @@ class AgentRoleManager extends EventEmitter {
     const recommended = [];
 
     // Core team for any project
-    recommended.push('frontend-developer', 'backend-developer', 'devops-engineer', 'qa-engineer');
+    recommended.push(
+      'frontend-developer',
+      'backend-developer',
+      'devops-engineer',
+      'qa-engineer'
+    );
 
     // Add based on project type
     if (projectType === 'web-app') {
@@ -487,15 +645,29 @@ class AgentRoleManager extends EventEmitter {
     } else if (projectType === 'mobile-app') {
       recommended.push('mobile-developer', 'ux-designer', 'ui-designer');
     } else if (projectType === 'enterprise') {
-      recommended.push('cloud-architect', 'database-architect', 'security-specialist', 'compliance-officer');
+      recommended.push(
+        'cloud-architect',
+        'database-architect',
+        'security-specialist',
+        'compliance-officer'
+      );
     } else if (projectType === 'startup') {
-      recommended.push('product-manager', 'business-analyst', 'content-creator', 'seo-specialist');
+      recommended.push(
+        'product-manager',
+        'business-analyst',
+        'content-creator',
+        'seo-specialist'
+      );
     }
 
     // Add orchestration
-    recommended.push('project-coordinator', 'integration-specialist', 'release-manager');
+    recommended.push(
+      'project-coordinator',
+      'integration-specialist',
+      'release-manager'
+    );
 
-    return recommended.map(roleId => ({
+    return recommended.map((roleId) => ({
       roleId,
       ...this.roles[roleId]
     }));
@@ -527,7 +699,13 @@ class AgentRoleManager extends EventEmitter {
       totalRoles: Object.keys(this.roles).length,
       activeAgents: this.activeAgents.size,
       byCategory,
-      categories: ['development', 'technical-specialist', 'product-business', 'domain-specialist', 'orchestration']
+      categories: [
+        'development',
+        'technical-specialist',
+        'product-business',
+        'domain-specialist',
+        'orchestration'
+      ]
     };
   }
 }

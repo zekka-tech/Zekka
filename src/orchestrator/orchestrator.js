@@ -95,11 +95,11 @@ class ZekkaOrchestrator {
     this.db = new Pool({
       connectionString: process.env.DATABASE_URL,
       ssl: {
-        rejectUnauthorized: false, // Required for Supabase and similar cloud providers
+        rejectUnauthorized: false // Required for Supabase and similar cloud providers
       },
-      min: 2,                      // Minimum pool size
-      max: 10,                     // Maximum pool size
-      idleTimeoutMillis: 30000,    // Close idle connections after 30s
+      min: 2, // Minimum pool size
+      max: 10, // Maximum pool size
+      idleTimeoutMillis: 30000, // Close idle connections after 30s
       connectionTimeoutMillis: 5000 // Timeout for new connections
     });
 
@@ -148,7 +148,9 @@ class ZekkaOrchestrator {
   async createProject(data) {
     const projectId = `proj-${uuidv4().substring(0, 8)}`;
 
-    const { name, requirements, storyPoints, budget } = data;
+    const {
+      name, requirements, storyPoints, budget
+    } = data;
 
     // Insert into database
     await this.db.query(
@@ -195,7 +197,10 @@ class ZekkaOrchestrator {
 
     return {
       ...project,
-      description: typeof project.description === 'string' ? JSON.parse(project.description) : project.description,
+      description:
+        typeof project.description === 'string'
+          ? JSON.parse(project.description)
+          : project.description,
       tasks,
       context
     };
@@ -206,9 +211,12 @@ class ZekkaOrchestrator {
       'SELECT * FROM projects ORDER BY created_at DESC LIMIT 50'
     );
 
-    return result.rows.map(p => ({
+    return result.rows.map((p) => ({
       ...p,
-      description: typeof p.description === 'string' ? JSON.parse(p.description) : p.description
+      description:
+        typeof p.description === 'string'
+          ? JSON.parse(p.description)
+          : p.description
     }));
   }
 
@@ -239,10 +247,25 @@ class ZekkaOrchestrator {
       const stages = [
         { number: 1, name: 'Authentication', complexity: 'low' },
         { number: 2, name: 'Security Setup', complexity: 'low' },
-        { number: 3, name: 'Research', complexity: 'high', agents: 3 },
+        {
+          number: 3,
+          name: 'Research',
+          complexity: 'high',
+          agents: 3
+        },
         { number: 4, name: 'Documentation', complexity: 'medium' },
-        { number: 7, name: 'Development', complexity: 'high', agents: 6 },
-        { number: 8, name: 'Testing', complexity: 'medium', agents: 2 },
+        {
+          number: 7,
+          name: 'Development',
+          complexity: 'high',
+          agents: 6
+        },
+        {
+          number: 8,
+          name: 'Testing',
+          complexity: 'medium',
+          agents: 2
+        },
         { number: 9, name: 'Validation', complexity: 'low' },
         { number: 10, name: 'Deployment', complexity: 'medium' }
       ];
@@ -273,7 +296,9 @@ class ZekkaOrchestrator {
   }
 
   async executeStage(projectId, stageInfo) {
-    const { number, name, complexity, agents: agentCount = 1 } = stageInfo;
+    const {
+      number, name, complexity, agents: agentCount = 1
+    } = stageInfo;
 
     this.logger.info(`📍 Stage ${number}: ${name} (${agentCount} agents)`);
 
@@ -309,7 +334,9 @@ class ZekkaOrchestrator {
     // Check for conflicts
     const conflicts = await this.checkForConflicts(projectId, number);
     if (conflicts.length > 0) {
-      this.logger.warn(`⚠️  ${conflicts.length} conflict(s) detected in stage ${number}`);
+      this.logger.warn(
+        `⚠️  ${conflicts.length} conflict(s) detected in stage ${number}`
+      );
       // Conflicts would be handled by Arbitrator Agent
     }
 
@@ -317,12 +344,21 @@ class ZekkaOrchestrator {
   }
 
   async createTask(data) {
-    const { taskId, projectId, stage, agentName, model } = data;
+    const {
+      taskId, projectId, stage, agentName, model
+    } = data;
 
     await this.db.query(
       `INSERT INTO tasks (task_id, project_id, stage, agent_name, status, input_data)
        VALUES ($1, $2, $3, $4, $5, $6)`,
-      [taskId, projectId, stage, agentName, 'pending', JSON.stringify({ model })]
+      [
+        taskId,
+        projectId,
+        stage,
+        agentName,
+        'pending',
+        JSON.stringify({ model })
+      ]
     );
 
     // Set agent state in Context Bus
@@ -346,7 +382,10 @@ class ZekkaOrchestrator {
 
     try {
       // Get task details
-      const taskResult = await this.db.query('SELECT * FROM tasks WHERE task_id = $1', [taskId]);
+      const taskResult = await this.db.query(
+        'SELECT * FROM tasks WHERE task_id = $1',
+        [taskId]
+      );
       const task = taskResult.rows[0];
 
       // Generate task execution plan using the Orchestrator's model (Gemini Pro)
@@ -364,12 +403,15 @@ Generate a brief execution plan for this task. Respond with a JSON object contai
 - estimatedDuration: estimated duration in seconds
 - dependencies: any dependencies needed`;
 
-      const response = await this.modelClient.generateOrchestratorResponse(prompt, {
-        projectId,
-        taskId,
-        maxTokens: 500,
-        temperature: 0.7
-      });
+      const response = await this.modelClient.generateOrchestratorResponse(
+        prompt,
+        {
+          projectId,
+          taskId,
+          maxTokens: 500,
+          temperature: 0.7
+        }
+      );
 
       // Simulate AI call (would actually call agent model here)
       const result = await this.simulateAgentWork(taskId, model, response);
@@ -391,15 +433,21 @@ Generate a brief execution plan for this task. Respond with a JSON object contai
       await this.db.query(
         `UPDATE tasks SET status = $1, completed_at = CURRENT_TIMESTAMP, output_data = $2
          WHERE task_id = $3`,
-        ['completed', JSON.stringify({
-          ...result,
-          orchestratorModel: response.model,
-          fallbackUsed: response.fallbackUsed
-        }), taskId]
+        [
+          'completed',
+          JSON.stringify({
+            ...result,
+            orchestratorModel: response.model,
+            fallbackUsed: response.fallbackUsed
+          }),
+          taskId
+        ]
       );
 
       const duration = Date.now() - startTime;
-      this.logger.info(`✅ Task ${taskId} completed in ${duration}ms using ${response.model}`);
+      this.logger.info(
+        `✅ Task ${taskId} completed in ${duration}ms using ${response.model}`
+      );
 
       return result;
     } catch (error) {
@@ -414,11 +462,14 @@ Generate a brief execution plan for this task. Respond with a JSON object contai
 
   async simulateAgentWork(taskId, model, orchestratorResponse) {
     // Get task details
-    const result = await this.db.query('SELECT * FROM tasks WHERE task_id = $1', [taskId]);
+    const result = await this.db.query(
+      'SELECT * FROM tasks WHERE task_id = $1',
+      [taskId]
+    );
     const task = result.rows[0];
 
     // Simulate processing time
-    await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 1000));
+    await new Promise((resolve) => setTimeout(resolve, Math.random() * 2000 + 1000));
 
     // Simulate token usage (would be real from actual API calls)
     const tokensInput = Math.floor(Math.random() * 1000) + 500;
@@ -448,11 +499,19 @@ Generate a brief execution plan for this task. Respond with a JSON object contai
   // ========================================
 
   async getMetrics() {
-    const totalProjects = await this.db.query('SELECT COUNT(*) as count FROM projects');
-    const runningTasks = await this.db.query("SELECT COUNT(*) as count FROM tasks WHERE status = 'running'");
-    const completedTasks = await this.db.query("SELECT COUNT(*) as count FROM tasks WHERE status = 'completed'");
+    const totalProjects = await this.db.query(
+      'SELECT COUNT(*) as count FROM projects'
+    );
+    const runningTasks = await this.db.query(
+      'SELECT COUNT(*) as count FROM tasks WHERE status = \'running\''
+    );
+    const completedTasks = await this.db.query(
+      'SELECT COUNT(*) as count FROM tasks WHERE status = \'completed\''
+    );
 
-    const budgetStatus = this.tokenEconomics ? await this.tokenEconomics.getBudgetStatus() : {};
+    const budgetStatus = this.tokenEconomics
+      ? await this.tokenEconomics.getBudgetStatus()
+      : {};
     const contextMetrics = await this.contextBus.getMetrics();
 
     return {

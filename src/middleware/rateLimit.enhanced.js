@@ -1,6 +1,6 @@
 /**
  * Enhanced Rate Limiting
- * 
+ *
  * SECURITY FIX: Phase 1 - Enhanced rate limiting with better configuration
  * SECURITY FIX: Phase 2 - Rate limiting for all endpoints
  */
@@ -15,7 +15,7 @@ function standardMessage(retryAfter) {
   return {
     error: 'Too many requests',
     message: `Too many requests from this IP, please try again after ${retryAfter}`,
-    retryAfter: retryAfter
+    retryAfter
   };
 }
 

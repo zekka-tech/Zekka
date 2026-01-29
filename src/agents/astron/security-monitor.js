@@ -100,7 +100,6 @@ class SecurityMonitor extends EventEmitter {
       });
 
       return scan;
-
     } catch (error) {
       this.logger.error('[Astron:Security] Security scan failed:', error);
       throw error;
@@ -190,8 +189,8 @@ class SecurityMonitor extends EventEmitter {
     const standards = {
       'OWASP-Top-10': await this.checkOWASP(),
       'CIS-Controls': await this.checkCIS(),
-      'GDPR': await this.checkGDPR(),
-      'SOC2': await this.checkSOC2()
+      GDPR: await this.checkGDPR(),
+      SOC2: await this.checkSOC2()
     };
 
     let totalScore = 0;
@@ -219,24 +218,34 @@ class SecurityMonitor extends EventEmitter {
     let score = 100;
 
     // Penalize for vulnerabilities
-    const criticalVulns = scan.vulnerabilities.filter(v => v.severity === 'critical').length;
-    const highVulns = scan.vulnerabilities.filter(v => v.severity === 'high').length;
-    const mediumVulns = scan.vulnerabilities.filter(v => v.severity === 'medium').length;
+    const criticalVulns = scan.vulnerabilities.filter(
+      (v) => v.severity === 'critical'
+    ).length;
+    const highVulns = scan.vulnerabilities.filter(
+      (v) => v.severity === 'high'
+    ).length;
+    const mediumVulns = scan.vulnerabilities.filter(
+      (v) => v.severity === 'medium'
+    ).length;
 
     score -= criticalVulns * 20;
     score -= highVulns * 10;
     score -= mediumVulns * 5;
 
     // Penalize for active threats
-    const criticalThreats = scan.threats.filter(t => t.severity === 'critical').length;
-    const highThreats = scan.threats.filter(t => t.severity === 'high').length;
+    const criticalThreats = scan.threats.filter(
+      (t) => t.severity === 'critical'
+    ).length;
+    const highThreats = scan.threats.filter(
+      (t) => t.severity === 'high'
+    ).length;
 
     score -= criticalThreats * 15;
     score -= highThreats * 8;
 
     // Factor in compliance
     if (scan.compliance.overallCompliance) {
-      score = (score * 0.7) + (scan.compliance.overallCompliance * 0.3);
+      score = score * 0.7 + scan.compliance.overallCompliance * 0.3;
     }
 
     return Math.max(0, Math.round(score));
@@ -258,7 +267,10 @@ class SecurityMonitor extends EventEmitter {
             timestamp: new Date().toISOString()
           });
         } catch (error) {
-          this.logger.error(`[Astron:Security] Failed to remediate ${vuln.type}:`, error);
+          this.logger.error(
+            `[Astron:Security] Failed to remediate ${vuln.type}:`,
+            error
+          );
         }
       }
     }
@@ -273,7 +285,10 @@ class SecurityMonitor extends EventEmitter {
             timestamp: new Date().toISOString()
           });
         } catch (error) {
-          this.logger.error(`[Astron:Security] Failed to mitigate ${threat.type}:`, error);
+          this.logger.error(
+            `[Astron:Security] Failed to mitigate ${threat.type}:`,
+            error
+          );
         }
       }
     }
@@ -454,8 +469,10 @@ class SecurityMonitor extends EventEmitter {
   }
 
   async remediateVulnerability(vuln) {
-    this.logger.info(`[Astron:Security] Remediating vulnerability: ${vuln.type}`);
-    
+    this.logger.info(
+      `[Astron:Security] Remediating vulnerability: ${vuln.type}`
+    );
+
     await this.contextBus.set(
       `security:remediation:${vuln.type}`,
       JSON.stringify({
@@ -468,7 +485,7 @@ class SecurityMonitor extends EventEmitter {
 
   async mitigateThreat(threat) {
     this.logger.info(`[Astron:Security] Mitigating threat: ${threat.type}`);
-    
+
     await this.contextBus.publish('astron.security.threat-mitigated', {
       type: threat.type,
       severity: threat.severity,
@@ -506,15 +523,16 @@ class SecurityMonitor extends EventEmitter {
    */
   getStatistics() {
     const recentScans = this.securityEvents.slice(-10);
-    const avgScore = recentScans.length > 0 ?
-      recentScans.reduce((sum, s) => sum + s.score, 0) / recentScans.length : 0;
+    const avgScore = recentScans.length > 0
+      ? recentScans.reduce((sum, s) => sum + s.score, 0) / recentScans.length
+      : 0;
 
     return {
       totalScans: this.securityEvents.length,
       averageSecurityScore: Math.round(avgScore),
       activeVulnerabilities: this.vulnerabilities.size,
       activeThreats: this.threats.length,
-      recentScans: recentScans.map(s => ({
+      recentScans: recentScans.map((s) => ({
         timestamp: s.timestamp,
         score: s.score,
         vulnerabilities: s.vulnerabilities.length,

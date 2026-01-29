@@ -3,14 +3,14 @@
 /**
  * Zekka Database Migration CLI
  * Command-line interface for managing database migrations
- * 
+ *
  * Usage:
  *   npm run migrate              # Run all pending migrations
  *   npm run migrate:status       # Show migration status
  *   npm run migrate:rollback     # Rollback last migration
  *   npm run migrate:create name  # Create new migration
  *   npm run migrate:verify       # Verify migration integrity
- * 
+ *
  * @version 1.0.0
  */
 
@@ -56,7 +56,7 @@ const commands = {
     try {
       await manager.initialize();
       const result = await manager.migrate(options);
-      
+
       if (result.executed.length === 0) {
         console.log('✅ Database is up to date');
       } else {
@@ -78,7 +78,7 @@ const commands = {
     try {
       await manager.initialize();
       const result = await manager.rollback(count);
-      
+
       if (result.rolled_back.length === 0) {
         console.log('✅ No migrations to rollback');
       } else {
@@ -100,7 +100,9 @@ const commands = {
     try {
       await manager.initialize();
       const result = await manager.status();
-      console.log(`Summary: ${result.executed} executed, ${result.pending} pending, ${result.total} total`);
+      console.log(
+        `Summary: ${result.executed} executed, ${result.pending} pending, ${result.total} total`
+      );
     } catch (error) {
       console.error('❌ Status check failed:', error.message);
       process.exit(1);
@@ -117,7 +119,7 @@ const commands = {
     try {
       await manager.initialize();
       const result = await manager.verify();
-      
+
       if (!result.verified) {
         console.error('⚠️  Migration integrity check failed');
         process.exit(1);
@@ -213,44 +215,46 @@ const param = args[1];
 
 // Execute command
 (async () => {
-  console.log(`\n🚀 Zekka Migration CLI\n`);
-  
+  console.log('\n🚀 Zekka Migration CLI\n');
+
   switch (command) {
-    case 'init':
-      await commands.init();
-      break;
-    case 'up':
-    case 'migrate':
-      await commands.up({ 
-        dryRun: args.includes('--dry-run'),
-        target: args.includes('--target') ? parseInt(args[args.indexOf('--target') + 1]) : null
-      });
-      break;
-    case 'down':
-    case 'rollback':
-      await commands.down(param ? parseInt(param) : 1);
-      break;
-    case 'status':
-      await commands.status();
-      break;
-    case 'verify':
-      await commands.verify();
-      break;
-    case 'create':
-      await commands.create(param, args[2] || 'sql');
-      break;
-    default:
-      console.log('Usage: migrate <command> [options]\n');
-      console.log('Commands:');
-      console.log('  init              Initialize migration system');
-      console.log('  up, migrate       Run pending migrations');
-      console.log('  down, rollback    Rollback last N migrations');
-      console.log('  status            Show migration status');
-      console.log('  verify            Verify migration integrity');
-      console.log('  create <name>     Create new migration file\n');
-      console.log('Options:');
-      console.log('  --dry-run         Test migration without applying');
-      console.log('  --target <n>      Migrate to specific version');
-      process.exit(1);
+  case 'init':
+    await commands.init();
+    break;
+  case 'up':
+  case 'migrate':
+    await commands.up({
+      dryRun: args.includes('--dry-run'),
+      target: args.includes('--target')
+        ? parseInt(args[args.indexOf('--target') + 1])
+        : null
+    });
+    break;
+  case 'down':
+  case 'rollback':
+    await commands.down(param ? parseInt(param) : 1);
+    break;
+  case 'status':
+    await commands.status();
+    break;
+  case 'verify':
+    await commands.verify();
+    break;
+  case 'create':
+    await commands.create(param, args[2] || 'sql');
+    break;
+  default:
+    console.log('Usage: migrate <command> [options]\n');
+    console.log('Commands:');
+    console.log('  init              Initialize migration system');
+    console.log('  up, migrate       Run pending migrations');
+    console.log('  down, rollback    Rollback last N migrations');
+    console.log('  status            Show migration status');
+    console.log('  verify            Verify migration integrity');
+    console.log('  create <name>     Create new migration file\n');
+    console.log('Options:');
+    console.log('  --dry-run         Test migration without applying');
+    console.log('  --target <n>      Migrate to specific version');
+    process.exit(1);
   }
 })();

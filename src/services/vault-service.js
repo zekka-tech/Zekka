@@ -49,7 +49,9 @@ class VaultService {
   constructor(options = {}) {
     // Validate required options
     if (!options.vaultAddr || !options.roleId || !options.secretId) {
-      throw new Error('vaultAddr, roleId, and secretId are required for Vault service');
+      throw new Error(
+        'vaultAddr, roleId, and secretId are required for Vault service'
+      );
     }
 
     this.vaultAddr = options.vaultAddr;
@@ -95,7 +97,10 @@ class VaultService {
       this.initialized = true;
       this.logger.info('✅ Vault service initialized');
     } catch (error) {
-      this.logger.error('❌ Failed to initialize Vault service:', error.message);
+      this.logger.error(
+        '❌ Failed to initialize Vault service:',
+        error.message
+      );
       throw error;
     }
   }
@@ -116,7 +121,7 @@ class VaultService {
 
       const authData = response.data.auth;
       this.token = authData.client_token;
-      this.tokenExpiry = Date.now() + (authData.lease_duration * 1000);
+      this.tokenExpiry = Date.now() + authData.lease_duration * 1000;
 
       // Update client with authentication token
       this.client.defaults.headers.common['X-Vault-Token'] = this.token;
@@ -173,7 +178,7 @@ class VaultService {
     try {
       const response = await this.client.post('/v1/auth/token/renew-self');
       const authData = response.data.auth;
-      this.tokenExpiry = Date.now() + (authData.lease_duration * 1000);
+      this.tokenExpiry = Date.now() + authData.lease_duration * 1000;
       this.logger.info('✅ Vault token renewed');
     } catch (error) {
       throw new Error(`Token renewal failed: ${error.message}`);
@@ -194,7 +199,9 @@ class VaultService {
    */
   async getSecret(path, useCache = true) {
     if (!this.initialized) {
-      throw new Error('Vault service not initialized. Call initialize() first.');
+      throw new Error(
+        'Vault service not initialized. Call initialize() first.'
+      );
     }
 
     // Check cache first
@@ -203,14 +210,15 @@ class VaultService {
       if (Date.now() < cached.expiry) {
         this.logger.debug(`🔍 Cache hit for secret: ${path}`);
         return cached.data;
-      } else {
-        this.cache.delete(path);
       }
+      this.cache.delete(path);
     }
 
     try {
       // KV v2 uses /data/ in the path
-      const response = await this.client.get(`/v1/${this.mountPath}/data/${path}`);
+      const response = await this.client.get(
+        `/v1/${this.mountPath}/data/${path}`
+      );
       const secretData = response.data.data.data;
 
       // Cache the secret
@@ -223,7 +231,9 @@ class VaultService {
       return secretData;
     } catch (error) {
       this.logger.error(`❌ Failed to get secret '${path}':`, error.message);
-      throw new Error(`Failed to get secret '${path}': ${error.response?.data?.errors?.[0] || error.message}`);
+      throw new Error(
+        `Failed to get secret '${path}': ${error.response?.data?.errors?.[0] || error.message}`
+      );
     }
   }
 
@@ -243,7 +253,9 @@ class VaultService {
    */
   async setSecret(path, data) {
     if (!this.initialized) {
-      throw new Error('Vault service not initialized. Call initialize() first.');
+      throw new Error(
+        'Vault service not initialized. Call initialize() first.'
+      );
     }
 
     try {
@@ -258,7 +270,9 @@ class VaultService {
       this.logger.info(`✅ Secret written: ${path}`);
     } catch (error) {
       this.logger.error(`❌ Failed to write secret '${path}':`, error.message);
-      throw new Error(`Failed to write secret '${path}': ${error.response?.data?.errors?.[0] || error.message}`);
+      throw new Error(
+        `Failed to write secret '${path}': ${error.response?.data?.errors?.[0] || error.message}`
+      );
     }
   }
 
@@ -271,7 +285,9 @@ class VaultService {
    */
   async deleteSecret(path) {
     if (!this.initialized) {
-      throw new Error('Vault service not initialized. Call initialize() first.');
+      throw new Error(
+        'Vault service not initialized. Call initialize() first.'
+      );
     }
 
     try {
@@ -361,7 +377,9 @@ class VaultService {
     return {
       initialized: this.initialized,
       authenticated: !!this.token,
-      tokenExpiry: this.tokenExpiry ? new Date(this.tokenExpiry).toISOString() : null,
+      tokenExpiry: this.tokenExpiry
+        ? new Date(this.tokenExpiry).toISOString()
+        : null,
       cacheSize: this.cache.size,
       vaultAddr: this.vaultAddr
     };

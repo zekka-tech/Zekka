@@ -4,6 +4,7 @@
  */
 
 const express = require('express');
+
 const router = express.Router();
 const sourcesController = require('../controllers/sources.controller');
 const { authenticate } = require('../middleware/auth');
@@ -67,6 +68,35 @@ router.delete('/:id', sourcesController.deleteSource);
  * @param   {string} id - Source ID
  */
 router.get('/:id/download', sourcesController.downloadSource);
+
+/**
+ * @route   GET /api/v1/sources/folders
+ * @desc    List folders for a project
+ * @access  Private
+ * @query   {string} projectId - Project ID
+ */
+router.get('/folders', sourcesController.listFolders);
+
+/**
+ * @route   POST /api/v1/sources/folders
+ * @desc    Create a new folder
+ * @access  Private
+ * @body    {string} projectId - Project ID
+ * @body    {string} name - Folder name
+ * @body    {string} [parentId] - Parent folder ID
+ */
+router.post('/folders', sourcesController.createFolder);
+
+/**
+ * @route   GET /api/v1/sources/search
+ * @desc    Search sources in a project
+ * @access  Private
+ * @query   {string} projectId - Project ID
+ * @query   {string} q - Search query
+ * @query   {string} [type] - Filter by type
+ * @query   {number} [limit=50] - Results limit
+ */
+router.get('/search', sourcesController.searchSources);
 
 /**
  * @route   GET /api/v1/sources/:projectId/stats

@@ -1,7 +1,7 @@
 /**
  * GDPR Compliance Service
  * =======================
- * 
+ *
  * Comprehensive GDPR compliance system implementing:
  * - Right to Access (Article 15)
  * - Right to Rectification (Article 16)
@@ -13,7 +13,7 @@
  * - Consent Management
  * - Data Processing Records
  * - Privacy by Design
- * 
+ *
  * Compliance Standards:
  * - GDPR (EU General Data Protection Regulation)
  * - Privacy Shield Framework
@@ -23,20 +23,20 @@
 import pool from '../config/database.js';
 import auditService from './audit-service.js';
 import encryptionService from './encryption-service.js';
+import logger from '../utils/logger.js';
 
 class GDPRComplianceService {
   /**
    * Article 15: Right to Access
-   * 
+   *
    * User can request all personal data held by the organization
    */
   async exportUserData(userId, format = 'json') {
     try {
       // Get user data
-      const user = await pool.query(
-        'SELECT * FROM users WHERE id = $1',
-        [userId]
-      );
+      const user = await pool.query('SELECT * FROM users WHERE id = $1', [
+        userId
+      ]);
 
       if (user.rows.length === 0) {
         throw new Error('User not found');
@@ -79,7 +79,7 @@ class GDPRComplianceService {
           emailVerified: user.rows[0].email_verified,
           mfaEnabled: user.rows[0].mfa_enabled
         },
-        auditLogs: auditLogs.rows.map(log => ({
+        auditLogs: auditLogs.rows.map((log) => ({
           action: log.action,
           timestamp: log.timestamp,
           ipAddress: log.ip_address,
@@ -133,14 +133,14 @@ class GDPRComplianceService {
 
       return userData;
     } catch (error) {
-      console.error('GDPR data export error:', error);
+      logger.error('GDPR data export error:', error);
       throw error;
     }
   }
 
   /**
    * Article 17: Right to Erasure (Right to be Forgotten)
-   * 
+   *
    * Delete all user personal data
    */
   async deleteUserData(userId, reason, requestedBy) {
@@ -150,10 +150,9 @@ class GDPRComplianceService {
       await client.query('BEGIN');
 
       // Get user email for logging
-      const user = await client.query(
-        'SELECT email FROM users WHERE id = $1',
-        [userId]
-      );
+      const user = await client.query('SELECT email FROM users WHERE id = $1', [
+        userId
+      ]);
 
       if (user.rows.length === 0) {
         throw new Error('User not found');
@@ -170,10 +169,14 @@ class GDPRComplianceService {
       );
 
       // Delete user sessions
-      await client.query('DELETE FROM user_sessions WHERE user_id = $1', [userId]);
+      await client.query('DELETE FROM user_sessions WHERE user_id = $1', [
+        userId
+      ]);
 
       // Delete password history
-      await client.query('DELETE FROM password_history WHERE user_id = $1', [userId]);
+      await client.query('DELETE FROM password_history WHERE user_id = $1', [
+        userId
+      ]);
 
       // Anonymize audit logs (keep for compliance but remove PII)
       await client.query(
@@ -194,16 +197,12 @@ class GDPRComplianceService {
       );
 
       // Delete MFA settings
-      await client.query(
-        'DELETE FROM mfa_devices WHERE user_id = $1',
-        [userId]
-      );
+      await client.query('DELETE FROM mfa_devices WHERE user_id = $1', [
+        userId
+      ]);
 
       // Delete API keys
-      await client.query(
-        'DELETE FROM api_keys WHERE user_id = $1',
-        [userId]
-      );
+      await client.query('DELETE FROM api_keys WHERE user_id = $1', [userId]);
 
       // Finally, delete user record
       await client.query('DELETE FROM users WHERE id = $1', [userId]);
@@ -231,7 +230,7 @@ class GDPRComplianceService {
       };
     } catch (error) {
       await client.query('ROLLBACK');
-      console.error('GDPR data deletion error:', error);
+      logger.error('GDPR data deletion error:', error);
       throw error;
     } finally {
       client.release();
@@ -240,7 +239,7 @@ class GDPRComplianceService {
 
   /**
    * Article 20: Right to Data Portability
-   * 
+   *
    * Export user data in machine-readable format
    */
   async exportPortableData(userId) {
@@ -272,7 +271,7 @@ class GDPRComplianceService {
 
   /**
    * Consent Management
-   * 
+   *
    * Track and manage user consent for data processing
    */
   async recordConsent(userId, consentType, granted, ipAddress) {
@@ -295,7 +294,7 @@ class GDPRComplianceService {
 
       return { success: true };
     } catch (error) {
-      console.error('Consent recording error:', error);
+      logger.error('Consent recording error:', error);
       throw error;
     }
   }
@@ -314,7 +313,7 @@ class GDPRComplianceService {
 
   /**
    * Data Breach Notification (Article 33/34)
-   * 
+   *
    * Log and notify about data breaches within 72 hours
    */
   async reportDataBreach(breachDetails) {
@@ -362,7 +361,7 @@ class GDPRComplianceService {
 
       return breach;
     } catch (error) {
-      console.error('Data breach reporting error:', error);
+      logger.error('Data breach reporting error:', error);
       throw error;
     }
   }
@@ -432,7 +431,7 @@ class GDPRComplianceService {
         })
       };
     } catch (error) {
-      console.error('GDPR compliance report error:', error);
+      logger.error('GDPR compliance report error:', error);
       throw error;
     }
   }
@@ -446,21 +445,24 @@ class GDPRComplianceService {
     if (metrics.accessRequests > 50) {
       recommendations.push({
         priority: 'high',
-        recommendation: 'High volume of data access requests - consider self-service data export portal'
+        recommendation:
+          'High volume of data access requests - consider self-service data export portal'
       });
     }
 
     if (metrics.deletionRequests > 20) {
       recommendations.push({
         priority: 'medium',
-        recommendation: 'Consider implementing automated data deletion workflow'
+        recommendation:
+          'Consider implementing automated data deletion workflow'
       });
     }
 
     if (metrics.breaches > 0) {
       recommendations.push({
         priority: 'critical',
-        recommendation: 'Data breach detected - review security measures and incident response procedures'
+        recommendation:
+          'Data breach detected - review security measures and incident response procedures'
       });
     }
 
@@ -473,14 +475,16 @@ class GDPRComplianceService {
   convertToCSV(userData) {
     // Simplified CSV export
     const csv = [];
-    
-    csv.push('GDPR Data Export - ' + userData.user.email);
-    csv.push('Export Date: ' + userData.exportDate);
+
+    csv.push(`GDPR Data Export - ${userData.user.email}`);
+    csv.push(`Export Date: ${userData.exportDate}`);
     csv.push('');
     csv.push('User Information');
     csv.push('ID,Email,Name,Role,Created At');
-    csv.push(`${userData.user.id},${userData.user.email},${userData.user.name},${userData.user.role},${userData.user.createdAt}`);
-    
+    csv.push(
+      `${userData.user.id},${userData.user.email},${userData.user.name},${userData.user.role},${userData.user.createdAt}`
+    );
+
     return csv.join('\n');
   }
 }

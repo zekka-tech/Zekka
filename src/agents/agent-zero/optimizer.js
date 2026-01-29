@@ -17,16 +17,16 @@ class OptimizerAgent extends BaseAgentZero {
    */
   async executeTask(task) {
     switch (task.type) {
-      case 'analyze':
-        return await this.analyzePerformance(task.targetId, task.metrics);
-      case 'optimize':
-        return await this.optimizeAgent(task.targetId, task.focusAreas);
-      case 'benchmark':
-        return await this.createBenchmark(task.targetId);
-      case 'recommend':
-        return await this.recommendImprovements(task.targetId);
-      default:
-        throw new Error(`Unknown task type: ${task.type}`);
+    case 'analyze':
+      return await this.analyzePerformance(task.targetId, task.metrics);
+    case 'optimize':
+      return await this.optimizeAgent(task.targetId, task.focusAreas);
+    case 'benchmark':
+      return await this.createBenchmark(task.targetId);
+    case 'recommend':
+      return await this.recommendImprovements(task.targetId);
+    default:
+      throw new Error(`Unknown task type: ${task.type}`);
     }
   }
 
@@ -55,12 +55,18 @@ class OptimizerAgent extends BaseAgentZero {
     analysis.score = this.calculatePerformanceScore(analysis.metrics);
 
     // Generate improvement suggestions
-    analysis.improvements = this.generateImprovements(analysis.bottlenecks, analysis.metrics);
+    analysis.improvements = this.generateImprovements(
+      analysis.bottlenecks,
+      analysis.metrics
+    );
 
     // Compare with baseline if available
     const baseline = this.performanceBaselines.get(targetId);
     if (baseline) {
-      analysis.comparison = this.compareWithBaseline(analysis.metrics, baseline);
+      analysis.comparison = this.compareWithBaseline(
+        analysis.metrics,
+        baseline
+      );
     }
 
     return analysis;
@@ -105,7 +111,9 @@ class OptimizerAgent extends BaseAgentZero {
     }
 
     // Calculate expected improvements
-    optimization.expectedImprovements = this.calculateExpectedImprovements(optimization.changes);
+    optimization.expectedImprovements = this.calculateExpectedImprovements(
+      optimization.changes
+    );
 
     // Store optimization record
     this.optimizationHistory.push({
@@ -114,7 +122,7 @@ class OptimizerAgent extends BaseAgentZero {
     });
 
     // Notify about optimizations
-    await this.contextBus.publish(`agent.optimizer.optimized`, {
+    await this.contextBus.publish('agent.optimizer.optimized', {
       targetId,
       changesCount: optimization.changes.length,
       expectedImprovements: optimization.expectedImprovements,
@@ -143,9 +151,15 @@ class OptimizerAgent extends BaseAgentZero {
 
     // Aggregate metrics
     benchmark.metrics = {
-      avgResponseTime: this.calculateAverage(benchmark.testResults, 'responseTime'),
+      avgResponseTime: this.calculateAverage(
+        benchmark.testResults,
+        'responseTime'
+      ),
       avgCPUUsage: this.calculateAverage(benchmark.testResults, 'cpuUsage'),
-      avgMemoryUsage: this.calculateAverage(benchmark.testResults, 'memoryUsage'),
+      avgMemoryUsage: this.calculateAverage(
+        benchmark.testResults,
+        'memoryUsage'
+      ),
       successRate: this.calculateSuccessRate(benchmark.testResults),
       throughput: this.calculateThroughput(benchmark.testResults)
     };
@@ -180,7 +194,10 @@ class OptimizerAgent extends BaseAgentZero {
     };
 
     // Analyze and prioritize recommendations
-    const allRecommendations = this.generateRecommendations(currentMetrics, baseline);
+    const allRecommendations = this.generateRecommendations(
+      currentMetrics,
+      baseline
+    );
 
     for (const rec of allRecommendations) {
       // Categorize by priority
@@ -284,7 +301,7 @@ class OptimizerAgent extends BaseAgentZero {
     let score = 100;
 
     // Penalize based on metrics
-    if (metrics.responseTime > 100) score -= (metrics.responseTime - 100) / 10 * weights.responseTime * 100;
+    if (metrics.responseTime > 100) score -= ((metrics.responseTime - 100) / 10) * weights.responseTime * 100;
     if (metrics.cpuUsage > 50) score -= (metrics.cpuUsage - 50) * weights.cpuUsage;
     if (metrics.memoryUsage > 50) score -= (metrics.memoryUsage - 50) * weights.memoryUsage;
     if (metrics.errorRate > 1) score -= metrics.errorRate * weights.errorRate * 20;
@@ -298,38 +315,39 @@ class OptimizerAgent extends BaseAgentZero {
 
     for (const bottleneck of bottlenecks) {
       switch (bottleneck.type) {
-        case 'latency':
-          improvements.push({
-            area: 'Response Time',
-            suggestion: 'Implement caching and optimize database queries',
-            expectedImpact: '30-40% reduction in response time',
-            effort: 'medium'
-          });
-          break;
-        case 'cpu':
-          improvements.push({
-            area: 'CPU Usage',
-            suggestion: 'Optimize algorithms and reduce computational complexity',
-            expectedImpact: '20-30% reduction in CPU usage',
-            effort: 'high'
-          });
-          break;
-        case 'memory':
-          improvements.push({
-            area: 'Memory Usage',
-            suggestion: 'Implement memory pooling and cleanup unused objects',
-            expectedImpact: '15-25% reduction in memory usage',
-            effort: 'medium'
-          });
-          break;
-        case 'reliability':
-          improvements.push({
-            area: 'Error Rate',
-            suggestion: 'Add error handling and retry mechanisms',
-            expectedImpact: '50-70% reduction in error rate',
-            effort: 'low'
-          });
-          break;
+      case 'latency':
+        improvements.push({
+          area: 'Response Time',
+          suggestion: 'Implement caching and optimize database queries',
+          expectedImpact: '30-40% reduction in response time',
+          effort: 'medium'
+        });
+        break;
+      case 'cpu':
+        improvements.push({
+          area: 'CPU Usage',
+          suggestion:
+              'Optimize algorithms and reduce computational complexity',
+          expectedImpact: '20-30% reduction in CPU usage',
+          effort: 'high'
+        });
+        break;
+      case 'memory':
+        improvements.push({
+          area: 'Memory Usage',
+          suggestion: 'Implement memory pooling and cleanup unused objects',
+          expectedImpact: '15-25% reduction in memory usage',
+          effort: 'medium'
+        });
+        break;
+      case 'reliability':
+        improvements.push({
+          area: 'Error Rate',
+          suggestion: 'Add error handling and retry mechanisms',
+          expectedImpact: '50-70% reduction in error rate',
+          effort: 'low'
+        });
+        break;
       }
     }
 
@@ -370,7 +388,12 @@ class OptimizerAgent extends BaseAgentZero {
 
   isImprovement(metricName, change) {
     // For some metrics, lower is better
-    const lowerIsBetter = ['responseTime', 'cpuUsage', 'memoryUsage', 'errorRate'];
+    const lowerIsBetter = [
+      'responseTime',
+      'cpuUsage',
+      'memoryUsage',
+      'errorRate'
+    ];
     if (lowerIsBetter.includes(metricName)) {
       return change < 0;
     }
@@ -382,13 +405,15 @@ class OptimizerAgent extends BaseAgentZero {
     // Get agent configuration from context bus
     const configKey = `agent:${targetId}:config`;
     const config = await this.contextBus.get(configKey);
-    return config ? JSON.parse(config) : {
-      timeout: 30000,
-      retries: 3,
-      batchSize: 10,
-      cacheEnabled: false,
-      parallelism: 1
-    };
+    return config
+      ? JSON.parse(config)
+      : {
+        timeout: 30000,
+        retries: 3,
+        batchSize: 10,
+        cacheEnabled: false,
+        parallelism: 1
+      };
   }
 
   optimizeSpeed(config) {
@@ -469,7 +494,10 @@ class OptimizerAgent extends BaseAgentZero {
     };
 
     for (const change of changes) {
-      if (change.parameter === 'cacheEnabled' || change.parameter === 'parallelism') {
+      if (
+        change.parameter === 'cacheEnabled'
+        || change.parameter === 'parallelism'
+      ) {
         improvements.speed += 15;
       }
       if (change.parameter === 'retries') {
@@ -485,7 +513,7 @@ class OptimizerAgent extends BaseAgentZero {
 
     // Convert to percentages
     for (const key of Object.keys(improvements)) {
-      improvements[key] = Math.min(100, improvements[key]) + '%';
+      improvements[key] = `${Math.min(100, improvements[key])}%`;
     }
 
     return improvements;
@@ -507,12 +535,14 @@ class OptimizerAgent extends BaseAgentZero {
   }
 
   calculateAverage(results, metric) {
-    const values = results.map(r => r[metric]).filter(v => v !== undefined);
-    return values.length > 0 ? values.reduce((s, v) => s + v, 0) / values.length : 0;
+    const values = results.map((r) => r[metric]).filter((v) => v !== undefined);
+    return values.length > 0
+      ? values.reduce((s, v) => s + v, 0) / values.length
+      : 0;
   }
 
   calculateSuccessRate(results) {
-    const successCount = results.filter(r => r.success).length;
+    const successCount = results.filter((r) => r.success).length;
     return (successCount / results.length) * 100;
   }
 

@@ -56,10 +56,7 @@ const schemas = {
    * @property {number} [budget.monthly=1000] - Monthly budget limit
    */
   createProject: Joi.object({
-    name: Joi.string()
-      .min(3)
-      .max(100)
-      .required()
+    name: Joi.string().min(3).max(100).required()
       .trim()
       .messages({
         'string.min': 'Project name must be at least 3 characters',
@@ -78,10 +75,7 @@ const schemas = {
         'any.required': 'Requirements array is required'
       }),
 
-    storyPoints: Joi.number()
-      .integer()
-      .min(1)
-      .max(100)
+    storyPoints: Joi.number().integer().min(1).max(100)
       .default(8)
       .messages({
         'number.min': 'Story points must be at least 1',
@@ -127,18 +121,12 @@ const schemas = {
         'any.required': 'Email is required'
       }),
 
-    password: Joi.string()
-      .min(12)
-      .required()
-      .messages({
-        'string.min': 'Password must be at least 12 characters',
-        'any.required': 'Password is required'
-      }),
+    password: Joi.string().min(12).required().messages({
+      'string.min': 'Password must be at least 12 characters',
+      'any.required': 'Password is required'
+    }),
 
-    name: Joi.string()
-      .min(2)
-      .max(100)
-      .required()
+    name: Joi.string().min(2).max(100).required()
       .trim()
       .messages({
         'string.min': 'Name must be at least 2 characters',
@@ -154,21 +142,16 @@ const schemas = {
    * @type {Joi.ObjectSchema}
    */
   login: Joi.object({
-    email: Joi.string()
-      .email()
-      .required()
-      .lowercase()
+    email: Joi.string().email().required().lowercase()
       .trim()
       .messages({
         'string.email': 'Please provide a valid email address',
         'any.required': 'Email is required'
       }),
 
-    password: Joi.string()
-      .required()
-      .messages({
-        'any.required': 'Password is required'
-      })
+    password: Joi.string().required().messages({
+      'any.required': 'Password is required'
+    })
   }),
 
   /**
@@ -182,9 +165,7 @@ const schemas = {
       .pattern(/^proj-[a-f0-9]{8}$/)
       .optional(),
 
-    period: Joi.string()
-      .valid('daily', 'weekly', 'monthly')
-      .default('daily')
+    period: Joi.string().valid('daily', 'weekly', 'monthly').default('daily')
   }),
 
   /**
@@ -195,8 +176,11 @@ const schemas = {
    */
   pagination: Joi.object({
     page: Joi.number().integer().min(1).default(1),
-    limit: Joi.number().integer().min(1).max(100).default(20),
-    sortBy: Joi.string().valid('created_at', 'updated_at', 'name', 'status').default('created_at'),
+    limit: Joi.number().integer().min(1).max(100)
+      .default(20),
+    sortBy: Joi.string()
+      .valid('created_at', 'updated_at', 'name', 'status')
+      .default('created_at'),
     sortOrder: Joi.string().valid('asc', 'desc').default('desc')
   })
 };
@@ -222,7 +206,7 @@ function validateBody(schema, options = {}) {
     });
 
     if (error) {
-      const errors = error.details.map(detail => ({
+      const errors = error.details.map((detail) => ({
         field: detail.path.join('.'),
         message: detail.message
       }));
@@ -260,7 +244,7 @@ function validateQuery(schema, options = {}) {
     });
 
     if (error) {
-      const errors = error.details.map(detail => ({
+      const errors = error.details.map((detail) => ({
         field: detail.path.join('.'),
         message: detail.message
       }));
@@ -293,7 +277,7 @@ function validateParams(schema) {
     });
 
     if (error) {
-      const errors = error.details.map(detail => ({
+      const errors = error.details.map((detail) => ({
         field: detail.path.join('.'),
         message: detail.message
       }));
@@ -331,9 +315,7 @@ function sanitizeString(input) {
  *
  * @type {Joi.Extension}
  */
-const sanitizedString = Joi.string().custom((value, helpers) => {
-  return sanitizeString(value);
-});
+const sanitizedString = Joi.string().custom((value, helpers) => sanitizeString(value));
 
 module.exports = {
   // Middleware functions

@@ -6,7 +6,13 @@
 const EventEmitter = require('events');
 
 class PRDGeneration extends EventEmitter {
-  constructor(contextBus, logger, contextConsolidation, researchAutomation, config = {}) {
+  constructor(
+    contextBus,
+    logger,
+    contextConsolidation,
+    researchAutomation,
+    config = {}
+  ) {
     super();
     this.contextBus = contextBus;
     this.logger = logger;
@@ -115,7 +121,10 @@ class PRDGeneration extends EventEmitter {
 
       // Conduct additional research if needed
       if (this.config.includeResearch && options.researchTopics) {
-        await this.conductSupplementaryResearch(projectId, options.researchTopics);
+        await this.conductSupplementaryResearch(
+          projectId,
+          options.researchTopics
+        );
         // Refresh context after research
         context = this.contextConsolidation.getContext(projectId);
       }
@@ -129,7 +138,11 @@ class PRDGeneration extends EventEmitter {
       // Generate each section
       for (const section of template.sections) {
         this.logger.info(`[PRD] Generating section: ${section}`);
-        prd.content[section] = await this.generateSection(section, context, options);
+        prd.content[section] = await this.generateSection(
+          section,
+          context,
+          options
+        );
       }
 
       // Generate metadata
@@ -165,11 +178,13 @@ class PRDGeneration extends EventEmitter {
       this.logger.info(`[PRD] Generated PRD for ${projectId}: ${prd.id}`);
 
       return prd;
-
     } catch (error) {
       prd.status = 'failed';
       prd.error = error.message;
-      this.logger.error(`[PRD] Failed to generate PRD for ${projectId}:`, error);
+      this.logger.error(
+        `[PRD] Failed to generate PRD for ${projectId}:`,
+        error
+      );
       throw error;
     }
   }
@@ -229,7 +244,12 @@ class PRDGeneration extends EventEmitter {
 ${project.name || 'Project'} is designed to ${project.description || 'address specific market needs'}.
 
 ## Key Objectives
-${requirements.slice(0, 3).map(req => `- ${req}`).join('\n') || '- Define project objectives'}
+${
+  requirements
+    .slice(0, 3)
+    .map((req) => `- ${req}`)
+    .join('\n') || '- Define project objectives'
+}
 
 ## Expected Outcomes
 - Deliver a high-quality solution that meets all requirements
@@ -253,7 +273,12 @@ Estimated budget: ${options.budget || 'TBD'}
 The market currently lacks ${context.data.project?.name || 'an effective solution'} to address ${context.data.project?.problem || 'specific user needs'}.
 
 ## Pain Points
-${(context.data.requirements || []).slice(0, 5).map((req, i) => `${i + 1}. ${req}`).join('\n') || '1. User pain point\n2. Market gap\n3. Inefficiency'}
+${
+  (context.data.requirements || [])
+    .slice(0, 5)
+    .map((req, i) => `${i + 1}. ${req}`)
+    .join('\n') || '1. User pain point\n2. Market gap\n3. Inefficiency'
+}
 
 ## Impact
 Without a solution, users face:
@@ -328,10 +353,30 @@ This presents an opportunity to create value by solving these problems effective
         category: 'Functional'
       })),
       nonFunctional: [
-        { id: 'NFR-1', requirement: 'System must respond within 2 seconds', priority: 'High', category: 'Performance' },
-        { id: 'NFR-2', requirement: 'System must be available 99.9% of the time', priority: 'High', category: 'Reliability' },
-        { id: 'NFR-3', requirement: 'System must handle 1000 concurrent users', priority: 'Medium', category: 'Scalability' },
-        { id: 'NFR-4', requirement: 'All data must be encrypted at rest and in transit', priority: 'High', category: 'Security' }
+        {
+          id: 'NFR-1',
+          requirement: 'System must respond within 2 seconds',
+          priority: 'High',
+          category: 'Performance'
+        },
+        {
+          id: 'NFR-2',
+          requirement: 'System must be available 99.9% of the time',
+          priority: 'High',
+          category: 'Reliability'
+        },
+        {
+          id: 'NFR-3',
+          requirement: 'System must handle 1000 concurrent users',
+          priority: 'Medium',
+          category: 'Scalability'
+        },
+        {
+          id: 'NFR-4',
+          requirement: 'All data must be encrypted at rest and in transit',
+          priority: 'High',
+          category: 'Security'
+        }
       ]
     };
   }
@@ -400,12 +445,36 @@ This presents an opportunity to create value by solving these problems effective
     return {
       title: 'Project Timeline',
       phases: [
-        { phase: 'Planning & Design', duration: '2 weeks', milestone: 'Design approved' },
-        { phase: 'Development - Sprint 1-2', duration: '4 weeks', milestone: 'Core features complete' },
-        { phase: 'Development - Sprint 3-4', duration: '4 weeks', milestone: 'All features complete' },
-        { phase: 'Testing & QA', duration: '2 weeks', milestone: 'All tests passing' },
-        { phase: 'Beta Launch', duration: '1 week', milestone: 'Beta users onboarded' },
-        { phase: 'Production Launch', duration: '1 week', milestone: 'Public launch' }
+        {
+          phase: 'Planning & Design',
+          duration: '2 weeks',
+          milestone: 'Design approved'
+        },
+        {
+          phase: 'Development - Sprint 1-2',
+          duration: '4 weeks',
+          milestone: 'Core features complete'
+        },
+        {
+          phase: 'Development - Sprint 3-4',
+          duration: '4 weeks',
+          milestone: 'All features complete'
+        },
+        {
+          phase: 'Testing & QA',
+          duration: '2 weeks',
+          milestone: 'All tests passing'
+        },
+        {
+          phase: 'Beta Launch',
+          duration: '1 week',
+          milestone: 'Beta users onboarded'
+        },
+        {
+          phase: 'Production Launch',
+          duration: '1 week',
+          milestone: 'Public launch'
+        }
       ],
       totalDuration: '14 weeks'
     };
@@ -505,12 +574,32 @@ This presents an opportunity to create value by solving these problems effective
     return {
       title: 'API Specifications',
       endpoints: [
-        { method: 'POST', path: '/api/auth/login', description: 'User authentication' },
+        {
+          method: 'POST',
+          path: '/api/auth/login',
+          description: 'User authentication'
+        },
         { method: 'GET', path: '/api/projects', description: 'List projects' },
-        { method: 'POST', path: '/api/projects', description: 'Create project' },
-        { method: 'GET', path: '/api/projects/:id', description: 'Get project details' },
-        { method: 'PUT', path: '/api/projects/:id', description: 'Update project' },
-        { method: 'DELETE', path: '/api/projects/:id', description: 'Delete project' }
+        {
+          method: 'POST',
+          path: '/api/projects',
+          description: 'Create project'
+        },
+        {
+          method: 'GET',
+          path: '/api/projects/:id',
+          description: 'Get project details'
+        },
+        {
+          method: 'PUT',
+          path: '/api/projects/:id',
+          description: 'Update project'
+        },
+        {
+          method: 'DELETE',
+          path: '/api/projects/:id',
+          description: 'Delete project'
+        }
       ],
       authentication: 'JWT Bearer tokens',
       rateLimit: '100 requests per 15 minutes per IP',
@@ -580,7 +669,11 @@ This presents an opportunity to create value by solving these problems effective
         { metric: 'API Response Time', target: '< 200ms', measured: 'P95' },
         { metric: 'Time to First Byte', target: '< 500ms', measured: 'P50' },
         { metric: 'Concurrent Users', target: '1,000', measured: 'Peak' },
-        { metric: 'Throughput', target: '10,000 req/min', measured: 'Sustained' },
+        {
+          metric: 'Throughput',
+          target: '10,000 req/min',
+          measured: 'Sustained'
+        },
         { metric: 'Database Query Time', target: '< 50ms', measured: 'P95' }
       ]
     };
@@ -740,7 +833,10 @@ ${context.data.project?.name || 'Our solution'} provides unmatched value by comb
       title: 'MVP Scope',
       content: `
 ## In Scope (Must Have)
-${(context.data.requirements || []).slice(0, 5).map((req, i) => `${i + 1}. ${req}`).join('\n')}
+${(context.data.requirements || [])
+    .slice(0, 5)
+    .map((req, i) => `${i + 1}. ${req}`)
+    .join('\n')}
 
 ## Out of Scope (Future)
 - Advanced analytics
@@ -845,9 +941,16 @@ ${context.data.project?.description || 'A comprehensive solution to address user
     for (const topic of topics) {
       try {
         const research = await this.researchAutomation.research(topic);
-        await this.contextConsolidation.mergeResearch(projectId, topic, research);
+        await this.contextConsolidation.mergeResearch(
+          projectId,
+          topic,
+          research
+        );
       } catch (error) {
-        this.logger.error(`[PRD] Supplementary research failed for ${topic}:`, error);
+        this.logger.error(
+          `[PRD] Supplementary research failed for ${topic}:`,
+          error
+        );
       }
     }
   }
@@ -872,24 +975,24 @@ ${context.data.project?.description || 'A comprehensive solution to address user
     }
 
     switch (format) {
-      case 'markdown':
-        return this.prdToMarkdown(prd);
-      case 'json':
-        return JSON.stringify(prd, null, 2);
-      case 'html':
-        return this.prdToHTML(prd);
-      default:
-        throw new Error(`Unsupported format: ${format}`);
+    case 'markdown':
+      return this.prdToMarkdown(prd);
+    case 'json':
+      return JSON.stringify(prd, null, 2);
+    case 'html':
+      return this.prdToHTML(prd);
+    default:
+      throw new Error(`Unsupported format: ${format}`);
     }
   }
 
   prdToMarkdown(prd) {
-    let md = `# Product Requirements Document\n\n`;
+    let md = '# Product Requirements Document\n\n';
     md += `**Project**: ${prd.projectId}\n`;
     md += `**Generated**: ${prd.generatedAt}\n`;
     md += `**Template**: ${prd.template}\n`;
     md += `**Version**: ${prd.version}\n\n`;
-    md += `---\n\n`;
+    md += '---\n\n';
 
     for (const [section, data] of Object.entries(prd.content)) {
       md += `# ${section.replace(/_/g, ' ').toUpperCase()}\n\n`;
@@ -920,10 +1023,14 @@ ${context.data.project?.description || 'A comprehensive solution to address user
     <p><strong>Template:</strong> ${prd.template}</p>
     <p><strong>Version:</strong> ${prd.version}</p>
   </div>
-  ${Object.entries(prd.content).map(([section, data]) => `
+  ${Object.entries(prd.content)
+    .map(
+      ([section, data]) => `
     <h2>${section.replace(/_/g, ' ').toUpperCase()}</h2>
     <div>${typeof data === 'string' ? data.replace(/\n/g, '<br>') : JSON.stringify(data, null, 2)}</div>
-  `).join('')}
+  `
+    )
+    .join('')}
 </body>
 </html>
     `.trim();
@@ -936,13 +1043,15 @@ ${context.data.project?.description || 'A comprehensive solution to address user
     return {
       totalPRDs: this.generatedPRDs.size,
       templates: Object.keys(this.prdTemplates),
-      recentPRDs: Array.from(this.generatedPRDs.values()).slice(-10).map(p => ({
-        id: p.id,
-        projectId: p.projectId,
-        template: p.template,
-        generatedAt: p.generatedAt,
-        wordCount: p.metadata?.wordCount || 0
-      }))
+      recentPRDs: Array.from(this.generatedPRDs.values())
+        .slice(-10)
+        .map((p) => ({
+          id: p.id,
+          projectId: p.projectId,
+          template: p.template,
+          generatedAt: p.generatedAt,
+          wordCount: p.metadata?.wordCount || 0
+        }))
     };
   }
 }

@@ -17,10 +17,15 @@
  */
 
 const express = require('express');
+
 const router = express.Router();
 const preferencesController = require('../controllers/preferences.controller');
 const preferencesSchemas = require('../schemas/preferences.schema');
-const { validateBody, validateQuery, validateParams } = require('../middleware/validate');
+const {
+  validateBody,
+  validateQuery,
+  validateParams
+} = require('../middleware/validate');
 const { authenticate } = require('../middleware/auth');
 
 // Apply authentication to all preference routes
@@ -32,10 +37,7 @@ router.use(authenticate);
  * @access  Private
  * @returns {Object} User preferences object with categories
  */
-router.get(
-  '/',
-  preferencesController.getPreferences
-);
+router.get('/', preferencesController.getPreferences);
 
 /**
  * @route   GET /api/v1/preferences/:category
@@ -88,10 +90,7 @@ router.put(
  * @access  Private
  * @returns {Object} Default preferences
  */
-router.delete(
-  '/',
-  preferencesController.resetPreferences
-);
+router.delete('/', preferencesController.resetPreferences);
 
 /**
  * @route   POST /api/v1/preferences/export
@@ -100,10 +99,7 @@ router.delete(
  * @query   {boolean} [download=false] - Download as file instead of JSON response
  * @returns {Object} Preferences export with metadata
  */
-router.post(
-  '/export',
-  preferencesController.exportPreferences
-);
+router.post('/export', preferencesController.exportPreferences);
 
 /**
  * @route   POST /api/v1/preferences/import
@@ -129,10 +125,7 @@ router.post(
  * @access  Private
  * @returns {Object} Notification preferences
  */
-router.get(
-  '/notifications',
-  preferencesController.getNotificationPreferences
-);
+router.get('/notifications', preferencesController.getNotificationPreferences);
 
 /**
  * @route   PUT /api/v1/preferences/notifications

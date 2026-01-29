@@ -22,18 +22,24 @@ class ResearchAutomation extends EventEmitter {
     this.researchHistory = [];
     this.activeResearch = new Map();
     this.researchCache = new Map();
-    
+
     // Research providers configuration
     this.providers = {
       perplexity: {
         enabled: config.providers?.perplexity?.enabled !== false,
-        apiKey: config.providers?.perplexity?.apiKey || process.env.PERPLEXITY_API_KEY,
-        model: config.providers?.perplexity?.model || 'llama-3.1-sonar-large-128k-online',
+        apiKey:
+          config.providers?.perplexity?.apiKey
+          || process.env.PERPLEXITY_API_KEY,
+        model:
+          config.providers?.perplexity?.model
+          || 'llama-3.1-sonar-large-128k-online',
         endpoint: 'https://api.perplexity.ai/chat/completions'
       },
       notebookLM: {
         enabled: config.providers?.notebookLM?.enabled !== false,
-        apiKey: config.providers?.notebookLM?.apiKey || process.env.NOTEBOOKLM_API_KEY,
+        apiKey:
+          config.providers?.notebookLM?.apiKey
+          || process.env.NOTEBOOKLM_API_KEY,
         endpoint: 'https://notebooklm.google.com/api/v1'
       },
       cognee: {
@@ -58,13 +64,16 @@ class ResearchAutomation extends EventEmitter {
       this.setupCacheCleanup();
 
       await this.contextBus.publish('research.initialized', {
-        providers: Object.keys(this.providers).filter(p => this.providers[p].enabled),
+        providers: Object.keys(this.providers).filter(
+          (p) => this.providers[p].enabled
+        ),
         timestamp: new Date().toISOString()
       });
 
-      this.logger.info('[Research] Research automation initialized successfully');
+      this.logger.info(
+        '[Research] Research automation initialized successfully'
+      );
       return true;
-
     } catch (error) {
       this.logger.error('[Research] Failed to initialize:', error);
       throw error;
@@ -76,7 +85,7 @@ class ResearchAutomation extends EventEmitter {
    */
   async research(topic, options = {}) {
     const researchId = `research-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    
+
     this.logger.info(`[Research] Starting research: ${researchId} - ${topic}`);
 
     const research = {
@@ -112,15 +121,24 @@ class ResearchAutomation extends EventEmitter {
       // Parallel research across providers
       const researchPromises = [];
 
-      if (research.providers.includes('perplexity') && this.providers.perplexity.enabled) {
+      if (
+        research.providers.includes('perplexity')
+        && this.providers.perplexity.enabled
+      ) {
         researchPromises.push(this.researchPerplexity(topic, options));
       }
 
-      if (research.providers.includes('notebookLM') && this.providers.notebookLM.enabled) {
+      if (
+        research.providers.includes('notebookLM')
+        && this.providers.notebookLM.enabled
+      ) {
         researchPromises.push(this.researchNotebookLM(topic, options));
       }
 
-      if (research.providers.includes('cognee') && this.providers.cognee.enabled) {
+      if (
+        research.providers.includes('cognee')
+        && this.providers.cognee.enabled
+      ) {
         researchPromises.push(this.researchCognee(topic, options));
       }
 
@@ -134,7 +152,7 @@ class ResearchAutomation extends EventEmitter {
           research.results[providerResult.provider] = providerResult;
           research.sources.push(...(providerResult.sources || []));
         } else if (result.status === 'rejected') {
-          this.logger.error(`[Research] Provider failed:`, result.reason);
+          this.logger.error('[Research] Provider failed:', result.reason);
         }
       }
 
@@ -179,13 +197,11 @@ class ResearchAutomation extends EventEmitter {
       this.emit('researchCompleted', research);
 
       return research;
-
     } catch (error) {
       research.status = 'failed';
       research.error = error.message;
       this.logger.error(`[Research] Research failed for ${topic}:`, error);
       throw error;
-
     } finally {
       this.activeResearch.delete(researchId);
     }
@@ -204,7 +220,11 @@ class ResearchAutomation extends EventEmitter {
 
     try {
       // Construct research prompt based on depth
-      const prompt = this.constructPrompt(topic, options.depth || 'standard', 'perplexity');
+      const prompt = this.constructPrompt(
+        topic,
+        options.depth || 'standard',
+        'perplexity'
+      );
 
       // Make API call (simulated for now - would use actual HTTP client)
       const response = await this.makePerplexityRequest({
@@ -212,7 +232,8 @@ class ResearchAutomation extends EventEmitter {
         messages: [
           {
             role: 'system',
-            content: 'You are a helpful research assistant that provides comprehensive, accurate information with citations.'
+            content:
+              'You are a helpful research assistant that provides comprehensive, accurate information with citations.'
           },
           {
             role: 'user',
@@ -235,7 +256,6 @@ class ResearchAutomation extends EventEmitter {
           timestamp: new Date().toISOString()
         }
       };
-
     } catch (error) {
       this.logger.error('[Research:Perplexity] Failed:', error);
       throw error;
@@ -255,7 +275,11 @@ class ResearchAutomation extends EventEmitter {
 
     try {
       // NotebookLM specializes in document analysis and synthesis
-      const prompt = this.constructPrompt(topic, options.depth || 'standard', 'notebookLM');
+      const prompt = this.constructPrompt(
+        topic,
+        options.depth || 'standard',
+        'notebookLM'
+      );
 
       // Make API call (simulated)
       const response = await this.makeNotebookLMRequest({
@@ -275,7 +299,6 @@ class ResearchAutomation extends EventEmitter {
           timestamp: new Date().toISOString()
         }
       };
-
     } catch (error) {
       this.logger.error('[Research:NotebookLM] Failed:', error);
       throw error;
@@ -295,7 +318,11 @@ class ResearchAutomation extends EventEmitter {
 
     try {
       // Cognee specializes in knowledge graph creation and reasoning
-      const prompt = this.constructPrompt(topic, options.depth || 'standard', 'cognee');
+      const prompt = this.constructPrompt(
+        topic,
+        options.depth || 'standard',
+        'cognee'
+      );
 
       // Make API call (simulated)
       const response = await this.makeCogneeRequest({
@@ -318,7 +345,6 @@ class ResearchAutomation extends EventEmitter {
           timestamp: new Date().toISOString()
         }
       };
-
     } catch (error) {
       this.logger.error('[Research:Cognee] Failed:', error);
       throw error;
@@ -379,7 +405,7 @@ Please provide a well-structured research summary.`;
       });
 
       if (result.sources) {
-        result.sources.forEach(s => allSources.add(JSON.stringify(s)));
+        result.sources.forEach((s) => allSources.add(JSON.stringify(s)));
       }
 
       if (result.insights) {
@@ -398,7 +424,7 @@ Please provide a well-structured research summary.`;
     synthesis.keyFindings = this.extractKeyFindings(allContent);
 
     // Deduplicate sources
-    synthesis.sources = Array.from(allSources).map(s => JSON.parse(s));
+    synthesis.sources = Array.from(allSources).map((s) => JSON.parse(s));
 
     // Calculate confidence
     synthesis.confidence = this.calculateConfidenceScore(research);
@@ -413,7 +439,7 @@ Please provide a well-structured research summary.`;
     // In a real implementation, this would use an LLM to synthesize
     // For now, we'll create a structured summary
 
-    let summary = `Research Summary:\n\n`;
+    let summary = 'Research Summary:\n\n';
 
     for (const item of contentArray) {
       summary += `From ${item.provider}:\n${item.content}\n\n`;
@@ -482,8 +508,16 @@ Please provide a well-structured research summary.`;
     return {
       content: `Research findings for the query using Perplexity AI's ${payload.model} model. This would contain comprehensive, citation-backed information.`,
       citations: [
-        { title: 'Source 1', url: 'https://example.com/1', snippet: 'Relevant excerpt...' },
-        { title: 'Source 2', url: 'https://example.com/2', snippet: 'Another excerpt...' }
+        {
+          title: 'Source 1',
+          url: 'https://example.com/1',
+          snippet: 'Relevant excerpt...'
+        },
+        {
+          title: 'Source 2',
+          url: 'https://example.com/2',
+          snippet: 'Another excerpt...'
+        }
       ],
       usage: {
         prompt_tokens: 100,
@@ -496,7 +530,8 @@ Please provide a well-structured research summary.`;
   async makeNotebookLMRequest(payload) {
     // Simulated response
     return {
-      synthesis: `Synthesized research from NotebookLM based on document analysis. This would contain structured insights from multiple sources.`,
+      synthesis:
+        'Synthesized research from NotebookLM based on document analysis. This would contain structured insights from multiple sources.',
       sourceDocuments: [
         { id: 'doc1', title: 'Document 1', relevance: 0.95 },
         { id: 'doc2', title: 'Document 2', relevance: 0.87 }
@@ -513,7 +548,8 @@ Please provide a well-structured research summary.`;
   async makeCogneeRequest(payload) {
     // Simulated response
     return {
-      answer: `Research answer from Cognee with knowledge graph and entity extraction. This would contain structured knowledge representation.`,
+      answer:
+        'Research answer from Cognee with knowledge graph and entity extraction. This would contain structured knowledge representation.',
       sources: [
         { title: 'Knowledge Base 1', type: 'database', confidence: 0.92 }
       ],
@@ -522,11 +558,18 @@ Please provide a well-structured research summary.`;
         { name: 'Entity 2', type: 'organization', confidence: 0.88 }
       ],
       relationships: [
-        { from: 'Entity 1', to: 'Entity 2', type: 'related_to', confidence: 0.85 }
+        {
+          from: 'Entity 1',
+          to: 'Entity 2',
+          type: 'related_to',
+          confidence: 0.85
+        }
       ],
       knowledgeGraph: {
         nodes: ['Entity 1', 'Entity 2'],
-        edges: [{ source: 'Entity 1', target: 'Entity 2', relation: 'related_to' }]
+        edges: [
+          { source: 'Entity 1', target: 'Entity 2', relation: 'related_to' }
+        ]
       }
     };
   }
@@ -576,7 +619,9 @@ Please provide a well-structured research summary.`;
    * Validate provider configurations
    */
   async validateProviders() {
-    const enabledProviders = Object.keys(this.providers).filter(p => this.providers[p].enabled);
+    const enabledProviders = Object.keys(this.providers).filter(
+      (p) => this.providers[p].enabled
+    );
 
     if (enabledProviders.length === 0) {
       throw new Error('No research providers enabled');
@@ -584,7 +629,9 @@ Please provide a well-structured research summary.`;
 
     for (const provider of enabledProviders) {
       if (!this.providers[provider].apiKey) {
-        this.logger.warn(`[Research] ${provider} enabled but no API key provided`);
+        this.logger.warn(
+          `[Research] ${provider} enabled but no API key provided`
+        );
       }
     }
   }
@@ -598,8 +645,8 @@ Please provide a well-structured research summary.`;
       activeResearch: this.activeResearch.size,
       cachedResearch: this.researchCache.size,
       providers: Object.keys(this.providers)
-        .filter(p => this.providers[p].enabled)
-        .map(p => ({
+        .filter((p) => this.providers[p].enabled)
+        .map((p) => ({
           name: p,
           configured: !!this.providers[p].apiKey
         })),
@@ -611,8 +658,10 @@ Please provide a well-structured research summary.`;
    * Get research by ID
    */
   getResearch(researchId) {
-    return this.activeResearch.get(researchId) ||
-           this.researchHistory.find(r => r.id === researchId);
+    return (
+      this.activeResearch.get(researchId)
+      || this.researchHistory.find((r) => r.id === researchId)
+    );
   }
 }
 

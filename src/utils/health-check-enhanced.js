@@ -1,6 +1,6 @@
 /**
  * Enhanced Health Check System
- * 
+ *
  * Features:
  * - Component-based health checks
  * - Dependency health monitoring
@@ -22,9 +22,9 @@ const HealthStatus = {
 
 // Check types
 const CheckType = {
-  LIVENESS: 'liveness',   // Is the app running?
+  LIVENESS: 'liveness', // Is the app running?
   READINESS: 'readiness', // Is the app ready to serve traffic?
-  STARTUP: 'startup'      // Has the app finished starting?
+  STARTUP: 'startup' // Has the app finished starting?
 };
 
 class HealthCheckSystem {
@@ -34,91 +34,98 @@ class HealthCheckSystem {
       cacheTimeout: options.cacheTimeout || 10000, // Cache results for 10 seconds
       ...options
     };
-    
+
     this.checks = new Map();
     this.lastResults = null;
     this.lastCheck = null;
     this.isStarted = false;
-    
+
     this.registerDefaultChecks();
   }
-  
+
   /**
    * Register default health checks
    */
   registerDefaultChecks() {
     // Database check
-    this.registerCheck('database', async () => {
-      try {
-        const result = await Promise.race([
-          pool.query('SELECT 1'),
-          new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Database check timeout')), 3000)
-          )
-        ]);
-        
-        return {
-          status: HealthStatus.HEALTHY,
-          message: 'Database connection is healthy',
-          latency: result.duration || 0
-        };
-      } catch (error) {
-        return {
-          status: HealthStatus.UNHEALTHY,
-          message: `Database connection failed: ${error.message}`,
-          error: error.message
-        };
-      }
-    }, {
-      critical: true,
-      timeout: 3000
-    });
-    
-    // Redis check
-    this.registerCheck('redis', async () => {
-      try {
-        // Assuming Redis client is available globally
-        if (!global.redisClient) {
+    this.registerCheck(
+      'database',
+      async () => {
+        try {
+          const result = await Promise.race([
+            pool.query('SELECT 1'),
+            new Promise((_, reject) => setTimeout(
+              () => reject(new Error('Database check timeout')),
+              3000
+            ))
+          ]);
+
           return {
-            status: HealthStatus.UNKNOWN,
-            message: 'Redis client not initialized'
+            status: HealthStatus.HEALTHY,
+            message: 'Database connection is healthy',
+            latency: result.duration || 0
+          };
+        } catch (error) {
+          return {
+            status: HealthStatus.UNHEALTHY,
+            message: `Database connection failed: ${error.message}`,
+            error: error.message
           };
         }
-        
-        const start = Date.now();
-        await Promise.race([
-          global.redisClient.ping(),
-          new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Redis check timeout')), 2000)
-          )
-        ]);
-        const latency = Date.now() - start;
-        
-        return {
-          status: HealthStatus.HEALTHY,
-          message: 'Redis connection is healthy',
-          latency
-        };
-      } catch (error) {
-        return {
-          status: HealthStatus.UNHEALTHY,
-          message: `Redis connection failed: ${error.message}`,
-          error: error.message
-        };
+      },
+      {
+        critical: true,
+        timeout: 3000
       }
-    }, {
-      critical: false,
-      timeout: 2000
-    });
-    
+    );
+
+    // Redis check
+    this.registerCheck(
+      'redis',
+      async () => {
+        try {
+          // Assuming Redis client is available globally
+          if (!global.redisClient) {
+            return {
+              status: HealthStatus.UNKNOWN,
+              message: 'Redis client not initialized'
+            };
+          }
+
+          const start = Date.now();
+          await Promise.race([
+            global.redisClient.ping(),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Redis check timeout')), 2000))
+          ]);
+          const latency = Date.now() - start;
+
+          return {
+            status: HealthStatus.HEALTHY,
+            message: 'Redis connection is healthy',
+            latency
+          };
+        } catch (error) {
+          return {
+            status: HealthStatus.UNHEALTHY,
+            message: `Redis connection failed: ${error.message}`,
+            error: error.message
+          };
+        }
+      },
+      {
+        critical: false,
+        timeout: 2000
+      }
+    );
+
     // Memory check
     this.registerCheck('memory', async () => {
       const usage = process.memoryUsage();
       const usedHeap = usage.heapUsed / usage.heapTotal;
-      
+
       let status = HealthStatus.HEALTHY;
       let message = 'Memory usage is normal';
-      
+
       if (usedHeap > 0.9) {
         status = HealthStatus.UNHEALTHY;
         message = 'Memory usage is critically high';
@@ -126,7 +133,7 @@ class HealthCheckSystem {
         status = HealthStatus.DEGRADED;
         message = 'Memory usage is elevated';
       }
-      
+
       return {
         status,
         message,
@@ -139,7 +146,7 @@ class HealthCheckSystem {
         }
       };
     });
-    
+
     // Disk space check (if available)
     this.registerCheck('disk', async () => {
       try {
@@ -159,22 +166,22 @@ class HealthCheckSystem {
         };
       }
     });
-    
+
     // Event loop lag check
     this.registerCheck('eventLoop', async () => {
       const start = Date.now();
-      
+
       await new Promise((resolve) => {
         setImmediate(() => {
           resolve();
         });
       });
-      
+
       const lag = Date.now() - start;
-      
+
       let status = HealthStatus.HEALTHY;
       let message = 'Event loop is responsive';
-      
+
       if (lag > 100) {
         status = HealthStatus.UNHEALTHY;
         message = 'Event loop is severely lagged';
@@ -182,7 +189,7 @@ class HealthCheckSystem {
         status = HealthStatus.DEGRADED;
         message = 'Event loop has some lag';
       }
-      
+
       return {
         status,
         message,
@@ -192,7 +199,7 @@ class HealthCheckSystem {
       };
     });
   }
-  
+
   /**
    * Register a health check
    */
@@ -205,24 +212,27 @@ class HealthCheckSystem {
       enabled: options.enabled !== false
     });
   }
-  
+
   /**
    * Unregister a health check
    */
   unregisterCheck(name) {
     this.checks.delete(name);
   }
-  
+
   /**
    * Run all health checks
    */
   async runChecks(type = CheckType.READINESS) {
     // Use cached results if available and fresh
-    if (this.lastResults && this.lastCheck && 
-        Date.now() - this.lastCheck < this.options.cacheTimeout) {
+    if (
+      this.lastResults
+      && this.lastCheck
+      && Date.now() - this.lastCheck < this.options.cacheTimeout
+    ) {
       return this.lastResults;
     }
-    
+
     const results = {
       status: HealthStatus.HEALTHY,
       timestamp: new Date().toISOString(),
@@ -238,28 +248,30 @@ class HealthCheckSystem {
         unknown: 0
       }
     };
-    
+
     const checkPromises = [];
-    
+
     for (const [name, check] of this.checks.entries()) {
       if (!check.enabled) continue;
-      
+
       checkPromises.push(
         this.runSingleCheck(name, check)
-          .then(result => {
+          .then((result) => {
             results.checks[name] = result;
             results.summary.total++;
             results.summary[result.status]++;
-            
+
             // Update overall status
             if (result.status === HealthStatus.UNHEALTHY && check.critical) {
               results.status = HealthStatus.UNHEALTHY;
-            } else if (result.status === HealthStatus.DEGRADED && 
-                       results.status !== HealthStatus.UNHEALTHY) {
+            } else if (
+              result.status === HealthStatus.DEGRADED
+              && results.status !== HealthStatus.UNHEALTHY
+            ) {
               results.status = HealthStatus.DEGRADED;
             }
           })
-          .catch(error => {
+          .catch((error) => {
             results.checks[name] = {
               status: HealthStatus.UNHEALTHY,
               message: `Check failed: ${error.message}`,
@@ -267,39 +279,39 @@ class HealthCheckSystem {
             };
             results.summary.total++;
             results.summary.unhealthy++;
-            
+
             if (check.critical) {
               results.status = HealthStatus.UNHEALTHY;
             }
           })
       );
     }
-    
+
     await Promise.allSettled(checkPromises);
-    
+
     // Cache results
     this.lastResults = results;
     this.lastCheck = Date.now();
-    
+
     return results;
   }
-  
+
   /**
    * Run a single health check with timeout
    */
   async runSingleCheck(name, check) {
     const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Health check timeout')), check.timeout);
+      setTimeout(
+        () => reject(new Error('Health check timeout')),
+        check.timeout
+      );
     });
-    
+
     try {
       const start = Date.now();
-      const result = await Promise.race([
-        check.fn(),
-        timeoutPromise
-      ]);
+      const result = await Promise.race([check.fn(), timeoutPromise]);
       const duration = Date.now() - start;
-      
+
       return {
         ...result,
         duration,
@@ -314,7 +326,7 @@ class HealthCheckSystem {
       };
     }
   }
-  
+
   /**
    * Liveness probe - is the application running?
    */
@@ -325,14 +337,14 @@ class HealthCheckSystem {
       timestamp: new Date().toISOString()
     };
   }
-  
+
   /**
    * Readiness probe - is the application ready to serve traffic?
    */
   async readiness() {
     return await this.runChecks(CheckType.READINESS);
   }
-  
+
   /**
    * Startup probe - has the application finished starting?
    */
@@ -344,7 +356,7 @@ class HealthCheckSystem {
         timestamp: new Date().toISOString()
       };
     }
-    
+
     return {
       status: HealthStatus.HEALTHY,
       message: 'Application has started successfully',
@@ -352,50 +364,52 @@ class HealthCheckSystem {
       uptime: process.uptime()
     };
   }
-  
+
   /**
    * Mark application as started
    */
   markAsStarted() {
     this.isStarted = true;
   }
-  
+
   /**
    * Express middleware for health check endpoint
    */
   middleware() {
     return async (req, res) => {
       const type = req.query.type || CheckType.READINESS;
-      
+
       let result;
       switch (type) {
-        case CheckType.LIVENESS:
-          result = await this.liveness();
-          break;
-        case CheckType.STARTUP:
-          result = await this.startup();
-          break;
-        case CheckType.READINESS:
-        default:
-          result = await this.readiness();
-          break;
+      case CheckType.LIVENESS:
+        result = await this.liveness();
+        break;
+      case CheckType.STARTUP:
+        result = await this.startup();
+        break;
+      case CheckType.READINESS:
+      default:
+        result = await this.readiness();
+        break;
       }
-      
-      const statusCode = result.status === HealthStatus.HEALTHY ? 200 :
-                        result.status === HealthStatus.DEGRADED ? 200 :
-                        503;
-      
+
+      const statusCode = result.status === HealthStatus.HEALTHY
+        ? 200
+        : result.status === HealthStatus.DEGRADED
+          ? 200
+          : 503;
+
       res.status(statusCode).json(result);
     };
   }
-  
+
   /**
    * Get system information
    */
   getSystemInfo() {
     const usage = process.memoryUsage();
     const cpuUsage = process.cpuUsage();
-    
+
     return {
       node: {
         version: process.version,

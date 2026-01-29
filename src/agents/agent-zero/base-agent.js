@@ -26,11 +26,13 @@ class BaseAgentZero extends EventEmitter {
    * Initialize agent with context
    */
   async initialize(projectId, context = {}) {
-    this.logger.info(`[${this.role}] Initializing agent ${this.agentId} for project ${projectId}`);
+    this.logger.info(
+      `[${this.role}] Initializing agent ${this.agentId} for project ${projectId}`
+    );
     this.projectId = projectId;
     this.context = context;
     this.state = 'active';
-    
+
     // Register with context bus
     await this.contextBus.publish(`agent.${this.role}.initialized`, {
       agentId: this.agentId,
@@ -73,7 +75,6 @@ class BaseAgentZero extends EventEmitter {
 
       this.emit('taskCompleted', { task, result });
       return result;
-
     } catch (error) {
       this.logger.error(`[${this.role}] Task execution failed:`, error);
       this.state = 'error';
@@ -121,8 +122,8 @@ class BaseAgentZero extends EventEmitter {
       this.metrics.tasksCompleted++;
       // Update average execution time
       const totalTasks = this.metrics.tasksCompleted;
-      this.metrics.averageExecutionTime = 
-        (this.metrics.averageExecutionTime * (totalTasks - 1) + executionTime) / totalTasks;
+      this.metrics.averageExecutionTime = (this.metrics.averageExecutionTime * (totalTasks - 1) + executionTime)
+        / totalTasks;
     } else {
       this.metrics.tasksFailed++;
     }
@@ -184,7 +185,7 @@ class BaseAgentZero extends EventEmitter {
    */
   async learn(feedback) {
     this.logger.info(`[${this.role}] Learning from feedback`);
-    
+
     // Store feedback in context
     await this.contextBus.set(
       `agent:${this.agentId}:feedback:${Date.now()}`,
@@ -200,7 +201,7 @@ class BaseAgentZero extends EventEmitter {
    */
   async collaborate(targetRole, message) {
     this.logger.info(`[${this.role}] Collaborating with ${targetRole}`);
-    
+
     await this.contextBus.publish(`agent.${targetRole}.message`, {
       from: this.agentId,
       fromRole: this.role,

@@ -15,7 +15,8 @@ const agentsSchemas = {
       .valid('active', 'inactive', 'error', 'paused')
       .optional(),
     search: Joi.string().max(255).optional(),
-    limit: Joi.number().integer().min(1).max(100).default(20),
+    limit: Joi.number().integer().min(1).max(100)
+      .default(20),
     offset: Joi.number().integer().min(0).default(0)
   }),
 
@@ -29,14 +30,13 @@ const agentsSchemas = {
     type: Joi.string()
       .valid('researcher', 'coder', 'tester', 'reviewer', 'planner', 'executor')
       .required(),
-    capabilities: Joi.array()
-      .items(Joi.string())
-      .optional(),
+    capabilities: Joi.array().items(Joi.string()).optional(),
     config: Joi.object({
       temperature: Joi.number().min(0).max(1).optional(),
       maxTokens: Joi.number().integer().min(100).optional(),
       timeout: Joi.number().integer().min(1000).optional(),
-      retries: Joi.number().integer().min(0).max(5).optional()
+      retries: Joi.number().integer().min(0).max(5)
+        .optional()
     }).optional(),
     metadata: Joi.object().optional()
   }),
@@ -47,20 +47,17 @@ const agentsSchemas = {
   updateAgent: Joi.object({
     name: Joi.string().min(1).max(255).optional(),
     description: Joi.string().max(1000).optional(),
-    status: Joi.string()
-      .valid('active', 'inactive', 'paused')
-      .optional(),
+    status: Joi.string().valid('active', 'inactive', 'paused').optional(),
     type: Joi.string()
       .valid('researcher', 'coder', 'tester', 'reviewer', 'planner', 'executor')
       .optional(),
-    capabilities: Joi.array()
-      .items(Joi.string())
-      .optional(),
+    capabilities: Joi.array().items(Joi.string()).optional(),
     config: Joi.object({
       temperature: Joi.number().min(0).max(1).optional(),
       maxTokens: Joi.number().integer().min(100).optional(),
       timeout: Joi.number().integer().min(1000).optional(),
-      retries: Joi.number().integer().min(0).max(5).optional()
+      retries: Joi.number().integer().min(0).max(5)
+        .optional()
     }).optional(),
     metadata: Joi.object().optional()
   }).min(1),
@@ -98,9 +95,7 @@ const agentsSchemas = {
    * Agent metrics query
    */
   getMetrics: Joi.object({
-    period: Joi.string()
-      .valid('hour', 'day', 'week', 'month')
-      .default('day'),
+    period: Joi.string().valid('hour', 'day', 'week', 'month').default('day'),
     metrics: Joi.array()
       .items(
         Joi.string().valid(

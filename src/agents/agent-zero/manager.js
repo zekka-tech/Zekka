@@ -16,14 +16,22 @@ class AgentZeroManager {
     this.contextBus = contextBus;
     this.logger = logger;
     this.config = config;
-    
+
     // Initialize all Agent Zero roles
     this.teacher = new TeacherAgent(contextBus, logger, config.teacher || {});
     this.trainer = new TrainerAgent(contextBus, logger, config.trainer || {});
     this.tutor = new TutorAgent(contextBus, logger, config.tutor || {});
-    this.optimizer = new OptimizerAgent(contextBus, logger, config.optimizer || {});
+    this.optimizer = new OptimizerAgent(
+      contextBus,
+      logger,
+      config.optimizer || {}
+    );
     this.mentor = new MentorAgent(contextBus, logger, config.mentor || {});
-    this.validator = new ValidatorAgent(contextBus, logger, config.validator || {});
+    this.validator = new ValidatorAgent(
+      contextBus,
+      logger,
+      config.validator || {}
+    );
 
     this.agents = {
       teacher: this.teacher,
@@ -47,7 +55,7 @@ class AgentZeroManager {
     try {
       // Initialize all agents
       for (const [role, agent] of Object.entries(this.agents)) {
-        await agent.initialize(`agent-zero-system`, { role });
+        await agent.initialize('agent-zero-system', { role });
         this.logger.info(`[AgentZero] ${role} initialized successfully`);
       }
 
@@ -58,7 +66,9 @@ class AgentZeroManager {
       this.registerEventHandlers();
 
       this.isInitialized = true;
-      this.logger.info('[AgentZero] Agent Zero system initialized successfully');
+      this.logger.info(
+        '[AgentZero] Agent Zero system initialized successfully'
+      );
 
       // Publish initialization event
       await this.contextBus.publish('agent-zero.initialized', {
@@ -108,7 +118,9 @@ class AgentZeroManager {
    * Start comprehensive learning workflow
    */
   async startLearningWorkflow(projectId, agentId, options = {}) {
-    this.logger.info(`[AgentZero] Starting learning workflow for agent ${agentId} in project ${projectId}`);
+    this.logger.info(
+      `[AgentZero] Starting learning workflow for agent ${agentId} in project ${projectId}`
+    );
 
     const workflow = {
       id: `learning-workflow-${Date.now()}`,
@@ -191,7 +203,7 @@ class AgentZeroManager {
 
       // Compile results
       workflow.results = {
-        assessment: assessment,
+        assessment,
         improvement: this.calculateImprovement(workflow.phases),
         readiness: validation.overallScore,
         recommendations: this.compileRecommendations(workflow.phases)
@@ -209,7 +221,6 @@ class AgentZeroManager {
       });
 
       return workflow;
-
     } catch (error) {
       workflow.status = 'failed';
       workflow.error = error.message;
@@ -259,8 +270,12 @@ class AgentZeroManager {
       agents: {},
       workflows: {
         total: this.activeWorkflows.size,
-        completed: Array.from(this.activeWorkflows.values()).filter(w => w.status === 'completed').length,
-        failed: Array.from(this.activeWorkflows.values()).filter(w => w.status === 'failed').length
+        completed: Array.from(this.activeWorkflows.values()).filter(
+          (w) => w.status === 'completed'
+        ).length,
+        failed: Array.from(this.activeWorkflows.values()).filter(
+          (w) => w.status === 'failed'
+        ).length
       },
       performance: {}
     };
@@ -273,9 +288,17 @@ class AgentZeroManager {
     // Calculate system-wide performance
     const allMetrics = Object.values(metrics.agents);
     metrics.performance = {
-      avgExecutionTime: allMetrics.reduce((sum, m) => sum + (m.averageExecutionTime || 0), 0) / allMetrics.length,
-      totalTasksCompleted: allMetrics.reduce((sum, m) => sum + (m.tasksCompleted || 0), 0),
-      totalTasksFailed: allMetrics.reduce((sum, m) => sum + (m.tasksFailed || 0), 0)
+      avgExecutionTime:
+        allMetrics.reduce((sum, m) => sum + (m.averageExecutionTime || 0), 0)
+        / allMetrics.length,
+      totalTasksCompleted: allMetrics.reduce(
+        (sum, m) => sum + (m.tasksCompleted || 0),
+        0
+      ),
+      totalTasksFailed: allMetrics.reduce(
+        (sum, m) => sum + (m.tasksFailed || 0),
+        0
+      )
     };
 
     return metrics;
@@ -287,22 +310,46 @@ class AgentZeroManager {
   recommendRole(taskDescription) {
     const keywords = taskDescription.toLowerCase();
 
-    if (keywords.includes('guide') || keywords.includes('workflow') || keywords.includes('strategy')) {
+    if (
+      keywords.includes('guide')
+      || keywords.includes('workflow')
+      || keywords.includes('strategy')
+    ) {
       return 'teacher';
     }
-    if (keywords.includes('train') || keywords.includes('skill') || keywords.includes('practice')) {
+    if (
+      keywords.includes('train')
+      || keywords.includes('skill')
+      || keywords.includes('practice')
+    ) {
       return 'trainer';
     }
-    if (keywords.includes('question') || keywords.includes('help') || keywords.includes('explain')) {
+    if (
+      keywords.includes('question')
+      || keywords.includes('help')
+      || keywords.includes('explain')
+    ) {
       return 'tutor';
     }
-    if (keywords.includes('optimize') || keywords.includes('performance') || keywords.includes('improve')) {
+    if (
+      keywords.includes('optimize')
+      || keywords.includes('performance')
+      || keywords.includes('improve')
+    ) {
       return 'optimizer';
     }
-    if (keywords.includes('mentor') || keywords.includes('career') || keywords.includes('growth')) {
+    if (
+      keywords.includes('mentor')
+      || keywords.includes('career')
+      || keywords.includes('growth')
+    ) {
       return 'mentor';
     }
-    if (keywords.includes('validate') || keywords.includes('verify') || keywords.includes('check')) {
+    if (
+      keywords.includes('validate')
+      || keywords.includes('verify')
+      || keywords.includes('check')
+    ) {
       return 'validator';
     }
 
@@ -315,17 +362,21 @@ class AgentZeroManager {
    */
   async handleAgentTaskCompletion(role, data) {
     this.logger.info(`[AgentZero] ${role} completed task: ${data.task.name}`);
-    
+
     // Trigger follow-up actions based on role
     if (role === 'validator' && data.result.passed === false) {
       // If validation fails, engage trainer for improvement
-      this.logger.info('[AgentZero] Validation failed, engaging trainer for improvement');
+      this.logger.info(
+        '[AgentZero] Validation failed, engaging trainer for improvement'
+      );
     }
   }
 
   async shareLearnedKnowledge(role, feedback) {
-    this.logger.info(`[AgentZero] ${role} learned from feedback, sharing with other agents`);
-    
+    this.logger.info(
+      `[AgentZero] ${role} learned from feedback, sharing with other agents`
+    );
+
     // Broadcast learned knowledge to all agents
     await this.contextBus.publish('agent-zero.knowledge-shared', {
       from: role,
@@ -355,13 +406,16 @@ class AgentZeroManager {
   calculateImprovement(phases) {
     // Simple improvement calculation based on phases
     const improvements = [];
-    
+
     for (const phase of phases) {
       if (phase.phase === 'training' && phase.result.score) {
         improvements.push({ area: 'skill', value: phase.result.score });
       }
       if (phase.phase === 'optimization' && phase.result.expectedImprovements) {
-        improvements.push({ area: 'performance', value: phase.result.expectedImprovements });
+        improvements.push({
+          area: 'performance',
+          value: phase.result.expectedImprovements
+        });
       }
     }
 

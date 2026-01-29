@@ -1,10 +1,10 @@
 /**
  * Authentication Service with Multi-Factor Authentication (MFA)
  * =============================================================
- * 
+ *
  * Comprehensive authentication service with MFA support, session management,
  * and security features.
- * 
+ *
  * Features:
  * - User registration and login
  * - Multi-factor authentication (TOTP)
@@ -23,13 +23,17 @@ const qrcode = require('qrcode');
 const pool = require('../config/database.js');
 const redis = require('../config/redis.js');
 const auditService = require('./audit-service.js');
+const emailService = require('./email.service.js');
+const logger = require('../utils/logger');
 
 const SALT_ROUNDS = 10;
-const JWT_SECRET = process.env.JWT_SECRET;
+const { JWT_SECRET } = process.env;
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '1h';
 
 if (!JWT_SECRET) {
-  throw new Error('JWT_SECRET environment variable is required for authentication service');
+  throw new Error(
+    'JWT_SECRET environment variable is required for authentication service'
+  );
 }
 const REFRESH_TOKEN_EXPIRES_IN = '7d';
 const MAX_LOGIN_ATTEMPTS = 5;
@@ -40,7 +44,9 @@ class AuthService {
    * Register a new user
    */
   async register(userData) {
-    const { email, password, name, role = 'user' } = userData;
+    const {
+      email, password, name, role = 'user'
+    } = userData;
 
     try {
       // Check if user already exists
@@ -76,12 +82,15 @@ class AuthService {
         success: true
       });
 
+      // Send verification email
+      await this.sendInitialVerificationEmail(user.id, email);
+
       return {
         user,
         message: 'User registered successfully. Please verify your email.'
       };
     } catch (error) {
-      console.error('Registration error:', error);
+      logger.error('Registration error:', error);
       throw error;
     }
   }
@@ -103,8 +112,10 @@ class AuthService {
           errorMessage: 'Account is temporarily locked',
           riskLevel: 'high'
         });
-        
-        throw new Error(`Account is temporarily locked. Try again in ${LOCKOUT_TIME_MINUTES} minutes.`);
+
+        throw new Error(
+          `Account is temporarily locked. Try again in ${LOCKOUT_TIME_MINUTES} minutes.`
+        );
       }
 
       // Get user
@@ -134,13 +145,13 @@ class AuthService {
           errorMessage: 'Account is deactivated',
           riskLevel: 'medium'
         });
-        
+
         throw new Error('Account is deactivated');
       }
 
       // Verify password
       const validPassword = await bcrypt.compare(password, user.password_hash);
-      
+
       if (!validPassword) {
         await this.recordFailedLogin(user.id, email, ipAddress, userAgent);
         throw new Error('Invalid credentials');
@@ -155,7 +166,7 @@ class AuthService {
       // If MFA is enabled, return temporary token
       if (user.mfa_enabled) {
         const tempToken = this.generateTempToken(user.id);
-        
+
         await auditService.log({
           userId: user.id,
           username: email,
@@ -174,15 +185,19 @@ class AuthService {
 
       // Generate tokens
       const tokens = await this.generateTokens(user);
-      
+
       // Create session
-      await this.createSession(user.id, tokens.refreshToken, ipAddress, userAgent);
+      await this.createSession(
+        user.id,
+        tokens.refreshToken,
+        ipAddress,
+        userAgent
+      );
 
       // Update last login
-      await pool.query(
-        'UPDATE users SET last_login = NOW() WHERE id = $1',
-        [user.id]
-      );
+      await pool.query('UPDATE users SET last_login = NOW() WHERE id = $1', [
+        user.id
+      ]);
 
       // Log successful login
       await auditService.log({
@@ -204,7 +219,7 @@ class AuthService {
         ...tokens
       };
     } catch (error) {
-      console.error('Login error:', error);
+      logger.error('Login error:', error);
       throw error;
     }
   }
@@ -216,7 +231,7 @@ class AuthService {
     try {
       // Verify temp token
       const decoded = jwt.verify(tempToken, JWT_SECRET);
-      const userId = decoded.userId;
+      const { userId } = decoded;
 
       // Get user's MFA secret
       const result = await pool.query(
@@ -249,21 +264,25 @@ class AuthService {
           errorMessage: 'Invalid MFA code',
           riskLevel: 'high'
         });
-        
+
         throw new Error('Invalid MFA code');
       }
 
       // Generate tokens
       const tokens = await this.generateTokens(user);
-      
+
       // Create session
-      await this.createSession(user.id, tokens.refreshToken, ipAddress, userAgent);
+      await this.createSession(
+        user.id,
+        tokens.refreshToken,
+        ipAddress,
+        userAgent
+      );
 
       // Update last login
-      await pool.query(
-        'UPDATE users SET last_login = NOW() WHERE id = $1',
-        [user.id]
-      );
+      await pool.query('UPDATE users SET last_login = NOW() WHERE id = $1', [
+        user.id
+      ]);
 
       // Log successful MFA verification
       await auditService.log({
@@ -285,7 +304,7 @@ class AuthService {
         ...tokens
       };
     } catch (error) {
-      console.error('MFA verification error:', error);
+      logger.error('MFA verification error:', error);
       throw error;
     }
   }
@@ -336,7 +355,7 @@ class AuthService {
         manual_entry: secret.otpauth_url
       };
     } catch (error) {
-      console.error('MFA setup error:', error);
+      logger.error('MFA setup error:', error);
       throw error;
     }
   }
@@ -375,19 +394,18 @@ class AuthService {
       }
 
       // Enable MFA
-      await pool.query(
-        'UPDATE users SET mfa_enabled = true WHERE id = $1',
-        [userId]
-      );
+      await pool.query('UPDATE users SET mfa_enabled = true WHERE id = $1', [
+        userId
+      ]);
 
       // Generate backup codes
       const backupCodes = this.generateBackupCodes();
-      
+
       // Save backup codes
-      await pool.query(
-        'UPDATE users SET mfa_backup_codes = $1 WHERE id = $2',
-        [backupCodes, userId]
-      );
+      await pool.query('UPDATE users SET mfa_backup_codes = $1 WHERE id = $2', [
+        backupCodes,
+        userId
+      ]);
 
       // Log MFA enabled
       await auditService.log({
@@ -402,7 +420,7 @@ class AuthService {
         backupCodes
       };
     } catch (error) {
-      console.error('MFA enable error:', error);
+      logger.error('MFA enable error:', error);
       throw error;
     }
   }
@@ -426,7 +444,7 @@ class AuthService {
 
       // Verify password
       const validPassword = await bcrypt.compare(password, user.password_hash);
-      
+
       if (!validPassword) {
         throw new Error('Invalid password');
       }
@@ -454,7 +472,7 @@ class AuthService {
         message: 'MFA disabled successfully'
       };
     } catch (error) {
-      console.error('MFA disable error:', error);
+      logger.error('MFA disable error:', error);
       throw error;
     }
   }
@@ -517,7 +535,7 @@ class AuthService {
    */
   async createSession(userId, refreshToken, ipAddress, userAgent) {
     const sessionId = crypto.randomBytes(32).toString('hex');
-    
+
     const sessionData = {
       userId,
       refreshToken,
@@ -547,12 +565,12 @@ class AuthService {
     try {
       // Verify refresh token
       const decoded = jwt.verify(refreshToken, JWT_SECRET);
-      
+
       if (decoded.tokenType !== 'refresh') {
         throw new Error('Invalid token type');
       }
 
-      const userId = decoded.userId;
+      const { userId } = decoded;
 
       // Get user
       const result = await pool.query(
@@ -570,7 +588,13 @@ class AuthService {
       const tokens = await this.generateTokens(user);
 
       // Update session with new refresh token
-      await this.updateSession(userId, refreshToken, tokens.refreshToken, ipAddress, userAgent);
+      await this.updateSession(
+        userId,
+        refreshToken,
+        tokens.refreshToken,
+        ipAddress,
+        userAgent
+      );
 
       // Log token refresh
       await auditService.log({
@@ -584,7 +608,7 @@ class AuthService {
 
       return tokens;
     } catch (error) {
-      console.error('Refresh token error:', error);
+      logger.error('Refresh token error:', error);
       throw new Error('Invalid or expired refresh token');
     }
   }
@@ -592,35 +616,46 @@ class AuthService {
   /**
    * Update session with new refresh token
    */
-  async updateSession(userId, oldRefreshToken, newRefreshToken, ipAddress, userAgent) {
+  async updateSession(
+    userId,
+    oldRefreshToken,
+    newRefreshToken,
+    ipAddress,
+    userAgent
+  ) {
     // Find session by old refresh token
     const sessions = await redis.smembers(`user:${userId}:sessions`);
-    
+
     for (const sessionId of sessions) {
       const sessionData = await redis.get(`session:${sessionId}`);
       if (sessionData) {
         const session = JSON.parse(sessionData);
-        
+
         if (session.refreshToken === oldRefreshToken) {
           // Update session with new refresh token
           session.refreshToken = newRefreshToken;
           session.lastActivity = Date.now();
           session.ipAddress = ipAddress;
           session.userAgent = userAgent;
-          
+
           await redis.setex(
             `session:${sessionId}`,
             7 * 24 * 60 * 60,
             JSON.stringify(session)
           );
-          
+
           return sessionId;
         }
       }
     }
-    
+
     // If session not found, create new one
-    return await this.createSession(userId, newRefreshToken, ipAddress, userAgent);
+    return await this.createSession(
+      userId,
+      newRefreshToken,
+      ipAddress,
+      userAgent
+    );
   }
 
   /**
@@ -630,12 +665,12 @@ class AuthService {
     try {
       // Remove session
       const sessions = await redis.smembers(`user:${userId}:sessions`);
-      
+
       for (const sessionId of sessions) {
         const sessionData = await redis.get(`session:${sessionId}`);
         if (sessionData) {
           const session = JSON.parse(sessionData);
-          
+
           if (session.refreshToken === refreshToken) {
             await redis.del(`session:${sessionId}`);
             await redis.srem(`user:${userId}:sessions`, sessionId);
@@ -653,7 +688,7 @@ class AuthService {
 
       return { message: 'Logged out successfully' };
     } catch (error) {
-      console.error('Logout error:', error);
+      logger.error('Logout error:', error);
       throw error;
     }
   }
@@ -665,11 +700,11 @@ class AuthService {
     try {
       // Remove all user sessions
       const sessions = await redis.smembers(`user:${userId}:sessions`);
-      
+
       for (const sessionId of sessions) {
         await redis.del(`session:${sessionId}`);
       }
-      
+
       await redis.del(`user:${userId}:sessions`);
 
       // Log logout all
@@ -682,7 +717,7 @@ class AuthService {
 
       return { message: 'Logged out from all devices' };
     } catch (error) {
-      console.error('Logout all error:', error);
+      logger.error('Logout all error:', error);
       throw error;
     }
   }
@@ -733,11 +768,11 @@ class AuthService {
     if (failed_login_attempts >= MAX_LOGIN_ATTEMPTS) {
       const lockoutTime = new Date(last_login_attempt);
       lockoutTime.setMinutes(lockoutTime.getMinutes() + LOCKOUT_TIME_MINUTES);
-      
+
       if (new Date() < lockoutTime) {
         return true;
       }
-      
+
       // Reset if lockout period has passed
       await pool.query(
         'UPDATE users SET failed_login_attempts = 0, last_login_attempt = NULL WHERE email = $1',
@@ -788,15 +823,20 @@ class AuthService {
         success: true
       });
 
-      // TODO: Send email with reset link
-      // await emailService.sendPasswordReset(user.email, resetToken);
+      // Send password reset email
+      try {
+        await emailService.sendPasswordResetEmail(user.email, resetToken);
+      } catch (emailError) {
+        logger.error('Failed to send password reset email:', emailError);
+        // Don't throw - token is saved, will still work if user has the link
+      }
 
-      return { 
+      return {
         message: 'If the email exists, a reset link has been sent',
         resetToken // For testing only - remove in production
       };
     } catch (error) {
-      console.error('Password reset request error:', error);
+      logger.error('Password reset request error:', error);
       throw error;
     }
   }
@@ -824,10 +864,10 @@ class AuthService {
       const passwordHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
 
       // Update password
-      await pool.query(
-        'UPDATE users SET password_hash = $1 WHERE id = $2',
-        [passwordHash, user_id]
-      );
+      await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [
+        passwordHash,
+        user_id
+      ]);
 
       // Mark token as used
       await pool.query(
@@ -849,7 +889,7 @@ class AuthService {
 
       return { message: 'Password reset successfully' };
     } catch (error) {
-      console.error('Password reset error:', error);
+      logger.error('Password reset error:', error);
       throw error;
     }
   }
@@ -872,8 +912,11 @@ class AuthService {
       const user = result.rows[0];
 
       // Verify current password
-      const validPassword = await bcrypt.compare(currentPassword, user.password_hash);
-      
+      const validPassword = await bcrypt.compare(
+        currentPassword,
+        user.password_hash
+      );
+
       if (!validPassword) {
         throw new Error('Current password is incorrect');
       }
@@ -882,10 +925,10 @@ class AuthService {
       const passwordHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
 
       // Update password
-      await pool.query(
-        'UPDATE users SET password_hash = $1 WHERE id = $2',
-        [passwordHash, userId]
-      );
+      await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [
+        passwordHash,
+        userId
+      ]);
 
       // Log password change
       await auditService.log({
@@ -902,8 +945,157 @@ class AuthService {
 
       return { message: 'Password changed successfully' };
     } catch (error) {
-      console.error('Password change error:', error);
+      logger.error('Password change error:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Verify email with token
+   */
+  async verifyEmail(token) {
+    try {
+      // Find valid verification token
+      const result = await pool.query(
+        `SELECT user_id, email, verified, expires_at
+         FROM email_verification_tokens
+         WHERE token = $1 AND verified = false AND expires_at > NOW()`,
+        [token]
+      );
+
+      if (result.rows.length === 0) {
+        throw new Error('Invalid or expired verification token');
+      }
+
+      const { user_id, email } = result.rows[0];
+
+      // Mark token as verified
+      await pool.query(
+        'UPDATE email_verification_tokens SET verified = true, verified_at = NOW() WHERE token = $1',
+        [token]
+      );
+
+      // Update user's email_verified status
+      await pool.query('UPDATE users SET email_verified = true WHERE id = $1', [
+        user_id
+      ]);
+
+      // Log email verification
+      await auditService.log({
+        userId: user_id,
+        action: 'email_verified',
+        success: true
+      });
+
+      return {
+        message: 'Email verified successfully',
+        email
+      };
+    } catch (error) {
+      logger.error('Email verification error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Resend verification email
+   */
+  async resendVerification(email) {
+    try {
+      // Get user
+      const result = await pool.query(
+        'SELECT id, email, email_verified FROM users WHERE email = $1',
+        [email]
+      );
+
+      if (result.rows.length === 0) {
+        // Don't reveal if user exists for security
+        return {
+          message: 'If the email exists, a verification email has been sent'
+        };
+      }
+
+      const user = result.rows[0];
+
+      // Check if already verified
+      if (user.email_verified) {
+        return { message: 'Email is already verified' };
+      }
+
+      // Generate new verification token
+      const verificationToken = crypto.randomBytes(32).toString('hex');
+      const expiresAt = new Date();
+      expiresAt.setHours(expiresAt.getHours() + 24); // 24 hour expiration
+
+      // Invalidate any existing tokens for this user
+      await pool.query(
+        'UPDATE email_verification_tokens SET verified = true WHERE user_id = $1 AND verified = false',
+        [user.id]
+      );
+
+      // Create new verification token
+      await pool.query(
+        `INSERT INTO email_verification_tokens (user_id, email, token, expires_at)
+         VALUES ($1, $2, $3, $4)`,
+        [user.id, email, verificationToken, expiresAt]
+      );
+
+      // Send verification email
+      try {
+        await emailService.sendVerificationEmail(email, verificationToken);
+      } catch (emailError) {
+        logger.error('Failed to send verification email:', emailError);
+        // Don't throw error - token is saved, user can try resending later
+      }
+
+      // Log verification email sent
+      await auditService.log({
+        userId: user.id,
+        username: email,
+        action: 'verification_email_sent',
+        success: true
+      });
+
+      return {
+        message: 'Verification email sent successfully',
+        verificationToken // For testing only - remove in production
+      };
+    } catch (error) {
+      logger.error('Resend verification error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Generate and send verification email during registration
+   */
+  async sendInitialVerificationEmail(userId, email) {
+    try {
+      // Generate verification token
+      const verificationToken = crypto.randomBytes(32).toString('hex');
+      const expiresAt = new Date();
+      expiresAt.setHours(expiresAt.getHours() + 24); // 24 hour expiration
+
+      // Save verification token
+      await pool.query(
+        `INSERT INTO email_verification_tokens (user_id, email, token, expires_at)
+         VALUES ($1, $2, $3, $4)`,
+        [userId, email, verificationToken, expiresAt]
+      );
+
+      // Send verification email
+      try {
+        await emailService.sendVerificationEmail(email, verificationToken);
+      } catch (emailError) {
+        logger.error('Failed to send verification email:', emailError);
+        // Don't throw error - user can request resend
+      }
+
+      return verificationToken;
+    } catch (error) {
+      logger.error('Failed to send initial verification email:', error);
+      // Don't throw - email sending is not critical for registration
+      return null;
     }
   }
 }

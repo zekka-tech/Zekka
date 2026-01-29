@@ -1,10 +1,11 @@
 /**
  * Circuit Breaker Pattern for External Services
- * 
+ *
  * PERFORMANCE FIX: Phase 3 - Circuit breakers for resilience
  */
 
 const Opossum = require('opossum');
+
 const CircuitBreaker = Opossum.default || Opossum;
 
 /**
@@ -20,43 +21,43 @@ function createCircuitBreaker(asyncFunction, options = {}) {
     name: options.name || 'circuit',
     enabled: options.enabled !== false
   };
-  
+
   const breaker = new CircuitBreaker(asyncFunction, defaultOptions);
-  
+
   // Event handlers
   breaker.on('success', (result) => {
     console.log(`✅ Circuit ${options.name}: Success`);
   });
-  
+
   breaker.on('timeout', () => {
     console.warn(`⏱️  Circuit ${options.name}: Timeout`);
   });
-  
+
   breaker.on('reject', () => {
     console.warn(`🚫 Circuit ${options.name}: Rejected`);
   });
-  
+
   breaker.on('open', () => {
     console.error(`⚠️  Circuit ${options.name}: OPEN - Too many failures`);
   });
-  
+
   breaker.on('halfOpen', () => {
     console.log(`🔄 Circuit ${options.name}: HALF-OPEN - Testing...`);
   });
-  
+
   breaker.on('close', () => {
     console.log(`✅ Circuit ${options.name}: CLOSED - Service recovered`);
   });
-  
+
   breaker.on('fallback', (result) => {
     console.log(`🔀 Circuit ${options.name}: Fallback executed`);
   });
-  
+
   // Add fallback if provided
   if (options.fallback) {
     breaker.fallback(options.fallback);
   }
-  
+
   return breaker;
 }
 
@@ -85,7 +86,11 @@ const githubBreaker = createCircuitBreaker(
 const anthropicBreaker = createCircuitBreaker(
   async (data, options) => {
     const axios = require('axios');
-    return await axios.post('https://api.anthropic.com/v1/messages', data, options);
+    return await axios.post(
+      'https://api.anthropic.com/v1/messages',
+      data,
+      options
+    );
   },
   {
     name: 'anthropic',
@@ -105,7 +110,11 @@ const anthropicBreaker = createCircuitBreaker(
 const openaiBreaker = createCircuitBreaker(
   async (data, options) => {
     const axios = require('axios');
-    return await axios.post('https://api.openai.com/v1/chat/completions', data, options);
+    return await axios.post(
+      'https://api.openai.com/v1/chat/completions',
+      data,
+      options
+    );
   },
   {
     name: 'openai',
@@ -123,9 +132,7 @@ const openaiBreaker = createCircuitBreaker(
  * Redis circuit breaker
  */
 const redisBreaker = createCircuitBreaker(
-  async (operation) => {
-    return await operation();
-  },
+  async (operation) => await operation(),
   {
     name: 'redis',
     timeout: 1000,

@@ -106,16 +106,18 @@ function csrfTokenValidator(req, res, next) {
   }
 
   // API endpoints with bearer tokens - skip CSRF validation
-  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
+  if (
+    req.headers.authorization
+    && req.headers.authorization.startsWith('Bearer ')
+  ) {
     return next();
   }
 
   // Get CSRF token from multiple sources
-  const token =
-    req.headers['x-csrf-token'] ||
-    req.headers['x-xsrf-token'] ||
-    (req.body && req.body._csrf) ||
-    req.query._csrf;
+  const token = req.headers['x-csrf-token']
+    || req.headers['x-xsrf-token']
+    || (req.body && req.body._csrf)
+    || req.query._csrf;
 
   if (!token) {
     logger.warn('CSRF: No token provided', {
@@ -215,16 +217,14 @@ function createCsrfProtection(options = {}) {
     /**
      * Get CSRF token from request
      */
-    getToken: (req) => {
-      return req.session && req.session[config.sessionKey];
-    },
+    getToken: (req) => req.session && req.session[config.sessionKey],
 
     /**
      * Middleware to generate and validate CSRF tokens
      */
     middleware: (req, res, next) => {
       // Check if path is excluded
-      if (config.excludePaths.some(path => req.path.startsWith(path))) {
+      if (config.excludePaths.some((path) => req.path.startsWith(path))) {
         return next();
       }
 
@@ -241,10 +241,9 @@ function createCsrfProtection(options = {}) {
 
       // Validate token for state-changing requests
       if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
-        const token =
-          req.headers[config.headerName.toLowerCase()] ||
-          (req.body && req.body[config.fieldName]) ||
-          req.query[config.fieldName];
+        const token = req.headers[config.headerName.toLowerCase()]
+          || (req.body && req.body[config.fieldName])
+          || req.query[config.fieldName];
 
         if (!token) {
           return res.status(403).json({

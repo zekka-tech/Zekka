@@ -8,6 +8,7 @@
 
 const { Pool } = require('pg');
 const config = require('./index');
+const logger = require('../utils/logger');
 
 let reconnectAttempts = 0;
 const MAX_RECONNECT_ATTEMPTS = 10;
@@ -33,17 +34,17 @@ const pool = new Pool({
 
 // Pool event handlers with reconnection logic
 pool.on('connect', (client) => {
-  console.log('✅ Database client connected');
+  logger.info('✅ Database client connected');
   reconnectAttempts = 0; // Reset counter on successful connection
 
   // Set timezone for all connections
-  client.query('SET timezone = "UTC"').catch(err => {
-    console.error('❌ Error setting timezone:', err);
+  client.query('SET timezone = "UTC"').catch((err) => {
+    logger.error('❌ Error setting timezone:', err);
   });
 });
 
 pool.on('error', (err, client) => {
-  console.error('❌ Unexpected database pool error:', err);
+  logger.error('❌ Unexpected database pool error:', err);
 
   // Attempt reconnection for connection errors
   if (err.code === 'ECONNREFUSED' || err.code === 'ETIMEDOUT') {
@@ -53,12 +54,12 @@ pool.on('error', (err, client) => {
 
 pool.on('acquire', () => {
   // Client acquired from pool - useful for monitoring
-  // console.log('Client acquired from pool');
+  // logger.info('Client acquired from pool');
 });
 
 pool.on('remove', () => {
   // Client removed from pool - useful for monitoring
-  // console.log('Client removed from pool');
+  // logger.info('Client removed from pool');
 });
 
 /**
@@ -66,20 +67,27 @@ pool.on('remove', () => {
  */
 async function handleReconnection() {
   if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-    console.error(`❌ Max reconnection attempts (${MAX_RECONNECT_ATTEMPTS}) reached. Giving up.`);
+    logger.error(
+      `❌ Max reconnection attempts (${MAX_RECONNECT_ATTEMPTS}) reached. Giving up.`
+    );
     return;
   }
 
   reconnectAttempts++;
-  console.log(`🔄 Attempting to reconnect to database (attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})...`);
+  logger.info(
+    `🔄 Attempting to reconnect to database (attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})...`
+  );
 
   setTimeout(async () => {
     try {
       await testConnection();
-      console.log('✅ Database reconnection successful');
+      logger.info('✅ Database reconnection successful');
       reconnectAttempts = 0;
     } catch (error) {
-      console.error(`❌ Reconnection attempt ${reconnectAttempts} failed:`, error.message);
+      logger.error(
+        `❌ Reconnection attempt ${reconnectAttempts} failed:`,
+        error.message
+      );
       handleReconnection();
     }
   }, RECONNECT_DELAY);
@@ -93,10 +101,10 @@ async function testConnection() {
     const client = await pool.connect();
     const result = await client.query('SELECT NOW()');
     client.release();
-    console.log('✅ Database connection test successful');
+    logger.info('✅ Database connection test successful');
     return true;
   } catch (error) {
-    console.error('❌ Database connection test failed:', error);
+    logger.error('❌ Database connection test failed:', error);
     throw error;
   }
 }
@@ -117,7 +125,7 @@ function getPoolStats() {
  */
 async function closePool() {
   await pool.end();
-  console.log('✅ Database pool closed');
+  logger.info('✅ Database pool closed');
 }
 
 /**
@@ -128,7 +136,7 @@ async function healthCheck() {
     const result = await pool.query('SELECT 1 as health');
     return result.rows[0].health === 1;
   } catch (error) {
-    console.error('❌ Database health check failed:', error);
+    logger.error('❌ Database health check failed:', error);
     return false;
   }
 }
@@ -146,17 +154,25 @@ async function queryWithRetry(text, params, retries = 3) {
       lastError = error;
 
       // Retry only on transient errors
-      const transientErrors = ['ECONNREFUSED', 'ETIMEDOUT', 'ECONNRESET', '57P03'];
-      const isTransient = transientErrors.some(code =>
-        error.code === code || error.message.includes(code)
+      const transientErrors = [
+        'ECONNREFUSED',
+        'ETIMEDOUT',
+        'ECONNRESET',
+        '57P03'
+      ];
+      const isTransient = transientErrors.some(
+        (code) => error.code === code || error.message.includes(code)
       );
 
       if (!isTransient || i === retries - 1) {
         throw error;
       }
 
-      console.warn(`⚠️  Query failed (attempt ${i + 1}/${retries}), retrying...`, error.message);
-      await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1))); // Exponential backoff
+      logger.warn(
+        `⚠️  Query failed (attempt ${i + 1}/${retries}), retrying...`,
+        error.message
+      );
+      await new Promise((resolve) => setTimeout(resolve, 1000 * (i + 1))); // Exponential backoff
     }
   }
 
@@ -197,7 +213,7 @@ async function tableExists(tableName) {
     );
     return result.rows[0].exists;
   } catch (error) {
-    console.error(`❌ Error checking if table ${tableName} exists:`, error);
+    logger.error(`❌ Error checking if table ${tableName} exists:`, error);
     return false;
   }
 }
@@ -210,7 +226,7 @@ async function getDatabaseVersion() {
     const result = await pool.query('SELECT version()');
     return result.rows[0].version;
   } catch (error) {
-    console.error('❌ Error getting database version:', error);
+    logger.error('❌ Error getting database version:', error);
     return null;
   }
 }

@@ -48,7 +48,7 @@ class CodeQualityTools extends EventEmitter {
     try {
       // Initialize each tool
       const initPromises = [];
-      
+
       if (this.config.tools.coderabbit.enabled) {
         initPromises.push(this.initializeCodeRabbit());
       }
@@ -62,13 +62,16 @@ class CodeQualityTools extends EventEmitter {
       await Promise.all(initPromises);
 
       await this.contextBus.publish('code-quality.initialized', {
-        tools: Object.keys(this.config.tools).filter(t => this.config.tools[t].enabled),
+        tools: Object.keys(this.config.tools).filter(
+          (t) => this.config.tools[t].enabled
+        ),
         timestamp: new Date().toISOString()
       });
 
-      this.logger.info('[CodeQualityTools] Code quality tools initialized successfully');
+      this.logger.info(
+        '[CodeQualityTools] Code quality tools initialized successfully'
+      );
       return true;
-
     } catch (error) {
       this.logger.error('[CodeQualityTools] Initialization failed:', error);
       throw error;
@@ -80,7 +83,7 @@ class CodeQualityTools extends EventEmitter {
    */
   async initializeCodeRabbit() {
     this.logger.info('[CodeQualityTools] Initializing CodeRabbit AI');
-    
+
     this.coderabbit = {
       name: 'CodeRabbit',
       capabilities: [
@@ -91,7 +94,15 @@ class CodeQualityTools extends EventEmitter {
         'Best practices enforcement'
       ],
       features: {
-        languages: ['JavaScript', 'TypeScript', 'Python', 'Java', 'Go', 'Rust', 'C++'],
+        languages: [
+          'JavaScript',
+          'TypeScript',
+          'Python',
+          'Java',
+          'Go',
+          'Rust',
+          'C++'
+        ],
         integrations: ['GitHub', 'GitLab', 'Bitbucket'],
         aiModel: 'GPT-4',
         realtime: true
@@ -107,7 +118,7 @@ class CodeQualityTools extends EventEmitter {
    */
   async initializeQode() {
     this.logger.info('[CodeQualityTools] Initializing Qode.ai');
-    
+
     this.qode = {
       name: 'Qode.ai',
       capabilities: [
@@ -118,8 +129,20 @@ class CodeQualityTools extends EventEmitter {
         'Dependency analysis'
       ],
       features: {
-        languages: ['JavaScript', 'TypeScript', 'Python', 'Java', 'C#', 'Ruby', 'PHP'],
-        metrics: ['Cyclomatic Complexity', 'Cognitive Complexity', 'Maintainability Index'],
+        languages: [
+          'JavaScript',
+          'TypeScript',
+          'Python',
+          'Java',
+          'C#',
+          'Ruby',
+          'PHP'
+        ],
+        metrics: [
+          'Cyclomatic Complexity',
+          'Cognitive Complexity',
+          'Maintainability Index'
+        ],
         scoring: 'A-F grading system',
         realtime: true
       },
@@ -134,7 +157,7 @@ class CodeQualityTools extends EventEmitter {
    */
   async initializeMintlify() {
     this.logger.info('[CodeQualityTools] Initializing Mintlify');
-    
+
     this.mintlify = {
       name: 'Mintlify',
       capabilities: [
@@ -195,22 +218,26 @@ class CodeQualityTools extends EventEmitter {
               severity: 'warning',
               category: 'performance',
               line: 12,
-              message: 'Consider using Array.map() instead of forEach for better performance',
-              suggestion: 'Replace forEach with map for immutable transformation'
+              message:
+                'Consider using Array.map() instead of forEach for better performance',
+              suggestion:
+                'Replace forEach with map for immutable transformation'
             },
             {
               severity: 'info',
               category: 'best-practices',
               line: 25,
               message: 'Add JSDoc comment for function documentation',
-              suggestion: '/**\n * Function description\n * @param {type} paramName - description\n * @returns {type} - description\n */'
+              suggestion:
+                '/**\n * Function description\n * @param {type} paramName - description\n * @returns {type} - description\n */'
             },
             {
               severity: 'error',
               category: 'security',
               line: 45,
               message: 'Potential SQL injection vulnerability detected',
-              suggestion: 'Use parameterized queries or ORM to prevent SQL injection'
+              suggestion:
+                'Use parameterized queries or ORM to prevent SQL injection'
             }
           ],
           strengths: [
@@ -242,9 +269,10 @@ class CodeQualityTools extends EventEmitter {
         timestamp: review.timestamp
       });
 
-      this.logger.info(`[CodeQualityTools] CodeRabbit review completed: ${reviewId}`);
+      this.logger.info(
+        `[CodeQualityTools] CodeRabbit review completed: ${reviewId}`
+      );
       return review;
-
     } catch (error) {
       this.logger.error('[CodeQualityTools] CodeRabbit review failed:', error);
       throw error;
@@ -290,19 +318,22 @@ class CodeQualityTools extends EventEmitter {
               type: 'Long Method',
               severity: 'medium',
               location: 'line 50-120',
-              description: 'Method exceeds 70 lines, consider breaking into smaller functions'
+              description:
+                'Method exceeds 70 lines, consider breaking into smaller functions'
             },
             {
               type: 'Duplicate Code',
               severity: 'high',
               location: 'lines 200-220, 350-370',
-              description: 'Similar code blocks detected, extract to shared function'
+              description:
+                'Similar code blocks detected, extract to shared function'
             },
             {
               type: 'Too Many Parameters',
               severity: 'low',
               location: 'line 85',
-              description: 'Function has 6 parameters, consider using configuration object'
+              description:
+                'Function has 6 parameters, consider using configuration object'
             }
           ],
           technicalDebt: {
@@ -319,7 +350,12 @@ class CodeQualityTools extends EventEmitter {
             outdated: 3,
             vulnerable: 1,
             list: [
-              { name: 'lodash', version: '4.17.19', status: 'outdated', recommendation: 'Update to 4.17.21' }
+              {
+                name: 'lodash',
+                version: '4.17.19',
+                status: 'outdated',
+                recommendation: 'Update to 4.17.21'
+              }
             ]
           },
           recommendations: [
@@ -341,9 +377,10 @@ class CodeQualityTools extends EventEmitter {
         timestamp: analysis.timestamp
       });
 
-      this.logger.info(`[CodeQualityTools] Qode.ai analysis completed: ${analysisId}`);
+      this.logger.info(
+        `[CodeQualityTools] Qode.ai analysis completed: ${analysisId}`
+      );
       return analysis;
-
     } catch (error) {
       this.logger.error('[CodeQualityTools] Qode.ai analysis failed:', error);
       throw error;
@@ -358,7 +395,9 @@ class CodeQualityTools extends EventEmitter {
       throw new Error('Mintlify is not enabled');
     }
 
-    this.logger.info('[CodeQualityTools] Generating documentation with Mintlify');
+    this.logger.info(
+      '[CodeQualityTools] Generating documentation with Mintlify'
+    );
 
     const docId = `doc-${Date.now()}-${Math.random().toString(36).substring(7)}`;
 
@@ -377,7 +416,8 @@ class CodeQualityTools extends EventEmitter {
           sections: [
             {
               title: 'Overview',
-              content: 'This module provides functionality for user authentication and authorization. It implements JWT-based token management with refresh token support.'
+              content:
+                'This module provides functionality for user authentication and authorization. It implements JWT-based token management with refresh token support.'
             },
             {
               title: 'Functions',
@@ -386,20 +426,41 @@ class CodeQualityTools extends EventEmitter {
                   name: 'authenticateUser',
                   description: 'Authenticates a user with email and password',
                   parameters: [
-                    { name: 'email', type: 'string', description: 'User email address' },
-                    { name: 'password', type: 'string', description: 'User password' }
+                    {
+                      name: 'email',
+                      type: 'string',
+                      description: 'User email address'
+                    },
+                    {
+                      name: 'password',
+                      type: 'string',
+                      description: 'User password'
+                    }
                   ],
-                  returns: { type: 'Promise<AuthResult>', description: 'Authentication result with tokens' },
-                  example: 'const result = await authenticateUser("user@example.com", "password");'
+                  returns: {
+                    type: 'Promise<AuthResult>',
+                    description: 'Authentication result with tokens'
+                  },
+                  example:
+                    'const result = await authenticateUser("user@example.com", "password");'
                 },
                 {
                   name: 'refreshAccessToken',
-                  description: 'Refreshes an expired access token using a refresh token',
+                  description:
+                    'Refreshes an expired access token using a refresh token',
                   parameters: [
-                    { name: 'refreshToken', type: 'string', description: 'Valid refresh token' }
+                    {
+                      name: 'refreshToken',
+                      type: 'string',
+                      description: 'Valid refresh token'
+                    }
                   ],
-                  returns: { type: 'Promise<string>', description: 'New access token' },
-                  example: 'const newToken = await refreshAccessToken(refreshToken);'
+                  returns: {
+                    type: 'Promise<string>',
+                    description: 'New access token'
+                  },
+                  example:
+                    'const newToken = await refreshAccessToken(refreshToken);'
                 }
               ]
             },
@@ -418,7 +479,8 @@ const newToken = await refreshAccessToken(auth.refreshToken);
             },
             {
               title: 'Configuration',
-              content: 'Required environment variables:\n- JWT_SECRET: Secret key for token signing\n- TOKEN_EXPIRY: Access token expiration time (default: 1h)\n- REFRESH_TOKEN_EXPIRY: Refresh token expiration (default: 7d)'
+              content:
+                'Required environment variables:\n- JWT_SECRET: Secret key for token signing\n- TOKEN_EXPIRY: Access token expiration time (default: 1h)\n- REFRESH_TOKEN_EXPIRY: Refresh token expiration (default: 7d)'
             }
           ],
           apiReference: {
@@ -444,11 +506,15 @@ const newToken = await refreshAccessToken(auth.refreshToken);
         timestamp: documentation.timestamp
       });
 
-      this.logger.info(`[CodeQualityTools] Mintlify documentation generated: ${docId}`);
+      this.logger.info(
+        `[CodeQualityTools] Mintlify documentation generated: ${docId}`
+      );
       return documentation;
-
     } catch (error) {
-      this.logger.error('[CodeQualityTools] Mintlify documentation generation failed:', error);
+      this.logger.error(
+        '[CodeQualityTools] Mintlify documentation generation failed:',
+        error
+      );
       throw error;
     }
   }
@@ -457,7 +523,9 @@ const newToken = await refreshAccessToken(auth.refreshToken);
    * Comprehensive code quality check
    */
   async comprehensiveCheck(code, options = {}) {
-    this.logger.info('[CodeQualityTools] Running comprehensive code quality check');
+    this.logger.info(
+      '[CodeQualityTools] Running comprehensive code quality check'
+    );
 
     const results = {
       timestamp: new Date().toISOString(),
@@ -473,24 +541,36 @@ const newToken = await refreshAccessToken(auth.refreshToken);
       if (this.config.tools.coderabbit.enabled) {
         promises.push(
           this.reviewCodeWithCodeRabbit(code, options)
-            .then(review => { results.checks.coderabbit = review; })
-            .catch(error => { results.checks.coderabbit = { error: error.message }; })
+            .then((review) => {
+              results.checks.coderabbit = review;
+            })
+            .catch((error) => {
+              results.checks.coderabbit = { error: error.message };
+            })
         );
       }
 
       if (this.config.tools.qode.enabled) {
         promises.push(
           this.analyzeCodeWithQode(code, options)
-            .then(analysis => { results.checks.qode = analysis; })
-            .catch(error => { results.checks.qode = { error: error.message }; })
+            .then((analysis) => {
+              results.checks.qode = analysis;
+            })
+            .catch((error) => {
+              results.checks.qode = { error: error.message };
+            })
         );
       }
 
       if (this.config.tools.mintlify.enabled && options.generateDocs) {
         promises.push(
           this.generateDocumentationWithMintlify(code, options)
-            .then(docs => { results.checks.mintlify = docs; })
-            .catch(error => { results.checks.mintlify = { error: error.message }; })
+            .then((docs) => {
+              results.checks.mintlify = docs;
+            })
+            .catch((error) => {
+              results.checks.mintlify = { error: error.message };
+            })
         );
       }
 
@@ -500,18 +580,25 @@ const newToken = await refreshAccessToken(auth.refreshToken);
       results.aggregateScore = this.calculateAggregateScore(results.checks);
       results.passed = results.aggregateScore >= this.config.minQualityScore;
 
-      await this.contextBus.publish('code-quality.comprehensive-check-completed', {
-        aggregateScore: results.aggregateScore,
-        passed: results.passed,
-        toolsRun: Object.keys(results.checks).length,
-        timestamp: results.timestamp
-      });
+      await this.contextBus.publish(
+        'code-quality.comprehensive-check-completed',
+        {
+          aggregateScore: results.aggregateScore,
+          passed: results.passed,
+          toolsRun: Object.keys(results.checks).length,
+          timestamp: results.timestamp
+        }
+      );
 
-      this.logger.info(`[CodeQualityTools] Comprehensive check completed. Score: ${results.aggregateScore}`);
+      this.logger.info(
+        `[CodeQualityTools] Comprehensive check completed. Score: ${results.aggregateScore}`
+      );
       return results;
-
     } catch (error) {
-      this.logger.error('[CodeQualityTools] Comprehensive check failed:', error);
+      this.logger.error(
+        '[CodeQualityTools] Comprehensive check failed:',
+        error
+      );
       throw error;
     }
   }
@@ -534,8 +621,10 @@ const newToken = await refreshAccessToken(auth.refreshToken);
       scores.push(checks.mintlify.result.quality.completeness);
     }
 
-    return scores.length > 0 
-      ? Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length)
+    return scores.length > 0
+      ? Math.round(
+        scores.reduce((sum, score) => sum + score, 0) / scores.length
+      )
       : 0;
   }
 
@@ -553,21 +642,27 @@ const newToken = await refreshAccessToken(auth.refreshToken);
       reviews: {
         total: this.reviews.size,
         byTool: {
-          coderabbit: Array.from(this.reviews.values()).filter(r => r.tool === 'coderabbit').length
+          coderabbit: Array.from(this.reviews.values()).filter(
+            (r) => r.tool === 'coderabbit'
+          ).length
         },
         averageScore: this.calculateAverageScore(this.reviews)
       },
       analyses: {
         total: this.analyses.size,
         byTool: {
-          qode: Array.from(this.analyses.values()).filter(a => a.tool === 'qode').length
+          qode: Array.from(this.analyses.values()).filter(
+            (a) => a.tool === 'qode'
+          ).length
         },
         averageScore: this.calculateAverageScore(this.analyses)
       },
       documentation: {
         total: this.documentation.size,
         byTool: {
-          mintlify: Array.from(this.documentation.values()).filter(d => d.tool === 'mintlify').length
+          mintlify: Array.from(this.documentation.values()).filter(
+            (d) => d.tool === 'mintlify'
+          ).length
         },
         averageCompleteness: this.calculateAverageCompleteness()
       }
@@ -578,18 +673,24 @@ const newToken = await refreshAccessToken(auth.refreshToken);
     const items = Array.from(collection.values());
     if (items.length === 0) return 0;
 
-    const scores = items.map(item => 
-      item.result?.overallScore || item.result?.qualityScore || 0
+    const scores = items.map(
+      (item) => item.result?.overallScore || item.result?.qualityScore || 0
     );
-    return Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length);
+    return Math.round(
+      scores.reduce((sum, score) => sum + score, 0) / scores.length
+    );
   }
 
   calculateAverageCompleteness() {
     const docs = Array.from(this.documentation.values());
     if (docs.length === 0) return 0;
 
-    const completeness = docs.map(doc => doc.result?.quality?.completeness || 0);
-    return Math.round(completeness.reduce((sum, c) => sum + c, 0) / completeness.length);
+    const completeness = docs.map(
+      (doc) => doc.result?.quality?.completeness || 0
+    );
+    return Math.round(
+      completeness.reduce((sum, c) => sum + c, 0) / completeness.length
+    );
   }
 
   /**

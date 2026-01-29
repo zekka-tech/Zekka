@@ -81,13 +81,18 @@ function initializeWebSocket(server, logger) {
   });
 
   // Periodic connection cleanup (every 5 minutes)
-  setInterval(() => {
-    cleanupStaleConnections(logger);
-  }, 5 * 60 * 1000);
+  setInterval(
+    () => {
+      cleanupStaleConnections(logger);
+    },
+    5 * 60 * 1000
+  );
 
-  logger.info(`✅ WebSocket server initialized on path: /ws`);
-  logger.info(`📊 Max connections: ${process.env.MAX_WS_CONNECTIONS || '5000'}`);
-  logger.info(`🔒 Authentication: Required`);
+  logger.info('✅ WebSocket server initialized on path: /ws');
+  logger.info(
+    `📊 Max connections: ${process.env.MAX_WS_CONNECTIONS || '5000'}`
+  );
+  logger.info('🔒 Authentication: Required');
 
   return io;
 }
@@ -144,7 +149,9 @@ function handleConnection(socket, logger) {
   const maxConnections = parseInt(process.env.MAX_WS_CONNECTIONS || '5000', 10);
 
   if (totalConnections >= maxConnections) {
-    logger.warn(`⚠️  Connection limit approaching: ${totalConnections}/${maxConnections}`);
+    logger.warn(
+      `⚠️  Connection limit approaching: ${totalConnections}/${maxConnections}`
+    );
 
     // Notify admins
     io.to('admin').emit('system:warning', {
@@ -176,7 +183,7 @@ function handleDisconnection(socket, reason, logger) {
   // Clean up connection tracking
   if (connectionData) {
     // Leave all rooms
-    connectionData.rooms.forEach(room => {
+    connectionData.rooms.forEach((room) => {
       socket.leave(room);
     });
 
@@ -276,8 +283,8 @@ function getUserSocketIds(userId) {
  */
 function getConnectionStats() {
   const roomCounts = {};
-  connections.forEach(data => {
-    data.rooms.forEach(room => {
+  connections.forEach((data) => {
+    data.rooms.forEach((room) => {
       roomCounts[room] = (roomCounts[room] || 0) + 1;
     });
   });
@@ -297,7 +304,9 @@ function getConnectionStats() {
  */
 function getIO() {
   if (!io) {
-    throw new Error('WebSocket not initialized. Call initializeWebSocket first.');
+    throw new Error(
+      'WebSocket not initialized. Call initializeWebSocket first.'
+    );
   }
   return io;
 }
@@ -356,6 +365,10 @@ module.exports = {
     if (io) io.to(`project:${projectId}`).emit('project:complete', result);
   },
   broadcastProjectError: (projectId, error) => {
-    if (io) io.to(`project:${projectId}`).emit('project:error', { error: error.message || error });
+    if (io) {
+      io.to(`project:${projectId}`).emit('project:error', {
+        error: error.message || error
+      });
+    }
   }
 };

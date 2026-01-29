@@ -2,7 +2,7 @@
  * External API Client
  * Unified client for all external API integrations with circuit breakers,
  * caching, fallback strategies, and health monitoring
- * 
+ *
  * Features:
  * - Circuit breaker protection for each service
  * - Response caching for GET requests
@@ -81,7 +81,7 @@ class ExternalAPIClient {
    */
   async callGitHub(endpoint, options = {}) {
     const cacheKey = `github:${endpoint}:${JSON.stringify(options)}`;
-    
+
     // Try cache first for GET requests
     if (options.method === 'GET' || !options.method) {
       const cached = await this._getCached(cacheKey);
@@ -94,14 +94,14 @@ class ExternalAPIClient {
     // Call with circuit breaker
     const result = await this.breakers.github.execute(async () => {
       const startTime = Date.now();
-      
+
       try {
         const response = await axios({
           url: `https://api.github.com${endpoint}`,
           method: options.method || 'GET',
           headers: {
-            'Authorization': `Bearer ${process.env.GITHUB_TOKEN}`,
-            'Accept': 'application/vnd.github.v3+json',
+            Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
+            Accept: 'application/vnd.github.v3+json',
             ...options.headers
           },
           timeout: this.config.timeout,
@@ -117,14 +117,13 @@ class ExternalAPIClient {
         }
 
         await this._logAPICall('github', endpoint, 'success', { duration });
-        
-        return response.data;
 
+        return response.data;
       } catch (error) {
         const duration = Date.now() - startTime;
-        await this._logAPICall('github', endpoint, 'error', { 
-          duration, 
-          error: error.message 
+        await this._logAPICall('github', endpoint, 'error', {
+          duration,
+          error: error.message
         });
         throw error;
       }
@@ -161,19 +160,18 @@ class ExternalAPIClient {
         this.requestCount.anthropic++;
         const duration = Date.now() - startTime;
 
-        await this._logAPICall('anthropic', 'messages', 'success', { 
+        await this._logAPICall('anthropic', 'messages', 'success', {
           duration,
           model: payload.model,
           tokens: response.data.usage
         });
 
         return response.data;
-
       } catch (error) {
         const duration = Date.now() - startTime;
-        await this._logAPICall('anthropic', 'messages', 'error', { 
-          duration, 
-          error: error.message 
+        await this._logAPICall('anthropic', 'messages', 'error', {
+          duration,
+          error: error.message
         });
         throw error;
       }
@@ -196,7 +194,7 @@ class ExternalAPIClient {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+            Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
             ...options.headers
           },
           data: payload,
@@ -207,19 +205,18 @@ class ExternalAPIClient {
         this.requestCount.openai++;
         const duration = Date.now() - startTime;
 
-        await this._logAPICall('openai', 'chat/completions', 'success', { 
+        await this._logAPICall('openai', 'chat/completions', 'success', {
           duration,
           model: payload.model,
           tokens: response.data.usage
         });
 
         return response.data;
-
       } catch (error) {
         const duration = Date.now() - startTime;
-        await this._logAPICall('openai', 'chat/completions', 'error', { 
-          duration, 
-          error: error.message 
+        await this._logAPICall('openai', 'chat/completions', 'error', {
+          duration,
+          error: error.message
         });
         throw error;
       }
@@ -234,7 +231,7 @@ class ExternalAPIClient {
    */
   async callOllama(payload, options = {}) {
     const ollamaHost = process.env.OLLAMA_HOST || 'http://localhost:11434';
-    
+
     return await this.breakers.ollama.execute(async () => {
       const startTime = Date.now();
 
@@ -254,18 +251,17 @@ class ExternalAPIClient {
         this.requestCount.ollama++;
         const duration = Date.now() - startTime;
 
-        await this._logAPICall('ollama', 'generate', 'success', { 
+        await this._logAPICall('ollama', 'generate', 'success', {
           duration,
           model: payload.model
         });
 
         return response.data;
-
       } catch (error) {
         const duration = Date.now() - startTime;
-        await this._logAPICall('ollama', 'generate', 'error', { 
-          duration, 
-          error: error.message 
+        await this._logAPICall('ollama', 'generate', 'error', {
+          duration,
+          error: error.message
         });
         throw error;
       }
@@ -283,8 +279,11 @@ class ExternalAPIClient {
     try {
       return await primaryFn();
     } catch (error) {
-      console.warn(`Primary service failed, attempting fallback:`, error.message);
-      
+      console.warn(
+        'Primary service failed, attempting fallback:',
+        error.message
+      );
+
       if (this.config.enableLogging && this.auditLogger) {
         await this.auditLogger.log({
           category: 'external_api',
@@ -305,7 +304,7 @@ class ExternalAPIClient {
           throw fallbackError;
         }
       }
-      
+
       throw error;
     }
   }
@@ -335,12 +334,13 @@ class ExternalAPIClient {
         async () => {
           const response = await this.callOllama({
             model: 'llama2',
-            prompt: prompt
+            prompt
           });
           return response.response;
         }
       );
-    } else if (preferredModel === 'openai' && process.env.OPENAI_API_KEY) {
+    }
+    if (preferredModel === 'openai' && process.env.OPENAI_API_KEY) {
       return await this.callWithFallback(
         // Primary: OpenAI
         async () => {
@@ -355,19 +355,18 @@ class ExternalAPIClient {
         async () => {
           const response = await this.callOllama({
             model: 'llama2',
-            prompt: prompt
+            prompt
           });
           return response.response;
         }
       );
-    } else {
-      // Default to Ollama
-      const response = await this.callOllama({
-        model: options.model || 'llama2',
-        prompt: prompt
-      });
-      return response.response;
     }
+    // Default to Ollama
+    const response = await this.callOllama({
+      model: options.model || 'llama2',
+      prompt
+    });
+    return response.response;
   }
 
   /**
@@ -381,7 +380,7 @@ class ExternalAPIClient {
     try {
       if (process.env.GITHUB_TOKEN) {
         const response = await axios.get('https://api.github.com/rate_limit', {
-          headers: { 'Authorization': `Bearer ${process.env.GITHUB_TOKEN}` },
+          headers: { Authorization: `Bearer ${process.env.GITHUB_TOKEN}` },
           timeout: 5000
         });
         checks.github = {
@@ -396,8 +395,8 @@ class ExternalAPIClient {
         checks.github = { status: 'not_configured' };
       }
     } catch (error) {
-      checks.github = { 
-        status: 'unhealthy', 
+      checks.github = {
+        status: 'unhealthy',
         error: error.message,
         circuitBreaker: {
           state: this.breakers.github.state
@@ -407,7 +406,7 @@ class ExternalAPIClient {
 
     // Anthropic
     if (process.env.ANTHROPIC_API_KEY) {
-      checks.anthropic = { 
+      checks.anthropic = {
         status: 'configured',
         circuitBreaker: {
           state: this.breakers.anthropic.state,
@@ -420,7 +419,7 @@ class ExternalAPIClient {
 
     // OpenAI
     if (process.env.OPENAI_API_KEY) {
-      checks.openai = { 
+      checks.openai = {
         status: 'configured',
         circuitBreaker: {
           state: this.breakers.openai.state,
@@ -435,7 +434,7 @@ class ExternalAPIClient {
     try {
       const ollamaHost = process.env.OLLAMA_HOST || 'http://localhost:11434';
       await axios.get(`${ollamaHost}/api/tags`, { timeout: 5000 });
-      checks.ollama = { 
+      checks.ollama = {
         status: 'healthy',
         circuitBreaker: {
           state: this.breakers.ollama.state,
@@ -443,8 +442,8 @@ class ExternalAPIClient {
         }
       };
     } catch (error) {
-      checks.ollama = { 
-        status: 'unhealthy', 
+      checks.ollama = {
+        status: 'unhealthy',
         error: error.message,
         circuitBreaker: {
           state: this.breakers.ollama.state

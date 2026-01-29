@@ -1,10 +1,10 @@
 /**
  * Enhanced Audit Logging Service
  * =============================
- * 
+ *
  * Comprehensive audit logging with retention policies, security monitoring,
  * and compliance features (GDPR, SOC 2, PCI DSS).
- * 
+ *
  * Features:
  * - Automatic audit trail for all system activities
  * - Retention policies with automatic archiving
@@ -14,13 +14,14 @@
  * - GDPR compliance (right to be forgotten)
  */
 
-import pool from '../config/database.js';
 import geoip from 'geoip-lite';
+import pool from '../config/database.js';
+import logger from '../utils/logger.js';
 
 class AuditService {
   /**
    * Log an audit event
-   * 
+   *
    * @param {Object} options - Audit log options
    * @param {number} options.userId - User ID (optional)
    * @param {string} options.username - Username (optional)
@@ -55,12 +56,10 @@ class AuditService {
       const geo = options.ipAddress ? geoip.lookup(options.ipAddress) : null;
 
       // Detect suspicious activity
-      const isSuspicious = options.isSuspicious || 
-        await this.detectSuspiciousActivity(options);
+      const isSuspicious = options.isSuspicious || (await this.detectSuspiciousActivity(options));
 
       // Determine risk level
-      const riskLevel = options.riskLevel || 
-        this.calculateRiskLevel(options, isSuspicious);
+      const riskLevel = options.riskLevel || this.calculateRiskLevel(options, isSuspicious);
 
       const query = `
         INSERT INTO audit_logs (
@@ -128,7 +127,7 @@ class AuditService {
 
       return result.rows[0];
     } catch (error) {
-      console.error('Audit logging error:', error);
+      logger.error('Audit logging error:', error);
       // Don't throw - audit failures shouldn't break the application
       return null;
     }
@@ -155,13 +154,13 @@ class AuditService {
 
     const sanitize = (obj) => {
       if (typeof obj !== 'object' || obj === null) return obj;
-      
+
       const sanitized = Array.isArray(obj) ? [] : {};
-      
+
       for (const [key, value] of Object.entries(obj)) {
         const lowerKey = key.toLowerCase();
-        
-        if (sensitiveFields.some(field => lowerKey.includes(field))) {
+
+        if (sensitiveFields.some((field) => lowerKey.includes(field))) {
           sanitized[key] = '[REDACTED]';
         } else if (typeof value === 'object' && value !== null) {
           sanitized[key] = sanitize(value);
@@ -169,7 +168,7 @@ class AuditService {
           sanitized[key] = value;
         }
       }
-      
+
       return sanitized;
     };
 
@@ -187,7 +186,7 @@ class AuditService {
         options.action,
         5 // minutes
       );
-      
+
       if (recentFailures >= 5) {
         return true;
       }
@@ -232,7 +231,9 @@ class AuditService {
       return 'low';
     }
 
-    if (['admin_action', 'user_delete', 'key_rotation'].includes(options.action)) {
+    if (
+      ['admin_action', 'user_delete', 'key_rotation'].includes(options.action)
+    ) {
       return 'medium';
     }
 
@@ -243,15 +244,21 @@ class AuditService {
    * Categorize action for security events
    */
   categorizeAction(action) {
-    const authActions = ['login', 'logout', 'register', 'password_change', 'mfa_setup'];
+    const authActions = [
+      'login',
+      'logout',
+      'register',
+      'password_change',
+      'mfa_setup'
+    ];
     const authzActions = ['permission_denied', 'unauthorized_access'];
     const dataActions = ['data_export', 'data_delete', 'data_update'];
     const apiActions = ['rate_limit_exceeded', 'invalid_api_key'];
 
-    if (authActions.some(a => action.includes(a))) return 'authentication';
-    if (authzActions.some(a => action.includes(a))) return 'authorization';
-    if (dataActions.some(a => action.includes(a))) return 'data_access';
-    if (apiActions.some(a => action.includes(a))) return 'api_abuse';
+    if (authActions.some((a) => action.includes(a))) return 'authentication';
+    if (authzActions.some((a) => action.includes(a))) return 'authorization';
+    if (dataActions.some((a) => action.includes(a))) return 'data_access';
+    if (apiActions.some((a) => action.includes(a))) return 'api_abuse';
 
     return 'security_violation';
   }
@@ -288,7 +295,7 @@ class AuditService {
     `;
 
     const result = await pool.query(query, [userId]);
-    return result.rows.map(row => row.ip_address);
+    return result.rows.map((row) => row.ip_address);
   }
 
   /**
@@ -408,9 +415,7 @@ class AuditService {
       values.push(riskLevel);
     }
 
-    const whereClause = conditions.length > 0 
-      ? `WHERE ${conditions.join(' AND ')}`
-      : '';
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
     const offset = (page - 1) * limit;
 
@@ -453,11 +458,11 @@ class AuditService {
     try {
       const result = await pool.query('SELECT archive_old_audit_logs()');
       const archived = result.rows[0].archive_old_audit_logs;
-      
-      console.log(`Archived ${archived} audit logs`);
+
+      logger.info(`Archived ${archived} audit logs`);
       return archived;
     } catch (error) {
-      console.error('Error archiving audit logs:', error);
+      logger.error('Error archiving audit logs:', error);
       throw error;
     }
   }
@@ -469,11 +474,11 @@ class AuditService {
     try {
       const result = await pool.query('SELECT delete_archived_audit_logs()');
       const deleted = result.rows[0].delete_archived_audit_logs;
-      
-      console.log(`Deleted ${deleted} archived audit logs`);
+
+      logger.info(`Deleted ${deleted} archived audit logs`);
       return deleted;
     } catch (error) {
-      console.error('Error deleting archived logs:', error);
+      logger.error('Error deleting archived logs:', error);
       throw error;
     }
   }
@@ -521,19 +526,17 @@ class AuditService {
     if (logs.length === 0) return '';
 
     const headers = Object.keys(logs[0]);
-    const rows = logs.map(log => 
-      headers.map(header => {
+    const rows = logs.map((log) => headers
+      .map((header) => {
         const value = log[header];
         if (value === null) return '';
         if (typeof value === 'object') return JSON.stringify(value);
         return String(value).replace(/"/g, '""');
-      }).map(v => `"${v}"`).join(',')
-    );
+      })
+      .map((v) => `"${v}"`)
+      .join(','));
 
-    return [
-      headers.join(','),
-      ...rows
-    ].join('\n');
+    return [headers.join(','), ...rows].join('\n');
   }
 
   /**

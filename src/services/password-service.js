@@ -1,20 +1,21 @@
 /**
  * Password Policy Service
  * =======================
- * 
+ *
  * Comprehensive password management service with:
  * - Password strength validation
  * - Password history tracking
  * - Password expiration policies
  * - Password reuse prevention
  * - Security recommendations
- * 
+ *
  * Compliant with: OWASP, NIST, PCI DSS, SOC 2
  */
 
 import bcrypt from 'bcrypt';
 import pool from '../config/database.js';
 import auditService from './audit-service.js';
+import logger from '../utils/logger.js';
 
 const SALT_ROUNDS = 10;
 
@@ -36,9 +37,25 @@ const POLICY = {
 
 // Common passwords to reject (top 100 most common)
 const COMMON_PASSWORDS = [
-  'password', 'password123', '123456', '12345678', 'qwerty', 'abc123',
-  '111111', '123123', 'admin', 'letmein', 'welcome', 'monkey', '1234567890',
-  'password1', 'Password1', 'Password123', 'admin123', 'root', 'toor'
+  'password',
+  'password123',
+  '123456',
+  '12345678',
+  'qwerty',
+  'abc123',
+  '111111',
+  '123123',
+  'admin',
+  'letmein',
+  'welcome',
+  'monkey',
+  '1234567890',
+  'password1',
+  'Password1',
+  'Password123',
+  'admin123',
+  'root',
+  'toor'
   // Add more as needed
 ];
 
@@ -52,7 +69,9 @@ class PasswordService {
 
     // Length check
     if (password.length < POLICY.minLength) {
-      errors.push(`Password must be at least ${POLICY.minLength} characters long`);
+      errors.push(
+        `Password must be at least ${POLICY.minLength} characters long`
+      );
     }
     if (password.length > POLICY.maxLength) {
       errors.push(`Password must not exceed ${POLICY.maxLength} characters`);
@@ -68,7 +87,10 @@ class PasswordService {
     if (POLICY.requireNumbers && !/[0-9]/.test(password)) {
       errors.push('Password must contain at least one number');
     }
-    if (POLICY.requireSpecialChars && !/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
+    if (
+      POLICY.requireSpecialChars
+      && !/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)
+    ) {
       errors.push('Password must contain at least one special character');
     }
 
@@ -76,15 +98,22 @@ class PasswordService {
     if (POLICY.commonPasswordsCheck) {
       const lowerPassword = password.toLowerCase();
       if (COMMON_PASSWORDS.includes(lowerPassword)) {
-        errors.push('Password is too common. Please choose a more unique password');
+        errors.push(
+          'Password is too common. Please choose a more unique password'
+        );
       }
     }
 
     // User info check (prevent using email, name in password)
     if (userInfo.email) {
       const emailParts = userInfo.email.toLowerCase().split('@')[0];
-      if (password.toLowerCase().includes(emailParts) && emailParts.length > 3) {
-        warnings.push('Password should not contain parts of your email address');
+      if (
+        password.toLowerCase().includes(emailParts)
+        && emailParts.length > 3
+      ) {
+        warnings.push(
+          'Password should not contain parts of your email address'
+        );
       }
     }
 
@@ -101,7 +130,11 @@ class PasswordService {
     if (/(.)\1{2,}/.test(password)) {
       warnings.push('Password contains repeated characters');
     }
-    if (/(?:abc|bcd|cde|def|efg|fgh|ghi|hij|ijk|jkl|klm|lmn|mno|nop|opq|pqr|qrs|rst|stu|tuv|uvw|vwx|wxy|xyz)/i.test(password)) {
+    if (
+      /(?:abc|bcd|cde|def|efg|fgh|ghi|hij|ijk|jkl|klm|lmn|mno|nop|opq|pqr|qrs|rst|stu|tuv|uvw|vwx|wxy|xyz)/i.test(
+        password
+      )
+    ) {
       warnings.push('Password contains sequential characters');
     }
     if (/(?:012|123|234|345|456|567|678|789|890)/.test(password)) {
@@ -182,7 +215,7 @@ class PasswordService {
 
       return { reused: false };
     } catch (error) {
-      console.error('Error checking password history:', error);
+      logger.error('Error checking password history:', error);
       throw error;
     }
   }
@@ -207,7 +240,9 @@ class PasswordService {
 
       const lastChanged = new Date(result.rows[0].changed_at);
       const now = new Date();
-      const daysSinceChange = Math.floor((now - lastChanged) / (1000 * 60 * 60 * 24));
+      const daysSinceChange = Math.floor(
+        (now - lastChanged) / (1000 * 60 * 60 * 24)
+      );
 
       if (daysSinceChange < POLICY.minAge) {
         return {
@@ -219,7 +254,7 @@ class PasswordService {
 
       return { allowed: true };
     } catch (error) {
-      console.error('Error checking password change eligibility:', error);
+      logger.error('Error checking password change eligibility:', error);
       throw error;
     }
   }
@@ -260,7 +295,7 @@ class PasswordService {
         riskLevel: 'medium'
       });
     } catch (error) {
-      console.error('Error saving password history:', error);
+      logger.error('Error saving password history:', error);
       throw error;
     }
   }
@@ -285,7 +320,7 @@ class PasswordService {
           'SELECT created_at FROM users WHERE id = $1',
           [userId]
         );
-        
+
         if (userResult.rows.length === 0) {
           throw new Error('User not found');
         }
@@ -295,26 +330,33 @@ class PasswordService {
 
       const lastChanged = new Date(result.rows[0].changed_at);
       const now = new Date();
-      const daysSinceChange = Math.floor((now - lastChanged) / (1000 * 60 * 60 * 24));
+      const daysSinceChange = Math.floor(
+        (now - lastChanged) / (1000 * 60 * 60 * 24)
+      );
 
       const isExpired = daysSinceChange >= POLICY.expirationDays;
-      const expiresWithinWarningPeriod = 
-        !isExpired && daysSinceChange >= (POLICY.expirationDays - POLICY.warningDays);
+      const expiresWithinWarningPeriod = !isExpired
+        && daysSinceChange >= POLICY.expirationDays - POLICY.warningDays;
 
       return {
         expired: isExpired,
         warning: expiresWithinWarningPeriod,
         daysSinceChange,
-        daysUntilExpiration: Math.max(0, POLICY.expirationDays - daysSinceChange),
+        daysUntilExpiration: Math.max(
+          0,
+          POLICY.expirationDays - daysSinceChange
+        ),
         lastChanged,
-        expirationDate: new Date(lastChanged.getTime() + (POLICY.expirationDays * 24 * 60 * 60 * 1000)),
+        expirationDate: new Date(
+          lastChanged.getTime() + POLICY.expirationDays * 24 * 60 * 60 * 1000
+        ),
         policy: {
           expirationDays: POLICY.expirationDays,
           warningDays: POLICY.warningDays
         }
       };
     } catch (error) {
-      console.error('Error checking password expiration:', error);
+      logger.error('Error checking password expiration:', error);
       throw error;
     }
   }
@@ -352,9 +394,11 @@ class PasswordService {
 
       const result = await pool.query(query);
 
-      const expired = result.rows.filter(r => r.status === 'expired');
-      const expiringSoon = result.rows.filter(r => r.status === 'expiring_soon');
-      const valid = result.rows.filter(r => r.status === 'valid');
+      const expired = result.rows.filter((r) => r.status === 'expired');
+      const expiringSoon = result.rows.filter(
+        (r) => r.status === 'expiring_soon'
+      );
+      const valid = result.rows.filter((r) => r.status === 'valid');
 
       return {
         total: result.rows.length,
@@ -364,7 +408,7 @@ class PasswordService {
         users: result.rows
       };
     } catch (error) {
-      console.error('Error getting password expiration report:', error);
+      logger.error('Error getting password expiration report:', error);
       throw error;
     }
   }
@@ -395,7 +439,7 @@ class PasswordService {
         reason
       };
     } catch (error) {
-      console.error('Error forcing password reset:', error);
+      logger.error('Error forcing password reset:', error);
       throw error;
     }
   }
@@ -435,7 +479,7 @@ class PasswordService {
         policy: POLICY
       };
     } catch (error) {
-      console.error('Error updating password policy:', error);
+      logger.error('Error updating password policy:', error);
       throw error;
     }
   }
@@ -464,7 +508,10 @@ class PasswordService {
     }
 
     // Shuffle the password
-    return password.split('').sort(() => Math.random() - 0.5).join('');
+    return password
+      .split('')
+      .sort(() => Math.random() - 0.5)
+      .join('');
   }
 }
 

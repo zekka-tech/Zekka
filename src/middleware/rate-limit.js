@@ -45,10 +45,9 @@ export const authLimiter = rateLimit({
   legacyHeaders: false, // Disable `X-RateLimit-*` headers
   skipSuccessfulRequests: true, // Don't count successful requests
   skipFailedRequests: false, // Count failed requests
-  keyGenerator: (req) => {
+  keyGenerator: (req) =>
     // Rate limit by IP address
-    return req.ip || req.connection.remoteAddress;
-  },
+    req.ip || req.connection.remoteAddress,
   handler: (req, res) => {
     res.status(429).json({
       success: false,
@@ -75,10 +74,9 @@ export const apiLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => {
+  keyGenerator: (req) =>
     // Rate limit by user ID if authenticated, otherwise IP
-    return req.user?.id || req.ip || req.connection.remoteAddress;
-  },
+    req.user?.id || req.ip || req.connection.remoteAddress,
   handler: (req, res) => {
     res.status(429).json({
       success: false,
@@ -105,14 +103,13 @@ export const strictLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => {
-    return req.user?.id || req.ip || req.connection.remoteAddress;
-  },
+  keyGenerator: (req) => req.user?.id || req.ip || req.connection.remoteAddress,
   handler: (req, res) => {
     res.status(429).json({
       success: false,
       error: 'Rate limit exceeded',
-      message: 'You have exceeded the limit for this operation. Please try again in an hour.',
+      message:
+        'You have exceeded the limit for this operation. Please try again in an hour.',
       retryAfter: 3600
     });
   },
@@ -133,9 +130,7 @@ export const createProjectLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => {
-    return req.user?.id || req.ip;
-  },
+  keyGenerator: (req) => req.user?.id || req.ip,
   skipFailedRequests: true, // Don't count failed creations
   store: createRedisStore('project-create')
 });
@@ -206,9 +201,7 @@ export const fileUploadLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => {
-    return req.user?.id || req.ip;
-  },
+  keyGenerator: (req) => req.user?.id || req.ip,
   store: createRedisStore('file-upload')
 });
 
@@ -226,9 +219,7 @@ export const aiOperationLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => {
-    return req.user?.id || req.ip;
-  },
+  keyGenerator: (req) => req.user?.id || req.ip,
   store: createRedisStore('ai-operation')
 });
 
@@ -261,13 +252,10 @@ export const adminLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => {
-    return req.user?.id || req.ip;
-  },
-  skip: (req) => {
+  keyGenerator: (req) => req.user?.id || req.ip,
+  skip: (req) =>
     // Skip rate limiting for super admins
-    return req.user?.role === 'super_admin';
-  },
+    req.user?.role === 'super_admin',
   store: createRedisStore('admin')
 });
 

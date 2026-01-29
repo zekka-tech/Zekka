@@ -14,6 +14,7 @@
 
 const { createClient } = require('redis');
 const config = require('./index.js');
+const logger = require('../utils/logger');
 
 // Cache key patterns for different data types
 const CACHE_KEYS = {
@@ -52,15 +53,15 @@ const CACHE_KEYS = {
 
 // TTL configurations (in seconds)
 const TTL = {
-  SHORT: 300,           // 5 minutes
-  MEDIUM: 1800,         // 30 minutes
-  LONG: 3600,           // 1 hour
-  DAILY: 86400,         // 24 hours
-  WEEKLY: 604800,       // 7 days
-  SESSION: 7200,        // 2 hours
-  LOCK: 300,            // 5 minutes
-  TEMP: 60,             // 1 minute
-  RATE_LIMIT: 900       // 15 minutes
+  SHORT: 300, // 5 minutes
+  MEDIUM: 1800, // 30 minutes
+  LONG: 3600, // 1 hour
+  DAILY: 86400, // 24 hours
+  WEEKLY: 604800, // 7 days
+  SESSION: 7200, // 2 hours
+  LOCK: 300, // 5 minutes
+  TEMP: 60, // 1 minute
+  RATE_LIMIT: 900 // 15 minutes
 };
 
 // Create Redis client
@@ -71,7 +72,7 @@ const redis = createClient({
     connectTimeout: 5000,
     reconnectStrategy: (retries) => {
       if (retries > 10) {
-        console.error('❌ Redis max retries exceeded');
+        logger.error('❌ Redis max retries exceeded');
         return new Error('Redis connection failed');
       }
       // Exponential backoff: 50ms, 100ms, 200ms, etc.
@@ -86,23 +87,23 @@ const redis = createClient({
 
 // Error handling
 redis.on('error', (err) => {
-  console.error('❌ Redis client error:', err);
+  logger.error('❌ Redis client error:', err);
 });
 
 redis.on('connect', () => {
-  console.log('✅ Redis client connecting...');
+  logger.info('✅ Redis client connecting...');
 });
 
 redis.on('ready', () => {
-  console.log('✅ Redis client connected and ready');
+  logger.info('✅ Redis client connected and ready');
 });
 
 redis.on('reconnecting', () => {
-  console.log('⚠️  Redis client reconnecting...');
+  logger.info('⚠️  Redis client reconnecting...');
 });
 
 redis.on('end', () => {
-  console.log('⚠️  Redis client connection closed');
+  logger.info('⚠️  Redis client connection closed');
 });
 
 /**
@@ -111,10 +112,10 @@ redis.on('end', () => {
 async function connectRedis() {
   try {
     await redis.connect();
-    console.log('✅ Redis connection established');
+    logger.info('✅ Redis connection established');
     return redis;
   } catch (error) {
-    console.error('❌ Failed to connect to Redis:', error);
+    logger.error('❌ Failed to connect to Redis:', error);
     throw error;
   }
 }
@@ -127,7 +128,7 @@ async function healthCheck() {
     const pong = await redis.ping();
     return pong === 'PONG';
   } catch (error) {
-    console.error('❌ Redis health check failed:', error);
+    logger.error('❌ Redis health check failed:', error);
     return false;
   }
 }
@@ -140,7 +141,7 @@ async function getStats() {
     const info = await redis.info('stats');
     return info;
   } catch (error) {
-    console.error('❌ Failed to get Redis stats:', error);
+    logger.error('❌ Failed to get Redis stats:', error);
     return null;
   }
 }
@@ -151,9 +152,9 @@ async function getStats() {
 async function closeRedis() {
   try {
     await redis.quit();
-    console.log('✅ Redis connection closed gracefully');
+    logger.info('✅ Redis connection closed gracefully');
   } catch (error) {
-    console.error('❌ Error closing Redis connection:', error);
+    logger.error('❌ Error closing Redis connection:', error);
     await redis.disconnect();
   }
 }
@@ -171,7 +172,7 @@ const cache = {
       await redis.setEx(key, ttl, serialized);
       return true;
     } catch (error) {
-      console.error(`❌ Error setting cache key ${key}:`, error);
+      logger.error(`❌ Error setting cache key ${key}:`, error);
       return false;
     }
   },
@@ -188,7 +189,7 @@ const cache = {
       if (error instanceof SyntaxError) {
         return await redis.get(key);
       }
-      console.error(`❌ Error getting cache key ${key}:`, error);
+      logger.error(`❌ Error getting cache key ${key}:`, error);
       return null;
     }
   },
@@ -200,7 +201,7 @@ const cache = {
     try {
       return await redis.del(key);
     } catch (error) {
-      console.error(`❌ Error deleting cache key ${key}:`, error);
+      logger.error(`❌ Error deleting cache key ${key}:`, error);
       return 0;
     }
   },
@@ -212,7 +213,7 @@ const cache = {
     try {
       return await redis.exists(key);
     } catch (error) {
-      console.error(`❌ Error checking cache key ${key}:`, error);
+      logger.error(`❌ Error checking cache key ${key}:`, error);
       return 0;
     }
   },
@@ -222,10 +223,10 @@ const cache = {
    */
   async lpush(key, ...values) {
     try {
-      const serialized = values.map(v => typeof v === 'string' ? v : JSON.stringify(v));
+      const serialized = values.map((v) => (typeof v === 'string' ? v : JSON.stringify(v)));
       return await redis.lPush(key, serialized);
     } catch (error) {
-      console.error(`❌ Error pushing to list ${key}:`, error);
+      logger.error(`❌ Error pushing to list ${key}:`, error);
       return null;
     }
   },
@@ -237,7 +238,7 @@ const cache = {
     try {
       const values = await redis.lRange(key, start, stop);
       if (!parseJson) return values;
-      return values.map(v => {
+      return values.map((v) => {
         try {
           return JSON.parse(v);
         } catch {
@@ -245,7 +246,7 @@ const cache = {
         }
       });
     } catch (error) {
-      console.error(`❌ Error getting list range ${key}:`, error);
+      logger.error(`❌ Error getting list range ${key}:`, error);
       return [];
     }
   },
@@ -257,7 +258,7 @@ const cache = {
     try {
       return await redis.sAdd(key, members);
     } catch (error) {
-      console.error(`❌ Error adding to set ${key}:`, error);
+      logger.error(`❌ Error adding to set ${key}:`, error);
       return null;
     }
   },
@@ -269,7 +270,7 @@ const cache = {
     try {
       return await redis.sMembers(key);
     } catch (error) {
-      console.error(`❌ Error getting set members ${key}:`, error);
+      logger.error(`❌ Error getting set members ${key}:`, error);
       return [];
     }
   },
@@ -285,7 +286,7 @@ const cache = {
       }
       return value;
     } catch (error) {
-      console.error(`❌ Error incrementing key ${key}:`, error);
+      logger.error(`❌ Error incrementing key ${key}:`, error);
       return null;
     }
   },
@@ -302,14 +303,14 @@ const cache = {
       }
       return 0;
     } catch (error) {
-      console.error(`❌ Error clearing cache by pattern ${pattern}:`, error);
+      logger.error(`❌ Error clearing cache by pattern ${pattern}:`, error);
       return 0;
     }
   }
 };
 
 // Auto-connect on module load
-connectRedis().catch(console.error);
+connectRedis().catch(logger.error);
 
 module.exports = redis;
 module.exports.connectRedis = connectRedis;

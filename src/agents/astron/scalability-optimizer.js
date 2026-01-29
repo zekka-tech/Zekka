@@ -102,9 +102,11 @@ class ScalabilityOptimizer extends EventEmitter {
       });
 
       return analysis;
-
     } catch (error) {
-      this.logger.error('[Astron:Scalability] Performance analysis failed:', error);
+      this.logger.error(
+        '[Astron:Scalability] Performance analysis failed:',
+        error
+      );
       throw error;
     }
   }
@@ -163,7 +165,7 @@ class ScalabilityOptimizer extends EventEmitter {
         type: 'concurrency',
         severity: 'high',
         metric: 'concurrency',
-        current: metrics.concurrency.utilization + '%',
+        current: `${metrics.concurrency.utilization}%`,
         target: '< 80%',
         impact: 'Risk of request queuing and timeouts'
       });
@@ -175,7 +177,7 @@ class ScalabilityOptimizer extends EventEmitter {
         type: 'cpu',
         severity: 'medium',
         metric: 'cpu',
-        current: metrics.resources.cpu + '%',
+        current: `${metrics.resources.cpu}%`,
         target: '< 70%',
         impact: 'Processing slowdown'
       });
@@ -204,69 +206,69 @@ class ScalabilityOptimizer extends EventEmitter {
 
     for (const bottleneck of analysis.bottlenecks) {
       switch (bottleneck.type) {
-        case 'latency':
-          recommendations.push({
-            priority: 'high',
-            title: 'Optimize response time',
-            description: `Average response time (${bottleneck.current}ms) exceeds target (${bottleneck.target}ms)`,
-            actions: [
-              'Implement caching for frequently accessed data',
-              'Optimize database queries',
-              'Use CDN for static assets',
-              'Implement connection pooling'
-            ],
-            expectedImprovement: '30-40% reduction in response time',
-            autoApplicable: true
-          });
-          break;
+      case 'latency':
+        recommendations.push({
+          priority: 'high',
+          title: 'Optimize response time',
+          description: `Average response time (${bottleneck.current}ms) exceeds target (${bottleneck.target}ms)`,
+          actions: [
+            'Implement caching for frequently accessed data',
+            'Optimize database queries',
+            'Use CDN for static assets',
+            'Implement connection pooling'
+          ],
+          expectedImprovement: '30-40% reduction in response time',
+          autoApplicable: true
+        });
+        break;
 
-        case 'concurrency':
-          recommendations.push({
-            priority: 'critical',
-            title: 'Scale concurrent processing',
-            description: `Concurrency utilization at ${bottleneck.current}`,
-            actions: [
-              'Increase worker pool size',
-              'Implement horizontal scaling',
-              'Add load balancing',
-              'Optimize task scheduling'
-            ],
-            expectedImprovement: '2x increase in capacity',
-            autoApplicable: this.config.autoScale
-          });
-          break;
+      case 'concurrency':
+        recommendations.push({
+          priority: 'critical',
+          title: 'Scale concurrent processing',
+          description: `Concurrency utilization at ${bottleneck.current}`,
+          actions: [
+            'Increase worker pool size',
+            'Implement horizontal scaling',
+            'Add load balancing',
+            'Optimize task scheduling'
+          ],
+          expectedImprovement: '2x increase in capacity',
+          autoApplicable: this.config.autoScale
+        });
+        break;
 
-        case 'cpu':
-          recommendations.push({
-            priority: 'high',
-            title: 'Optimize CPU usage',
-            description: `CPU usage at ${bottleneck.current}`,
-            actions: [
-              'Profile and optimize hot paths',
-              'Implement algorithm optimizations',
-              'Move heavy processing to background jobs',
-              'Add CPU capacity'
-            ],
-            expectedImprovement: '20-30% reduction in CPU usage',
-            autoApplicable: false
-          });
-          break;
+      case 'cpu':
+        recommendations.push({
+          priority: 'high',
+          title: 'Optimize CPU usage',
+          description: `CPU usage at ${bottleneck.current}`,
+          actions: [
+            'Profile and optimize hot paths',
+            'Implement algorithm optimizations',
+            'Move heavy processing to background jobs',
+            'Add CPU capacity'
+          ],
+          expectedImprovement: '20-30% reduction in CPU usage',
+          autoApplicable: false
+        });
+        break;
 
-        case 'queue':
-          recommendations.push({
-            priority: 'medium',
-            title: 'Reduce queue depth',
-            description: `Queue depth at ${bottleneck.current} tasks`,
-            actions: [
-              'Increase processing rate',
-              'Implement priority queuing',
-              'Add more workers',
-              'Optimize task execution'
-            ],
-            expectedImprovement: '50% reduction in queue depth',
-            autoApplicable: true
-          });
-          break;
+      case 'queue':
+        recommendations.push({
+          priority: 'medium',
+          title: 'Reduce queue depth',
+          description: `Queue depth at ${bottleneck.current} tasks`,
+          actions: [
+            'Increase processing rate',
+            'Implement priority queuing',
+            'Add more workers',
+            'Optimize task execution'
+          ],
+          expectedImprovement: '50% reduction in queue depth',
+          autoApplicable: true
+        });
+        break;
       }
     }
 
@@ -279,10 +281,9 @@ class ScalabilityOptimizer extends EventEmitter {
   async checkScaling() {
     const metrics = await this.collectPerformanceMetrics();
 
-    const needsScaling = 
-      metrics.concurrency.utilization > this.config.scaleThreshold ||
-      metrics.queueDepth > 30 ||
-      metrics.responseTime.avg > this.config.targetResponseTime * 1.5;
+    const needsScaling = metrics.concurrency.utilization > this.config.scaleThreshold
+      || metrics.queueDepth > 30
+      || metrics.responseTime.avg > this.config.targetResponseTime * 1.5;
 
     if (needsScaling && this.config.autoScale) {
       await this.scaleUp(metrics);
@@ -327,10 +328,14 @@ class ScalabilityOptimizer extends EventEmitter {
 
       this.scalingEvents.push(scalingEvent);
 
-      await this.contextBus.publish('astron.scalability.scaled-up', scalingEvent);
+      await this.contextBus.publish(
+        'astron.scalability.scaled-up',
+        scalingEvent
+      );
 
-      this.logger.info(`[Astron:Scalability] Scaled up: ${metrics.concurrency.current} -> ${newLimit}`);
-
+      this.logger.info(
+        `[Astron:Scalability] Scaled up: ${metrics.concurrency.current} -> ${newLimit}`
+      );
     } catch (error) {
       this.logger.error('[Astron:Scalability] Scale up failed:', error);
     }
@@ -372,10 +377,14 @@ class ScalabilityOptimizer extends EventEmitter {
 
       this.scalingEvents.push(scalingEvent);
 
-      await this.contextBus.publish('astron.scalability.scaled-down', scalingEvent);
+      await this.contextBus.publish(
+        'astron.scalability.scaled-down',
+        scalingEvent
+      );
 
-      this.logger.info(`[Astron:Scalability] Scaled down: ${metrics.concurrency.current} -> ${newLimit}`);
-
+      this.logger.info(
+        `[Astron:Scalability] Scaled down: ${metrics.concurrency.current} -> ${newLimit}`
+      );
     } catch (error) {
       this.logger.error('[Astron:Scalability] Scale down failed:', error);
     }
@@ -402,11 +411,19 @@ class ScalabilityOptimizer extends EventEmitter {
    */
   getStatistics() {
     const recentMetrics = this.performanceMetrics.slice(-10);
-    const avgResponseTime = recentMetrics.length > 0 ?
-      recentMetrics.reduce((sum, m) => sum + m.metrics.responseTime.avg, 0) / recentMetrics.length : 0;
+    const avgResponseTime = recentMetrics.length > 0
+      ? recentMetrics.reduce(
+        (sum, m) => sum + m.metrics.responseTime.avg,
+        0
+      ) / recentMetrics.length
+      : 0;
 
-    const scaleUpEvents = this.scalingEvents.filter(e => e.direction === 'up').length;
-    const scaleDownEvents = this.scalingEvents.filter(e => e.direction === 'down').length;
+    const scaleUpEvents = this.scalingEvents.filter(
+      (e) => e.direction === 'up'
+    ).length;
+    const scaleDownEvents = this.scalingEvents.filter(
+      (e) => e.direction === 'down'
+    ).length;
 
     return {
       totalAnalyses: this.performanceMetrics.length,
@@ -416,7 +433,7 @@ class ScalabilityOptimizer extends EventEmitter {
         scaleUp: scaleUpEvents,
         scaleDown: scaleDownEvents
       },
-      recentMetrics: recentMetrics.map(m => ({
+      recentMetrics: recentMetrics.map((m) => ({
         timestamp: m.timestamp,
         responseTime: Math.round(m.metrics.responseTime.avg),
         throughput: Math.round(m.metrics.throughput.requestsPerSecond),
@@ -437,7 +454,9 @@ class ScalabilityOptimizer extends EventEmitter {
     }
 
     const recent = this.performanceMetrics.slice(-10);
-    const trend = this.calculateTrend(recent.map(m => m.metrics.concurrency.utilization));
+    const trend = this.calculateTrend(
+      recent.map((m) => m.metrics.concurrency.utilization)
+    );
 
     const prediction = {
       trend: trend > 5 ? 'increasing' : trend < -5 ? 'decreasing' : 'stable',

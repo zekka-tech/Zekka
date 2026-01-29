@@ -7,7 +7,13 @@
 const EventEmitter = require('events');
 
 class BusinessPlanGeneration extends EventEmitter {
-  constructor(contextBus, logger, contextConsolidation, researchAutomation, config = {}) {
+  constructor(
+    contextBus,
+    logger,
+    contextConsolidation,
+    researchAutomation,
+    config = {}
+  ) {
     super();
     this.contextBus = contextBus;
     this.logger = logger;
@@ -95,7 +101,9 @@ class BusinessPlanGeneration extends EventEmitter {
    * Generate comprehensive business plan
    */
   async generatePlan(projectId, options = {}) {
-    this.logger.info(`[BusinessPlan] Generating business plan for project: ${projectId}`);
+    this.logger.info(
+      `[BusinessPlan] Generating business plan for project: ${projectId}`
+    );
 
     const plan = {
       id: `bizplan-${projectId}-${Date.now()}`,
@@ -129,7 +137,11 @@ class BusinessPlanGeneration extends EventEmitter {
       // Generate each section
       for (const section of template.sections) {
         this.logger.info(`[BusinessPlan] Generating section: ${section}`);
-        plan.content[section] = await this.generateSection(section, context, options);
+        plan.content[section] = await this.generateSection(
+          section,
+          context,
+          options
+        );
       }
 
       // Generate financial models
@@ -166,14 +178,18 @@ class BusinessPlanGeneration extends EventEmitter {
         timestamp: plan.generatedAt
       });
 
-      this.logger.info(`[BusinessPlan] Generated plan for ${projectId}: ${plan.id}`);
+      this.logger.info(
+        `[BusinessPlan] Generated plan for ${projectId}: ${plan.id}`
+      );
 
       return plan;
-
     } catch (error) {
       plan.status = 'failed';
       plan.error = error.message;
-      this.logger.error(`[BusinessPlan] Failed to generate plan for ${projectId}:`, error);
+      this.logger.error(
+        `[BusinessPlan] Failed to generate plan for ${projectId}:`,
+        error
+      );
       throw error;
     }
   }
@@ -393,7 +409,7 @@ Become the ${options.vision || 'leading provider in our industry'}.
         grossProfit: revenue * 0.8,
         operatingExpenses: costs,
         netIncome: revenue - costs,
-        margin: ((revenue - costs) / revenue * 100).toFixed(2) + '%'
+        margin: `${(((revenue - costs) / revenue) * 100).toFixed(2)}%`
       });
     }
     return years;
@@ -402,18 +418,18 @@ Become the ${options.vision || 'leading provider in our industry'}.
   async buildCashFlowStatement(context, options) {
     const years = [];
     let cumulativeCash = options.initialCash || 0;
-    
+
     for (let year = 1; year <= this.config.projectionYears; year++) {
       const revenue = this.calculateRevenue(year, options);
       const costs = this.calculateCosts(year, options);
       const netCashFlow = revenue - costs;
       cumulativeCash += netCashFlow;
-      
+
       years.push({
         year,
         cashFromOperations: netCashFlow,
         cashFromInvesting: options.investingCashFlow || 0,
-        cashFromFinancing: year === 1 ? (options.fundingAmount || 0) : 0,
+        cashFromFinancing: year === 1 ? options.fundingAmount || 0 : 0,
         netCashFlow,
         cumulativeCash
       });
@@ -450,7 +466,7 @@ Become the ${options.vision || 'leading provider in our industry'}.
     const avgRevenue = options.avgRevenuePerCustomer || 1000;
     const variableCosts = avgRevenue * 0.3;
     const contributionMargin = avgRevenue - variableCosts;
-    
+
     return {
       fixedCosts,
       variableCostsPerUnit: variableCosts,
@@ -458,13 +474,14 @@ Become the ${options.vision || 'leading provider in our industry'}.
       contributionMargin,
       breakEvenUnits: Math.ceil(fixedCosts / contributionMargin),
       breakEvenRevenue: Math.ceil(fixedCosts / contributionMargin) * avgRevenue,
-      breakEvenMonth: Math.ceil((fixedCosts / contributionMargin) / 50) // Assuming 50 customers/month
+      breakEvenMonth: Math.ceil(fixedCosts / contributionMargin / 50) // Assuming 50 customers/month
     };
   }
 
   defineFinancialAssumptions(options) {
     return {
-      revenueGrowth: options.revenueGrowth || '100% year 1, 80% year 2, 60% year 3',
+      revenueGrowth:
+        options.revenueGrowth || '100% year 1, 80% year 2, 60% year 3',
       customerAcquisitionCost: options.cac || 100,
       lifetimeValue: options.ltv || 3000,
       churnRate: options.churnRate || '5% monthly',
@@ -479,7 +496,9 @@ Become the ${options.vision || 'leading provider in our industry'}.
   calculateRevenue(year, options) {
     const baseRevenue = options.year1Revenue || 100000;
     const growthRates = [1, 1.8, 1.6]; // 100%, 80%, 60% growth
-    return Math.round(baseRevenue * growthRates.slice(0, year).reduce((a, b) => a * b, 1));
+    return Math.round(
+      baseRevenue * growthRates.slice(0, year).reduce((a, b) => a * b, 1)
+    );
   }
 
   calculateCosts(year, options) {
@@ -488,7 +507,9 @@ Become the ${options.vision || 'leading provider in our industry'}.
   }
 
   calculateProfit(year, options) {
-    return this.calculateRevenue(year, options) - this.calculateCosts(year, options);
+    return (
+      this.calculateRevenue(year, options) - this.calculateCosts(year, options)
+    );
   }
 
   calculateCashFlow(year, options) {
@@ -496,7 +517,7 @@ Become the ${options.vision || 'leading provider in our industry'}.
   }
 
   projectCustomers(year, options) {
-    return Math.round((options.year1Customers || 100) * Math.pow(1.5, year - 1));
+    return Math.round((options.year1Customers || 100) * 1.5 ** (year - 1));
   }
 
   calculateARPC(year, options) {
@@ -518,7 +539,9 @@ Become the ${options.vision || 'leading provider in our industry'}.
   }
 
   calculateInventory(year, options) {
-    return options.inventoryNeeded ? this.calculateRevenue(year, options) * 0.05 : 0;
+    return options.inventoryNeeded
+      ? this.calculateRevenue(year, options) * 0.05
+      : 0;
   }
 
   calculateEquipment(year, options) {
@@ -547,7 +570,8 @@ Become the ${options.vision || 'leading provider in our industry'}.
   async generateOrganizationManagement(context, options) {
     return {
       title: 'Organization & Management',
-      content: 'Organizational structure, management team, board of directors, and advisors'
+      content:
+        'Organizational structure, management team, board of directors, and advisors'
     };
   }
 
@@ -578,9 +602,18 @@ Become the ${options.vision || 'leading provider in our industry'}.
     return {
       title: 'Risk Analysis',
       risks: [
-        { risk: 'Market Risk', mitigation: 'Diversify customer base and revenue streams' },
-        { risk: 'Competition', mitigation: 'Continuous innovation and strong customer relationships' },
-        { risk: 'Technology Risk', mitigation: 'Robust architecture and security measures' }
+        {
+          risk: 'Market Risk',
+          mitigation: 'Diversify customer base and revenue streams'
+        },
+        {
+          risk: 'Competition',
+          mitigation: 'Continuous innovation and strong customer relationships'
+        },
+        {
+          risk: 'Technology Risk',
+          mitigation: 'Robust architecture and security measures'
+        }
       ]
     };
   }
@@ -588,20 +621,30 @@ Become the ${options.vision || 'leading provider in our industry'}.
   async generateExitStrategy(context, options) {
     return {
       title: 'Exit Strategy',
-      content: 'Potential exit options: Acquisition, IPO, or continued private growth'
+      content:
+        'Potential exit options: Acquisition, IPO, or continued private growth'
     };
   }
 
   async generateProductOverview(context, options) {
-    return { title: 'Product Overview', content: 'Comprehensive product features and benefits' };
+    return {
+      title: 'Product Overview',
+      content: 'Comprehensive product features and benefits'
+    };
   }
 
   async generateTechnologyStack(context, options) {
-    return { title: 'Technology Stack', content: 'Modern, scalable technology infrastructure' };
+    return {
+      title: 'Technology Stack',
+      content: 'Modern, scalable technology infrastructure'
+    };
   }
 
   async generateGoToMarketStrategy(context, options) {
-    return { title: 'Go-to-Market Strategy', content: 'Phased market entry and growth strategy' };
+    return {
+      title: 'Go-to-Market Strategy',
+      content: 'Phased market entry and growth strategy'
+    };
   }
 
   async generatePricingModel(context, options) {
@@ -610,13 +653,20 @@ Become the ${options.vision || 'leading provider in our industry'}.
       tiers: [
         { name: 'Basic', price: '$29/month', features: 'Core features' },
         { name: 'Pro', price: '$99/month', features: 'Advanced features' },
-        { name: 'Enterprise', price: 'Custom', features: 'Full suite + support' }
+        {
+          name: 'Enterprise',
+          price: 'Custom',
+          features: 'Full suite + support'
+        }
       ]
     };
   }
 
   async generateCustomerAcquisition(context, options) {
-    return { title: 'Customer Acquisition', content: 'Multi-channel acquisition strategy' };
+    return {
+      title: 'Customer Acquisition',
+      content: 'Multi-channel acquisition strategy'
+    };
   }
 
   async generateMetricsKPIs(context, options) {
@@ -627,7 +677,10 @@ Become the ${options.vision || 'leading provider in our industry'}.
   }
 
   async generateRiskMitigation(context, options) {
-    return { title: 'Risk Mitigation', content: 'Proactive risk management strategies' };
+    return {
+      title: 'Risk Mitigation',
+      content: 'Proactive risk management strategies'
+    };
   }
 
   async generateProductCatalog(context, options) {
@@ -635,11 +688,17 @@ Become the ${options.vision || 'leading provider in our industry'}.
   }
 
   async generateSupplyChain(context, options) {
-    return { title: 'Supply Chain', content: 'End-to-end supply chain management' };
+    return {
+      title: 'Supply Chain',
+      content: 'End-to-end supply chain management'
+    };
   }
 
   async generateOperationsPlan(context, options) {
-    return { title: 'Operations Plan', content: 'Day-to-day operations and processes' };
+    return {
+      title: 'Operations Plan',
+      content: 'Day-to-day operations and processes'
+    };
   }
 
   async generateGrowthStrategy(context, options) {
@@ -647,11 +706,17 @@ Become the ${options.vision || 'leading provider in our industry'}.
   }
 
   async generateCompetitiveAdvantage(context, options) {
-    return { title: 'Competitive Advantage', content: 'Unique differentiators and moats' };
+    return {
+      title: 'Competitive Advantage',
+      content: 'Unique differentiators and moats'
+    };
   }
 
   async generateOrganizationalStructure(context, options) {
-    return { title: 'Organizational Structure', content: 'Scalable org structure' };
+    return {
+      title: 'Organizational Structure',
+      content: 'Scalable org structure'
+    };
   }
 
   async generateSalesStrategy(context, options) {
@@ -659,11 +724,17 @@ Become the ${options.vision || 'leading provider in our industry'}.
   }
 
   async generateRiskManagement(context, options) {
-    return { title: 'Risk Management', content: 'Enterprise risk management framework' };
+    return {
+      title: 'Risk Management',
+      content: 'Enterprise risk management framework'
+    };
   }
 
   async generateScalabilityPlan(context, options) {
-    return { title: 'Scalability Plan', content: 'Infrastructure and operational scalability' };
+    return {
+      title: 'Scalability Plan',
+      content: 'Infrastructure and operational scalability'
+    };
   }
 
   /**
@@ -673,9 +744,14 @@ Become the ${options.vision || 'leading provider in our industry'}.
     const topics = ['market size', 'competition', 'industry trends'];
     for (const topic of topics) {
       try {
-        await this.researchAutomation.research(`${context.data.project?.name} ${topic}`);
+        await this.researchAutomation.research(
+          `${context.data.project?.name} ${topic}`
+        );
       } catch (error) {
-        this.logger.error(`[BusinessPlan] Market research failed for ${topic}:`, error);
+        this.logger.error(
+          `[BusinessPlan] Market research failed for ${topic}:`,
+          error
+        );
       }
     }
   }
@@ -700,14 +776,14 @@ Become the ${options.vision || 'leading provider in our industry'}.
     }
 
     switch (format) {
-      case 'pdf':
-        return { message: 'PDF export would be generated here', plan };
-      case 'docx':
-        return { message: 'Word export would be generated here', plan };
-      case 'json':
-        return JSON.stringify(plan, null, 2);
-      default:
-        throw new Error(`Unsupported format: ${format}`);
+    case 'pdf':
+      return { message: 'PDF export would be generated here', plan };
+    case 'docx':
+      return { message: 'Word export would be generated here', plan };
+    case 'json':
+      return JSON.stringify(plan, null, 2);
+    default:
+      throw new Error(`Unsupported format: ${format}`);
     }
   }
 

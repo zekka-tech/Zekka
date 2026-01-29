@@ -18,7 +18,8 @@ const sourcesSchemas = {
       .valid('pending', 'processing', 'completed', 'failed', 'archived')
       .optional(),
     search: Joi.string().max(255).optional(),
-    limit: Joi.number().integer().min(1).max(100).default(20),
+    limit: Joi.number().integer().min(1).max(100)
+      .default(20),
     offset: Joi.number().integer().min(0).default(0)
   }),
 
@@ -152,10 +153,7 @@ const sourcesSchemas = {
     format: Joi.string()
       .valid('markdown', 'plain', 'structured', 'chunks')
       .default('markdown'),
-    chunkSize: Joi.number()
-      .integer()
-      .min(100)
-      .max(10000)
+    chunkSize: Joi.number().integer().min(100).max(10000)
       .optional(),
     includeMetadata: Joi.boolean().default(true)
   }),
@@ -165,7 +163,8 @@ const sourcesSchemas = {
    */
   searchSource: Joi.object({
     query: Joi.string().min(1).max(1000).required(),
-    limit: Joi.number().integer().min(1).max(100).default(20),
+    limit: Joi.number().integer().min(1).max(100)
+      .default(20),
     offset: Joi.number().integer().min(0).default(0)
   }),
 
@@ -173,11 +172,10 @@ const sourcesSchemas = {
    * Get source chunks
    */
   getSourceChunks: Joi.object({
-    limit: Joi.number().integer().min(1).max(100).default(20),
+    limit: Joi.number().integer().min(1).max(100)
+      .default(20),
     offset: Joi.number().integer().min(0).default(0),
-    format: Joi.string()
-      .valid('text', 'json', 'markdown')
-      .default('text')
+    format: Joi.string().valid('text', 'json', 'markdown').default('text')
   }),
 
   /**

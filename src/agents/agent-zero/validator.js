@@ -17,30 +17,98 @@ class ValidatorAgent extends BaseAgentZero {
    */
   initializeValidationRules() {
     return {
-      'code': [
-        { rule: 'syntax-valid', severity: 'critical', description: 'Code must be syntactically valid' },
-        { rule: 'no-security-issues', severity: 'critical', description: 'No security vulnerabilities' },
-        { rule: 'follows-standards', severity: 'high', description: 'Follows coding standards' },
-        { rule: 'has-tests', severity: 'high', description: 'Has adequate test coverage' },
-        { rule: 'documented', severity: 'medium', description: 'Is properly documented' }
+      code: [
+        {
+          rule: 'syntax-valid',
+          severity: 'critical',
+          description: 'Code must be syntactically valid'
+        },
+        {
+          rule: 'no-security-issues',
+          severity: 'critical',
+          description: 'No security vulnerabilities'
+        },
+        {
+          rule: 'follows-standards',
+          severity: 'high',
+          description: 'Follows coding standards'
+        },
+        {
+          rule: 'has-tests',
+          severity: 'high',
+          description: 'Has adequate test coverage'
+        },
+        {
+          rule: 'documented',
+          severity: 'medium',
+          description: 'Is properly documented'
+        }
       ],
-      'data': [
-        { rule: 'valid-schema', severity: 'critical', description: 'Matches expected schema' },
-        { rule: 'no-duplicates', severity: 'high', description: 'No duplicate entries' },
-        { rule: 'within-bounds', severity: 'high', description: 'Values within acceptable ranges' },
-        { rule: 'consistent-format', severity: 'medium', description: 'Consistent data format' }
+      data: [
+        {
+          rule: 'valid-schema',
+          severity: 'critical',
+          description: 'Matches expected schema'
+        },
+        {
+          rule: 'no-duplicates',
+          severity: 'high',
+          description: 'No duplicate entries'
+        },
+        {
+          rule: 'within-bounds',
+          severity: 'high',
+          description: 'Values within acceptable ranges'
+        },
+        {
+          rule: 'consistent-format',
+          severity: 'medium',
+          description: 'Consistent data format'
+        }
       ],
-      'configuration': [
-        { rule: 'valid-syntax', severity: 'critical', description: 'Valid configuration syntax' },
-        { rule: 'required-fields', severity: 'critical', description: 'All required fields present' },
-        { rule: 'secure-values', severity: 'high', description: 'No exposed secrets' },
-        { rule: 'optimal-settings', severity: 'low', description: 'Uses recommended settings' }
+      configuration: [
+        {
+          rule: 'valid-syntax',
+          severity: 'critical',
+          description: 'Valid configuration syntax'
+        },
+        {
+          rule: 'required-fields',
+          severity: 'critical',
+          description: 'All required fields present'
+        },
+        {
+          rule: 'secure-values',
+          severity: 'high',
+          description: 'No exposed secrets'
+        },
+        {
+          rule: 'optimal-settings',
+          severity: 'low',
+          description: 'Uses recommended settings'
+        }
       ],
-      'documentation': [
-        { rule: 'complete', severity: 'high', description: 'Documentation is complete' },
-        { rule: 'accurate', severity: 'high', description: 'Information is accurate' },
-        { rule: 'clear', severity: 'medium', description: 'Easy to understand' },
-        { rule: 'up-to-date', severity: 'medium', description: 'Reflects current state' }
+      documentation: [
+        {
+          rule: 'complete',
+          severity: 'high',
+          description: 'Documentation is complete'
+        },
+        {
+          rule: 'accurate',
+          severity: 'high',
+          description: 'Information is accurate'
+        },
+        {
+          rule: 'clear',
+          severity: 'medium',
+          description: 'Easy to understand'
+        },
+        {
+          rule: 'up-to-date',
+          severity: 'medium',
+          description: 'Reflects current state'
+        }
       ]
     };
   }
@@ -50,16 +118,16 @@ class ValidatorAgent extends BaseAgentZero {
    */
   async executeTask(task) {
     switch (task.type) {
-      case 'validate':
-        return await this.validate(task.target, task.validationType);
-      case 'compliance':
-        return await this.checkCompliance(task.target, task.standards);
-      case 'quality':
-        return await this.assessQuality(task.target);
-      case 'verify':
-        return await this.verifyOutput(task.output, task.expected);
-      default:
-        throw new Error(`Unknown task type: ${task.type}`);
+    case 'validate':
+      return await this.validate(task.target, task.validationType);
+    case 'compliance':
+      return await this.checkCompliance(task.target, task.standards);
+    case 'quality':
+      return await this.assessQuality(task.target);
+    case 'verify':
+      return await this.verifyOutput(task.output, task.expected);
+    default:
+      throw new Error(`Unknown task type: ${task.type}`);
     }
   }
 
@@ -67,7 +135,9 @@ class ValidatorAgent extends BaseAgentZero {
    * Validate target against rules
    */
   async validate(target, validationType) {
-    this.logger.info(`[Validator] Validating ${validationType} for target ${target.id}`);
+    this.logger.info(
+      `[Validator] Validating ${validationType} for target ${target.id}`
+    );
 
     const validation = {
       targetId: target.id,
@@ -85,7 +155,7 @@ class ValidatorAgent extends BaseAgentZero {
     // Run validation checks
     for (const rule of rules) {
       const result = await this.runValidationCheck(target, rule);
-      
+
       if (!result.passed) {
         validation.issues.push({
           rule: rule.rule,
@@ -101,8 +171,8 @@ class ValidatorAgent extends BaseAgentZero {
     validation.score = this.calculateValidationScore(validation.issues, rules);
 
     // Determine if validation passed
-    validation.passed = validation.score >= 70 && 
-      validation.issues.filter(i => i.severity === 'critical').length === 0;
+    validation.passed = validation.score >= 70
+      && validation.issues.filter((i) => i.severity === 'critical').length === 0;
 
     // Generate summary
     validation.summary = this.generateValidationSummary(validation);
@@ -111,7 +181,7 @@ class ValidatorAgent extends BaseAgentZero {
     this.validationHistory.push(validation);
 
     // Notify about validation result
-    await this.contextBus.publish(`agent.validator.validated`, {
+    await this.contextBus.publish('agent.validator.validated', {
       targetId: target.id,
       type: validationType,
       passed: validation.passed,
@@ -131,7 +201,7 @@ class ValidatorAgent extends BaseAgentZero {
 
     const compliance = {
       targetId: target.id,
-      standards: standards,
+      standards,
       timestamp: new Date().toISOString(),
       compliant: false,
       violations: [],
@@ -142,21 +212,25 @@ class ValidatorAgent extends BaseAgentZero {
     // Check each standard
     for (const standard of standards) {
       const result = await this.checkStandard(target, standard);
-      
+
       if (result.violations.length > 0) {
-        compliance.violations.push(...result.violations.map(v => ({
-          standard: standard.name,
-          violation: v,
-          severity: 'high'
-        })));
+        compliance.violations.push(
+          ...result.violations.map((v) => ({
+            standard: standard.name,
+            violation: v,
+            severity: 'high'
+          }))
+        );
       }
 
       if (result.warnings.length > 0) {
-        compliance.warnings.push(...result.warnings.map(w => ({
-          standard: standard.name,
-          warning: w,
-          severity: 'medium'
-        })));
+        compliance.warnings.push(
+          ...result.warnings.map((w) => ({
+            standard: standard.name,
+            warning: w,
+            severity: 'medium'
+          }))
+        );
       }
     }
 
@@ -199,7 +273,7 @@ class ValidatorAgent extends BaseAgentZero {
     };
 
     // Calculate overall score
-    const scores = Object.values(assessment.dimensions).map(d => d.score);
+    const scores = Object.values(assessment.dimensions).map((d) => d.score);
     assessment.overallScore = Math.round(
       scores.reduce((sum, s) => sum + s, 0) / scores.length
     );
@@ -208,7 +282,9 @@ class ValidatorAgent extends BaseAgentZero {
     assessment.grade = this.assignGrade(assessment.overallScore);
 
     // Generate recommendations
-    assessment.recommendations = this.generateQualityRecommendations(assessment.dimensions);
+    assessment.recommendations = this.generateQualityRecommendations(
+      assessment.dimensions
+    );
 
     return assessment;
   }
@@ -247,7 +323,9 @@ class ValidatorAgent extends BaseAgentZero {
 
     // Calculate accuracy
     const totalFields = Object.keys(expected).length;
-    verification.accuracy = Math.round((verification.matches.length / totalFields) * 100);
+    verification.accuracy = Math.round(
+      (verification.matches.length / totalFields) * 100
+    );
 
     // Determine if verified
     verification.verified = verification.accuracy === 100;
@@ -272,10 +350,11 @@ class ValidatorAgent extends BaseAgentZero {
   getSuggestion(ruleType) {
     const suggestions = {
       'syntax-valid': 'Run a linter to identify and fix syntax errors',
-      'no-security-issues': 'Use security scanning tools to identify vulnerabilities',
+      'no-security-issues':
+        'Use security scanning tools to identify vulnerabilities',
       'follows-standards': 'Review coding standards and apply formatting tools',
       'has-tests': 'Write unit tests with at least 80% coverage',
-      'documented': 'Add clear comments and documentation',
+      documented: 'Add clear comments and documentation',
       'valid-schema': 'Validate data against the defined schema',
       'no-duplicates': 'Implement deduplication logic',
       'within-bounds': 'Add range validation',
@@ -286,9 +365,11 @@ class ValidatorAgent extends BaseAgentZero {
 
   calculateValidationScore(issues, rules) {
     const totalRules = rules.length;
-    const criticalIssues = issues.filter(i => i.severity === 'critical').length;
-    const highIssues = issues.filter(i => i.severity === 'high').length;
-    const mediumIssues = issues.filter(i => i.severity === 'medium').length;
+    const criticalIssues = issues.filter(
+      (i) => i.severity === 'critical'
+    ).length;
+    const highIssues = issues.filter((i) => i.severity === 'high').length;
+    const mediumIssues = issues.filter((i) => i.severity === 'medium').length;
 
     // Penalize based on severity
     let score = 100;
@@ -300,9 +381,13 @@ class ValidatorAgent extends BaseAgentZero {
   }
 
   generateValidationSummary(validation) {
-    const critical = validation.issues.filter(i => i.severity === 'critical').length;
-    const high = validation.issues.filter(i => i.severity === 'high').length;
-    const medium = validation.issues.filter(i => i.severity === 'medium').length;
+    const critical = validation.issues.filter(
+      (i) => i.severity === 'critical'
+    ).length;
+    const high = validation.issues.filter((i) => i.severity === 'high').length;
+    const medium = validation.issues.filter(
+      (i) => i.severity === 'medium'
+    ).length;
 
     return {
       totalIssues: validation.issues.length,
@@ -310,9 +395,9 @@ class ValidatorAgent extends BaseAgentZero {
       high,
       medium,
       status: validation.passed ? 'PASSED' : 'FAILED',
-      message: validation.passed ? 
-        'Validation passed successfully' :
-        `Found ${critical} critical, ${high} high, and ${medium} medium priority issues`
+      message: validation.passed
+        ? 'Validation passed successfully'
+        : `Found ${critical} critical, ${high} high, and ${medium} medium priority issues`
     };
   }
 
@@ -323,7 +408,9 @@ class ValidatorAgent extends BaseAgentZero {
 
     return {
       violations: hasViolations ? [`Violation of ${standard.name}`] : [],
-      warnings: hasWarnings ? [`Warning: ${standard.name} not fully compliant`] : []
+      warnings: hasWarnings
+        ? [`Warning: ${standard.name} not fully compliant`]
+        : []
     };
   }
 
@@ -418,17 +505,22 @@ class ValidatorAgent extends BaseAgentZero {
    */
   getStatistics() {
     const totalValidations = this.validationHistory.length;
-    const passed = this.validationHistory.filter(v => v.passed).length;
+    const passed = this.validationHistory.filter((v) => v.passed).length;
     const failed = totalValidations - passed;
 
-    const avgScore = totalValidations > 0 ?
-      this.validationHistory.reduce((sum, v) => sum + v.score, 0) / totalValidations : 0;
+    const avgScore = totalValidations > 0
+      ? this.validationHistory.reduce((sum, v) => sum + v.score, 0)
+          / totalValidations
+      : 0;
 
     return {
       total: totalValidations,
       passed,
       failed,
-      passRate: totalValidations > 0 ? Math.round((passed / totalValidations) * 100) : 0,
+      passRate:
+        totalValidations > 0
+          ? Math.round((passed / totalValidations) * 100)
+          : 0,
       averageScore: Math.round(avgScore)
     };
   }

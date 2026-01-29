@@ -106,7 +106,9 @@ class ModelClient {
   async generateArbitratorResponse(prompt, options = {}) {
     const config = this.modelConfig.arbitrator;
     const maxTokens = options.maxTokens || config.maxTokens;
-    const temperature = options.temperature !== undefined ? options.temperature : config.temperature;
+    const temperature = options.temperature !== undefined
+      ? options.temperature
+      : config.temperature;
 
     this.logger.info('🤖 Arbitrator generating response', {
       primaryModel: config.primary,
@@ -115,7 +117,11 @@ class ModelClient {
 
     try {
       // Try primary model (Claude Sonnet 4.5)
-      const response = await this._callClaudeSonnet45(prompt, { maxTokens, temperature, ...options });
+      const response = await this._callClaudeSonnet45(prompt, {
+        maxTokens,
+        temperature,
+        ...options
+      });
 
       // Record cost if tokenEconomics is available
       if (this.tokenEconomics && response.usage) {
@@ -135,16 +141,22 @@ class ModelClient {
         usage: response.usage,
         fallbackUsed: false
       };
-
     } catch (error) {
-      this.logger.warn('⚠️  Arbitrator primary model failed, falling back to Ollama', {
-        error: error.message
-      });
+      this.logger.warn(
+        '⚠️  Arbitrator primary model failed, falling back to Ollama',
+        {
+          error: error.message
+        }
+      );
 
       this.fallbackCount.arbitrator++;
 
       // Fallback to Ollama
-      return await this._fallbackToOllama(prompt, 'arbitrator', { maxTokens, temperature, ...options });
+      return await this._fallbackToOllama(prompt, 'arbitrator', {
+        maxTokens,
+        temperature,
+        ...options
+      });
     }
   }
 
@@ -172,7 +184,9 @@ class ModelClient {
   async generateOrchestratorResponse(prompt, options = {}) {
     const config = this.modelConfig.orchestrator;
     const maxTokens = options.maxTokens || config.maxTokens;
-    const temperature = options.temperature !== undefined ? options.temperature : config.temperature;
+    const temperature = options.temperature !== undefined
+      ? options.temperature
+      : config.temperature;
 
     this.logger.info('🎯 Orchestrator generating response', {
       primaryModel: config.primary,
@@ -181,7 +195,11 @@ class ModelClient {
 
     try {
       // Try primary model (Gemini Pro)
-      const response = await this._callGemini(prompt, { maxTokens, temperature, ...options });
+      const response = await this._callGemini(prompt, {
+        maxTokens,
+        temperature,
+        ...options
+      });
 
       // Record cost if tokenEconomics is available
       if (this.tokenEconomics && response.usage) {
@@ -201,16 +219,22 @@ class ModelClient {
         usage: response.usage,
         fallbackUsed: false
       };
-
     } catch (error) {
-      this.logger.warn('⚠️  Orchestrator primary model failed, falling back to Ollama', {
-        error: error.message
-      });
+      this.logger.warn(
+        '⚠️  Orchestrator primary model failed, falling back to Ollama',
+        {
+          error: error.message
+        }
+      );
 
       this.fallbackCount.orchestrator++;
 
       // Fallback to Ollama
-      return await this._fallbackToOllama(prompt, 'orchestrator', { maxTokens, temperature, ...options });
+      return await this._fallbackToOllama(prompt, 'orchestrator', {
+        maxTokens,
+        temperature,
+        ...options
+      });
     }
   }
 
@@ -229,10 +253,12 @@ class ModelClient {
 
     const response = await this.apiClient.callAnthropic({
       model: 'claude-sonnet-4-5-20250929', // Using the latest Sonnet 4.5 model
-      messages: [{
-        role: 'user',
-        content: prompt
-      }],
+      messages: [
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
       max_tokens: options.maxTokens || 4000,
       temperature: options.temperature || 0.3
     });
@@ -262,45 +288,58 @@ class ModelClient {
     // Gemini API endpoint
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
-    const response = await axios.post(url, {
-      contents: [{
-        parts: [{
-          text: prompt
-        }]
-      }],
-      generationConfig: {
-        temperature: options.temperature || 0.7,
-        maxOutputTokens: options.maxTokens || 2000,
-        topP: parseFloat(process.env.GEMINI_TOP_P) || 0.95,
-        topK: parseInt(process.env.GEMINI_TOP_K) || 40
+    const response = await axios.post(
+      url,
+      {
+        contents: [
+          {
+            parts: [
+              {
+                text: prompt
+              }
+            ]
+          }
+        ],
+        generationConfig: {
+          temperature: options.temperature || 0.7,
+          maxOutputTokens: options.maxTokens || 2000,
+          topP: parseFloat(process.env.GEMINI_TOP_P) || 0.95,
+          topK: parseInt(process.env.GEMINI_TOP_K) || 40
+        },
+        safetySettings: [
+          {
+            category: 'HARM_CATEGORY_HARASSMENT',
+            threshold:
+              process.env.GEMINI_SAFETY_HARASSMENT || 'BLOCK_MEDIUM_AND_ABOVE'
+          },
+          {
+            category: 'HARM_CATEGORY_HATE_SPEECH',
+            threshold:
+              process.env.GEMINI_SAFETY_HATE_SPEECH || 'BLOCK_MEDIUM_AND_ABOVE'
+          },
+          {
+            category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
+            threshold:
+              process.env.GEMINI_SAFETY_SEXUALLY_EXPLICIT
+              || 'BLOCK_MEDIUM_AND_ABOVE'
+          },
+          {
+            category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
+            threshold:
+              process.env.GEMINI_SAFETY_DANGEROUS || 'BLOCK_MEDIUM_AND_ABOVE'
+          }
+        ]
       },
-      safetySettings: [
-        {
-          category: 'HARM_CATEGORY_HARASSMENT',
-          threshold: process.env.GEMINI_SAFETY_HARASSMENT || 'BLOCK_MEDIUM_AND_ABOVE'
-        },
-        {
-          category: 'HARM_CATEGORY_HATE_SPEECH',
-          threshold: process.env.GEMINI_SAFETY_HATE_SPEECH || 'BLOCK_MEDIUM_AND_ABOVE'
-        },
-        {
-          category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
-          threshold: process.env.GEMINI_SAFETY_SEXUALLY_EXPLICIT || 'BLOCK_MEDIUM_AND_ABOVE'
-        },
-        {
-          category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
-          threshold: process.env.GEMINI_SAFETY_DANGEROUS || 'BLOCK_MEDIUM_AND_ABOVE'
+      {
+        timeout: 60000, // 60 seconds
+        headers: {
+          'Content-Type': 'application/json'
         }
-      ]
-    }, {
-      timeout: 60000, // 60 seconds
-      headers: {
-        'Content-Type': 'application/json'
       }
-    });
+    );
 
     // Extract text from Gemini response
-    const text = response.data.candidates[0].content.parts[0].text;
+    const { text } = response.data.candidates[0].content.parts[0];
 
     // Extract token usage (Gemini provides this in usageMetadata)
     const usage = response.data.usageMetadata || {};
@@ -337,7 +376,7 @@ class ModelClient {
     try {
       const response = await this.apiClient.callOllama({
         model: this.modelConfig.ollama.model,
-        prompt: prompt,
+        prompt,
         stream: false,
         options: {
           temperature: options.temperature || 0.7,
@@ -372,13 +411,14 @@ class ModelClient {
         fallbackUsed: true,
         fallbackReason: 'Primary model unavailable'
       };
-
     } catch (error) {
       this.logger.error(`❌ Fallback to Ollama also failed for ${component}`, {
         error: error.message
       });
 
-      throw new Error(`All models failed for ${component}: Primary and Ollama unavailable`);
+      throw new Error(
+        `All models failed for ${component}: Primary and Ollama unavailable`
+      );
     }
   }
 

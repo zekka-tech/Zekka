@@ -1,7 +1,7 @@
 /**
  * API Documentation Generator
  * OpenAPI 3.0 specification for Zekka Framework API
- * 
+ *
  * Features:
  * - Auto-generated API documentation
  * - Interactive Swagger UI
@@ -385,11 +385,15 @@ const swaggerSpec = swaggerJsdoc(swaggerOptions);
  */
 function setupApiDocs(app) {
   // Serve Swagger UI
-  app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
-    customCss: '.swagger-ui .topbar { display: none }',
-    customSiteTitle: 'Zekka Framework API Docs',
-    customfavIcon: '/favicon.ico'
-  }));
+  app.use(
+    '/api-docs',
+    swaggerUi.serve,
+    swaggerUi.setup(swaggerSpec, {
+      customCss: '.swagger-ui .topbar { display: none }',
+      customSiteTitle: 'Zekka Framework API Docs',
+      customfavIcon: '/favicon.ico'
+    })
+  );
 
   // Serve OpenAPI JSON
   app.get('/api-docs.json', (req, res) => {
@@ -402,9 +406,9 @@ function setupApiDocs(app) {
 
 /**
  * JSDoc examples for route documentation
- * 
+ *
  * Add these comments above your route handlers:
- * 
+ *
  * @swagger
  * /api/v1/auth/login:
  *   post:
@@ -430,7 +434,7 @@ function setupApiDocs(app) {
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/Error'
- * 
+ *
  * @swagger
  * /api/v1/orchestrator/execute:
  *   post:
@@ -455,7 +459,7 @@ function setupApiDocs(app) {
  *         description: Unauthorized
  *       500:
  *         description: Task execution failed
- * 
+ *
  * @swagger
  * /health:
  *   get:

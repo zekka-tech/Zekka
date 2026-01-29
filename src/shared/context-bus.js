@@ -99,12 +99,16 @@ class ContextBus {
         connectTimeout: this.connectTimeout,
         reconnectStrategy: (retries) => {
           if (retries > this.maxRetries) {
-            console.error(`❌ Redis connection failed after ${retries} attempts`);
+            console.error(
+              `❌ Redis connection failed after ${retries} attempts`
+            );
             return new Error('Max reconnection attempts reached');
           }
           // Exponential backoff: 100ms, 200ms, 400ms, ...
           const delay = Math.min(retries * 100, 3000);
-          console.log(`⏳ Redis reconnecting in ${delay}ms (attempt ${retries}/${this.maxRetries})`);
+          console.log(
+            `⏳ Redis reconnecting in ${delay}ms (attempt ${retries}/${this.maxRetries})`
+          );
           return delay;
         }
       }
@@ -165,9 +169,12 @@ class ContextBus {
     const key = `project:${projectId}:context`;
     await this.client.set(key, JSON.stringify(context));
     await this.client.expire(key, 86400 * 7); // 7 days
-    
+
     // Publish update event
-    await this.publisher.publish('context:update', JSON.stringify({ projectId, context }));
+    await this.publisher.publish(
+      'context:update',
+      JSON.stringify({ projectId, context })
+    );
   }
 
   async getProjectContext(projectId) {
@@ -177,8 +184,12 @@ class ContextBus {
   }
 
   async updateProjectContext(projectId, updates) {
-    const context = await this.getProjectContext(projectId) || {};
-    const updated = { ...context, ...updates, updatedAt: new Date().toISOString() };
+    const context = (await this.getProjectContext(projectId)) || {};
+    const updated = {
+      ...context,
+      ...updates,
+      updatedAt: new Date().toISOString()
+    };
     await this.setProjectContext(projectId, updated);
     return updated;
   }
@@ -204,11 +215,12 @@ class ContextBus {
     if (acquired) {
       console.log(`🔒 Lock acquired: ${agentName} → ${filePath}`);
       return true;
-    } else {
-      const existing = await this.client.get(lockKey);
-      console.log(`⚠️  Lock denied: ${filePath} is locked by ${JSON.parse(existing).agentName}`);
-      return false;
     }
+    const existing = await this.client.get(lockKey);
+    console.log(
+      `⚠️  Lock denied: ${filePath} is locked by ${JSON.parse(existing).agentName}`
+    );
+    return false;
   }
 
   async releaseFileLock(taskId, agentName, filePath) {
@@ -221,10 +233,11 @@ class ContextBus {
         await this.client.del(lockKey);
         console.log(`🔓 Lock released: ${agentName} → ${filePath}`);
         return true;
-      } else {
-        console.log(`⚠️  Cannot release: Lock owned by ${lock.agentName}, not ${agentName}`);
-        return false;
       }
+      console.log(
+        `⚠️  Cannot release: Lock owned by ${lock.agentName}, not ${agentName}`
+      );
+      return false;
     }
 
     return false;
@@ -233,7 +246,7 @@ class ContextBus {
   async getActiveLocks(taskId) {
     const pattern = `lock:${taskId}:*`;
     const keys = await this.client.keys(pattern);
-    
+
     const locks = [];
     for (const key of keys) {
       const value = await this.client.get(key);
@@ -244,7 +257,7 @@ class ContextBus {
         });
       }
     }
-    
+
     return locks;
   }
 
@@ -254,10 +267,14 @@ class ContextBus {
 
   async setAgentState(taskId, agentName, state) {
     const key = `agent:${taskId}:${agentName}`;
-    await this.client.set(key, JSON.stringify({
-      ...state,
-      lastUpdate: new Date().toISOString()
-    }), { EX: 3600 }); // 1 hour expiry
+    await this.client.set(
+      key,
+      JSON.stringify({
+        ...state,
+        lastUpdate: new Date().toISOString()
+      }),
+      { EX: 3600 }
+    ); // 1 hour expiry
   }
 
   async getAgentState(taskId, agentName) {
@@ -269,7 +286,7 @@ class ContextBus {
   async getAllAgentStates(taskId) {
     const pattern = `agent:${taskId}:*`;
     const keys = await this.client.keys(pattern);
-    
+
     const states = {};
     for (const key of keys) {
       const agentName = key.split(':')[2];
@@ -278,7 +295,7 @@ class ContextBus {
         states[agentName] = JSON.parse(data);
       }
     }
-    
+
     return states;
   }
 
@@ -289,29 +306,33 @@ class ContextBus {
   async recordConflict(conflict) {
     const conflictId = uuidv4();
     const key = `conflict:${conflict.taskId}:${conflictId}`;
-    
-    await this.client.set(key, JSON.stringify({
-      ...conflict,
-      conflictId,
-      createdAt: new Date().toISOString(),
-      status: 'pending'
-    }), { EX: 86400 }); // 24 hours
+
+    await this.client.set(
+      key,
+      JSON.stringify({
+        ...conflict,
+        conflictId,
+        createdAt: new Date().toISOString(),
+        status: 'pending'
+      }),
+      { EX: 86400 }
+    ); // 24 hours
 
     // Add to pending queue
-    await this.client.lPush(`conflict:pending`, conflictId);
-    
+    await this.client.lPush('conflict:pending', conflictId);
+
     return conflictId;
   }
 
   async getConflict(conflictId) {
     const pattern = `conflict:*:${conflictId}`;
     const keys = await this.client.keys(pattern);
-    
+
     if (keys.length > 0) {
       const data = await this.client.get(keys[0]);
       return data ? JSON.parse(data) : null;
     }
-    
+
     return null;
   }
 
@@ -328,7 +349,7 @@ class ContextBus {
     };
 
     await this.client.set(key, JSON.stringify(updated), { EX: 86400 * 7 }); // 7 days
-    
+
     // Remove from pending queue if resolved
     if (status === 'resolved') {
       await this.client.lRem('conflict:pending', 0, conflictId);
@@ -368,7 +389,9 @@ class ContextBus {
   // ========================================
 
   async cache(key, value, ttlSeconds = 3600) {
-    await this.client.set(`cache:${key}`, JSON.stringify(value), { EX: ttlSeconds });
+    await this.client.set(`cache:${key}`, JSON.stringify(value), {
+      EX: ttlSeconds
+    });
   }
 
   async getCached(key) {

@@ -1,6 +1,6 @@
 /**
  * API Versioning System
- * 
+ *
  * Features:
  * - Multiple API version support (v1, v2, etc.)
  * - Backward compatibility
@@ -27,10 +27,10 @@ class ApiVersionManager {
     this.routers = new Map(); // version -> router
     this.deprecationDates = new Map(); // version -> date
     this.versionMetadata = new Map(); // version -> metadata
-    
+
     this.initializeVersions();
   }
-  
+
   /**
    * Initialize API versions
    */
@@ -39,13 +39,15 @@ class ApiVersionManager {
       this.routers.set(version, express.Router());
       this.versionMetadata.set(version, {
         version,
-        status: this.config.deprecatedVersions.includes(version) ? 'deprecated' : 'active',
+        status: this.config.deprecatedVersions.includes(version)
+          ? 'deprecated'
+          : 'active',
         introduced: new Date(),
         endpoints: []
       });
     }
   }
-  
+
   /**
    * Get router for specific API version
    */
@@ -55,7 +57,7 @@ class ApiVersionManager {
     }
     return this.routers.get(version);
   }
-  
+
   /**
    * Create version detection middleware
    */
@@ -66,17 +68,17 @@ class ApiVersionManager {
       if (urlMatch) {
         req.apiVersion = urlMatch[1];
       }
-      
+
       // Or from header
       if (!req.apiVersion && req.get(this.config.versionHeader)) {
         req.apiVersion = req.get(this.config.versionHeader);
       }
-      
+
       // Use default version if not specified
       if (!req.apiVersion) {
         req.apiVersion = this.config.defaultVersion;
       }
-      
+
       // Validate version
       if (!this.config.supportedVersions.includes(req.apiVersion)) {
         return res.status(400).json({
@@ -86,38 +88,43 @@ class ApiVersionManager {
           message: `API version '${req.apiVersion}' is not supported. Please use one of: ${this.config.supportedVersions.join(', ')}`
         });
       }
-      
+
       // Check if version is deprecated
       if (this.config.deprecatedVersions.includes(req.apiVersion)) {
         const deprecationDate = this.deprecationDates.get(req.apiVersion);
-        const daysUntilRemoval = deprecationDate 
+        const daysUntilRemoval = deprecationDate
           ? Math.ceil((deprecationDate - Date.now()) / (1000 * 60 * 60 * 24))
           : null;
-        
+
         res.set('Deprecation', 'true');
         res.set('Sunset', deprecationDate?.toISOString() || 'TBD');
-        res.set('Link', `</api/${this.config.defaultVersion}>; rel="successor-version"`);
-        
+        res.set(
+          'Link',
+          `</api/${this.config.defaultVersion}>; rel="successor-version"`
+        );
+
         if (daysUntilRemoval && daysUntilRemoval > 0) {
-          res.set('X-API-Deprecation-Notice', 
-            `This API version will be removed in ${daysUntilRemoval} days. Please migrate to ${this.config.defaultVersion}`);
+          res.set(
+            'X-API-Deprecation-Notice',
+            `This API version will be removed in ${daysUntilRemoval} days. Please migrate to ${this.config.defaultVersion}`
+          );
         }
       }
-      
+
       // Add version info to response headers
       res.set('API-Version', req.apiVersion);
-      
+
       next();
     };
   }
-  
+
   /**
    * Register endpoint for a specific version
    */
   registerEndpoint(version, method, path, ...handlers) {
     const router = this.getRouter(version);
     router[method.toLowerCase()](path, ...handlers);
-    
+
     // Track endpoint metadata
     const metadata = this.versionMetadata.get(version);
     if (metadata) {
@@ -128,7 +135,7 @@ class ApiVersionManager {
       });
     }
   }
-  
+
   /**
    * Register endpoint for all versions
    */
@@ -137,7 +144,7 @@ class ApiVersionManager {
       this.registerEndpoint(version, method, path, ...handlers);
     }
   }
-  
+
   /**
    * Mark version as deprecated
    */
@@ -145,13 +152,13 @@ class ApiVersionManager {
     if (!this.config.supportedVersions.includes(version)) {
       throw new Error(`Cannot deprecate unsupported version: ${version}`);
     }
-    
+
     if (!this.config.deprecatedVersions.includes(version)) {
       this.config.deprecatedVersions.push(version);
     }
-    
+
     this.deprecationDates.set(version, removalDate);
-    
+
     const metadata = this.versionMetadata.get(version);
     if (metadata) {
       metadata.status = 'deprecated';
@@ -159,7 +166,7 @@ class ApiVersionManager {
       metadata.removalDate = removalDate;
     }
   }
-  
+
   /**
    * Remove deprecated version
    */
@@ -167,29 +174,29 @@ class ApiVersionManager {
     if (version === this.config.defaultVersion) {
       throw new Error('Cannot remove default API version');
     }
-    
+
     this.routers.delete(version);
     this.deprecationDates.delete(version);
     this.versionMetadata.delete(version);
-    
+
     const versionIndex = this.config.supportedVersions.indexOf(version);
     if (versionIndex > -1) {
       this.config.supportedVersions.splice(versionIndex, 1);
     }
-    
+
     const deprecatedIndex = this.config.deprecatedVersions.indexOf(version);
     if (deprecatedIndex > -1) {
       this.config.deprecatedVersions.splice(deprecatedIndex, 1);
     }
   }
-  
+
   /**
    * Get version information
    */
   getVersionInfo(version) {
     return this.versionMetadata.get(version);
   }
-  
+
   /**
    * Get all versions information
    */
@@ -204,20 +211,20 @@ class ApiVersionManager {
     }
     return versions;
   }
-  
+
   /**
    * Create version info endpoint
    */
   createVersionInfoEndpoint() {
     return (req, res) => {
       const versions = this.getAllVersionsInfo();
-      
+
       res.json({
         currentVersion: req.apiVersion || this.config.defaultVersion,
         defaultVersion: this.config.defaultVersion,
         supportedVersions: this.config.supportedVersions,
         deprecatedVersions: this.config.deprecatedVersions,
-        versions: versions.map(v => ({
+        versions: versions.map((v) => ({
           version: v.version,
           status: v.status,
           isDefault: v.isDefault,
@@ -229,7 +236,7 @@ class ApiVersionManager {
       });
     };
   }
-  
+
   /**
    * Create migration guide endpoint
    */
@@ -237,31 +244,31 @@ class ApiVersionManager {
     return (req, res) => {
       const fromVersion = req.query.from || req.apiVersion;
       const toVersion = req.query.to || this.config.defaultVersion;
-      
+
       if (!this.config.supportedVersions.includes(fromVersion)) {
         return res.status(400).json({
           error: 'Invalid source version'
         });
       }
-      
+
       if (!this.config.supportedVersions.includes(toVersion)) {
         return res.status(400).json({
           error: 'Invalid target version'
         });
       }
-      
+
       const guide = this.generateMigrationGuide(fromVersion, toVersion);
       res.json(guide);
     };
   }
-  
+
   /**
    * Generate migration guide
    */
   generateMigrationGuide(fromVersion, toVersion) {
     const fromMeta = this.versionMetadata.get(fromVersion);
     const toMeta = this.versionMetadata.get(toVersion);
-    
+
     return {
       from: fromVersion,
       to: toVersion,
@@ -293,7 +300,7 @@ class ApiVersionManager {
       ]
     };
   }
-  
+
   /**
    * Get breaking changes between versions
    */
@@ -301,7 +308,7 @@ class ApiVersionManager {
     // In a real implementation, this would be configured
     return [];
   }
-  
+
   /**
    * Get new features between versions
    */
@@ -309,7 +316,7 @@ class ApiVersionManager {
     // In a real implementation, this would be configured
     return [];
   }
-  
+
   /**
    * Get deprecations between versions
    */
@@ -317,7 +324,7 @@ class ApiVersionManager {
     // In a real implementation, this would be configured
     return [];
   }
-  
+
   /**
    * Mount all version routers
    */
@@ -348,7 +355,7 @@ function forVersionRange(minVersion, maxVersion, ...middleware) {
     const currentVersion = parseInt(req.apiVersion.replace('v', ''));
     const min = parseInt(minVersion.replace('v', ''));
     const max = parseInt(maxVersion.replace('v', ''));
-    
+
     if (currentVersion >= min && currentVersion <= max) {
       return middleware[0](req, res, next);
     }

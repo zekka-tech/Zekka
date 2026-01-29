@@ -12,7 +12,10 @@ class SonarCubeIntegration extends EventEmitter {
     this.contextBus = contextBus;
     this.logger = logger;
     this.config = {
-      serverUrl: config.serverUrl || process.env.SONARQUBE_URL || 'http://localhost:9000',
+      serverUrl:
+        config.serverUrl
+        || process.env.SONARQUBE_URL
+        || 'http://localhost:9000',
       token: config.token || process.env.SONARQUBE_TOKEN,
       organization: config.organization || process.env.SONARQUBE_ORG,
       projectKey: config.projectKey || 'zekka-framework',
@@ -31,7 +34,9 @@ class SonarCubeIntegration extends EventEmitter {
    * Initialize SonarCube integration
    */
   async initialize() {
-    this.logger.info('[SonarCubeIntegration] Initializing SonarCube integration');
+    this.logger.info(
+      '[SonarCubeIntegration] Initializing SonarCube integration'
+    );
 
     if (!this.config.token) {
       this.logger.warn('[SonarCubeIntegration] API token not configured');
@@ -53,9 +58,10 @@ class SonarCubeIntegration extends EventEmitter {
         timestamp: new Date().toISOString()
       });
 
-      this.logger.info('[SonarCubeIntegration] SonarCube initialized successfully');
+      this.logger.info(
+        '[SonarCubeIntegration] SonarCube initialized successfully'
+      );
       return true;
-
     } catch (error) {
       this.logger.error('[SonarCubeIntegration] Initialization failed:', error);
       throw error;
@@ -113,7 +119,9 @@ class SonarCubeIntegration extends EventEmitter {
       this.qualityProfiles.set(profile.key, profile);
     }
 
-    this.logger.info(`[SonarCubeIntegration] Loaded ${profiles.length} quality profiles`);
+    this.logger.info(
+      `[SonarCubeIntegration] Loaded ${profiles.length} quality profiles`
+    );
   }
 
   /**
@@ -181,7 +189,6 @@ class SonarCubeIntegration extends EventEmitter {
 
       this.logger.info(`[SonarCubeIntegration] Scan completed: ${scanId}`);
       return scan;
-
     } catch (error) {
       this.logger.error('[SonarCubeIntegration] Scan failed:', error);
       throw error;
@@ -193,7 +200,7 @@ class SonarCubeIntegration extends EventEmitter {
    */
   async simulateScan(projectPath) {
     // Simulate scanning time
-    await new Promise(resolve => setTimeout(resolve, 3000));
+    await new Promise((resolve) => setTimeout(resolve, 3000));
 
     return {
       projectKey: this.config.projectKey,
@@ -201,10 +208,30 @@ class SonarCubeIntegration extends EventEmitter {
       qualityGate: {
         status: 'OK',
         conditions: [
-          { metric: 'new_coverage', status: 'OK', actual: '85.2%', threshold: '80%' },
-          { metric: 'new_duplicated_lines_density', status: 'OK', actual: '2.1%', threshold: '3%' },
-          { metric: 'new_security_rating', status: 'OK', actual: 'A', threshold: 'A' },
-          { metric: 'new_maintainability_rating', status: 'OK', actual: 'A', threshold: 'A' }
+          {
+            metric: 'new_coverage',
+            status: 'OK',
+            actual: '85.2%',
+            threshold: '80%'
+          },
+          {
+            metric: 'new_duplicated_lines_density',
+            status: 'OK',
+            actual: '2.1%',
+            threshold: '3%'
+          },
+          {
+            metric: 'new_security_rating',
+            status: 'OK',
+            actual: 'A',
+            threshold: 'A'
+          },
+          {
+            metric: 'new_maintainability_rating',
+            status: 'OK',
+            actual: 'A',
+            threshold: 'A'
+          }
         ]
       },
       metrics: {
@@ -302,19 +329,27 @@ class SonarCubeIntegration extends EventEmitter {
       throw new Error(`Scan not found or incomplete: ${scanId}`);
     }
 
-    this.logger.info(`[SonarCubeIntegration] Analyzing vulnerabilities for scan: ${scanId}`);
+    this.logger.info(
+      `[SonarCubeIntegration] Analyzing vulnerabilities for scan: ${scanId}`
+    );
 
     const analysis = {
       scanId,
       timestamp: new Date().toISOString(),
       summary: {
         total: scan.result.vulnerabilities.length,
-        critical: scan.result.vulnerabilities.filter(v => v.severity === 'CRITICAL').length,
-        major: scan.result.vulnerabilities.filter(v => v.severity === 'MAJOR').length,
-        minor: scan.result.vulnerabilities.filter(v => v.severity === 'MINOR').length
+        critical: scan.result.vulnerabilities.filter(
+          (v) => v.severity === 'CRITICAL'
+        ).length,
+        major: scan.result.vulnerabilities.filter((v) => v.severity === 'MAJOR')
+          .length,
+        minor: scan.result.vulnerabilities.filter((v) => v.severity === 'MINOR')
+          .length
       },
       byCategory: this.groupByCategory(scan.result.vulnerabilities),
-      recommendations: this.generateSecurityRecommendations(scan.result.vulnerabilities),
+      recommendations: this.generateSecurityRecommendations(
+        scan.result.vulnerabilities
+      ),
       estimatedFixTime: this.calculateFixTime(scan.result.vulnerabilities)
     };
 
@@ -345,20 +380,20 @@ class SonarCubeIntegration extends EventEmitter {
       let recommendation;
 
       switch (vuln.category) {
-        case 'SQL Injection':
-          recommendation = 'Use parameterized queries or an ORM to prevent SQL injection attacks';
-          break;
-        case 'Cross-Site Scripting (XSS)':
-          recommendation = 'Sanitize and escape all user inputs before rendering in HTML';
-          break;
-        case 'Weak Cryptography':
-          recommendation = 'Use industry-standard encryption algorithms (AES-256, RSA-2048+)';
-          break;
-        case 'Authentication':
-          recommendation = 'Implement strong password policies and multi-factor authentication';
-          break;
-        default:
-          recommendation = 'Follow OWASP security best practices';
+      case 'SQL Injection':
+        recommendation = 'Use parameterized queries or an ORM to prevent SQL injection attacks';
+        break;
+      case 'Cross-Site Scripting (XSS)':
+        recommendation = 'Sanitize and escape all user inputs before rendering in HTML';
+        break;
+      case 'Weak Cryptography':
+        recommendation = 'Use industry-standard encryption algorithms (AES-256, RSA-2048+)';
+        break;
+      case 'Authentication':
+        recommendation = 'Implement strong password policies and multi-factor authentication';
+        break;
+      default:
+        recommendation = 'Follow OWASP security best practices';
       }
 
       recommendations.push({
@@ -401,10 +436,30 @@ class SonarCubeIntegration extends EventEmitter {
       projectKey,
       status: 'OK',
       conditions: [
-        { metric: 'coverage', status: 'OK', value: '82.5%', threshold: '80%' },
-        { metric: 'duplicated_lines_density', status: 'OK', value: '3.2%', threshold: '3%' },
-        { metric: 'security_rating', status: 'OK', value: 'A', threshold: 'A' },
-        { metric: 'maintainability_rating', status: 'OK', value: 'A', threshold: 'A' }
+        {
+          metric: 'coverage',
+          status: 'OK',
+          value: '82.5%',
+          threshold: '80%'
+        },
+        {
+          metric: 'duplicated_lines_density',
+          status: 'OK',
+          value: '3.2%',
+          threshold: '3%'
+        },
+        {
+          metric: 'security_rating',
+          status: 'OK',
+          value: 'A',
+          threshold: 'A'
+        },
+        {
+          metric: 'maintainability_rating',
+          status: 'OK',
+          value: 'A',
+          threshold: 'A'
+        }
       ],
       timestamp: new Date().toISOString()
     };
@@ -429,15 +484,17 @@ class SonarCubeIntegration extends EventEmitter {
     let filtered = allIssues;
 
     if (filters.severity) {
-      filtered = filtered.filter(issue => issue.severity === filters.severity);
+      filtered = filtered.filter(
+        (issue) => issue.severity === filters.severity
+      );
     }
 
     if (filters.type) {
-      filtered = filtered.filter(issue => issue.type === filters.type);
+      filtered = filtered.filter((issue) => issue.type === filters.type);
     }
 
     if (filters.status) {
-      filtered = filtered.filter(issue => issue.status === filters.status);
+      filtered = filtered.filter((issue) => issue.status === filters.status);
     }
 
     return filtered;
@@ -448,14 +505,14 @@ class SonarCubeIntegration extends EventEmitter {
    */
   getStatistics() {
     const scans = Array.from(this.scans.values());
-    const completed = scans.filter(s => s.status === 'completed');
+    const completed = scans.filter((s) => s.status === 'completed');
 
     return {
       scans: {
         total: scans.length,
         completed: completed.length,
-        failed: scans.filter(s => s.status === 'failed').length,
-        inProgress: scans.filter(s => s.status === 'in-progress').length
+        failed: scans.filter((s) => s.status === 'failed').length,
+        inProgress: scans.filter((s) => s.status === 'in-progress').length
       },
       qualityProfiles: this.qualityProfiles.size,
       securityRules: {

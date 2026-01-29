@@ -10,21 +10,21 @@ const { AppError } = require('../utils/errors');
  * @param {Object} schema - Joi validation schema
  * @returns {Function} Express middleware
  */
-const validateBody = (schema) => {
-  return (req, res, next) => {
-    const { error, value } = schema.validate(req.body, {
-      abortEarly: false,
-      stripUnknown: true
-    });
+const validateBody = (schema) => (req, res, next) => {
+  const { error, value } = schema.validate(req.body, {
+    abortEarly: false,
+    stripUnknown: true
+  });
 
-    if (error) {
-      const errorMessage = error.details.map(detail => detail.message).join(', ');
-      return next(new AppError(errorMessage, 400));
-    }
+  if (error) {
+    const errorMessage = error.details
+      .map((detail) => detail.message)
+      .join(', ');
+    return next(new AppError(errorMessage, 400));
+  }
 
-    req.body = value;
-    next();
-  };
+  req.body = value;
+  next();
 };
 
 /**
@@ -32,21 +32,21 @@ const validateBody = (schema) => {
  * @param {Object} schema - Joi validation schema
  * @returns {Function} Express middleware
  */
-const validateQuery = (schema) => {
-  return (req, res, next) => {
-    const { error, value } = schema.validate(req.query, {
-      abortEarly: false,
-      stripUnknown: true
-    });
+const validateQuery = (schema) => (req, res, next) => {
+  const { error, value } = schema.validate(req.query, {
+    abortEarly: false,
+    stripUnknown: true
+  });
 
-    if (error) {
-      const errorMessage = error.details.map(detail => detail.message).join(', ');
-      return next(new AppError(errorMessage, 400));
-    }
+  if (error) {
+    const errorMessage = error.details
+      .map((detail) => detail.message)
+      .join(', ');
+    return next(new AppError(errorMessage, 400));
+  }
 
-    req.query = value;
-    next();
-  };
+  req.query = value;
+  next();
 };
 
 /**
@@ -54,21 +54,21 @@ const validateQuery = (schema) => {
  * @param {Object} schema - Joi validation schema
  * @returns {Function} Express middleware
  */
-const validateParams = (schema) => {
-  return (req, res, next) => {
-    const { error, value } = schema.validate(req.params, {
-      abortEarly: false,
-      stripUnknown: true
-    });
+const validateParams = (schema) => (req, res, next) => {
+  const { error, value } = schema.validate(req.params, {
+    abortEarly: false,
+    stripUnknown: true
+  });
 
-    if (error) {
-      const errorMessage = error.details.map(detail => detail.message).join(', ');
-      return next(new AppError(errorMessage, 400));
-    }
+  if (error) {
+    const errorMessage = error.details
+      .map((detail) => detail.message)
+      .join(', ');
+    return next(new AppError(errorMessage, 400));
+  }
 
-    req.params = value;
-    next();
-  };
+  req.params = value;
+  next();
 };
 
 module.exports = {

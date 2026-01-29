@@ -1,9 +1,9 @@
 /**
  * Production Monitoring System
- * 
+ *
  * Real-time monitoring, alerting, and observability
  * for production environments
- * 
+ *
  * Sprint 6 - Week 21-24 Deliverable
  * Part of Final Integration & Deployment Phase
  */
@@ -26,14 +26,14 @@ class ProductionMonitoringSystem {
       enableLogging: true,
       enableTracing: true
     };
-    
+
     this.metrics = {
       system: [],
       application: [],
       business: [],
       security: []
     };
-    
+
     this.alerts = [];
     this.incidents = [];
     this.healthChecks = new Map();
@@ -46,15 +46,15 @@ class ProductionMonitoringSystem {
    */
   async initialize() {
     console.log('🔍 Initializing Production Monitoring System...');
-    
+
     try {
       await this.setupHealthChecks();
       await this.setupMetricsCollection();
       await this.setupAlertingSystem();
       await this.registerServices();
-      
+
       this.startMonitoring();
-      
+
       console.log('✅ Production Monitoring System initialized successfully');
       return { success: true, message: 'Monitoring active' };
     } catch (error) {
@@ -68,7 +68,7 @@ class ProductionMonitoringSystem {
    */
   async setupHealthChecks() {
     console.log('💚 Setting up health checks...');
-    
+
     // API Health Check
     this.registerHealthCheck('api', async () => {
       try {
@@ -131,7 +131,7 @@ class ProductionMonitoringSystem {
    */
   async runHealthChecks() {
     const results = {};
-    
+
     for (const [name, healthCheck] of this.healthChecks) {
       try {
         const result = await healthCheck.check();
@@ -142,12 +142,12 @@ class ProductionMonitoringSystem {
           status: result.status,
           details: result
         });
-        
+
         // Keep only last 100 checks
         if (healthCheck.history.length > 100) {
           healthCheck.history.shift();
         }
-        
+
         results[name] = result;
       } catch (error) {
         results[name] = {
@@ -156,7 +156,7 @@ class ProductionMonitoringSystem {
         };
       }
     }
-    
+
     return results;
   }
 
@@ -165,14 +165,14 @@ class ProductionMonitoringSystem {
    */
   async setupMetricsCollection() {
     console.log('📊 Setting up metrics collection...');
-    
+
     setInterval(async () => {
       await this.collectSystemMetrics();
       await this.collectApplicationMetrics();
       await this.collectBusinessMetrics();
       await this.collectSecurityMetrics();
     }, this.config.checkInterval);
-    
+
     console.log('✅ Metrics collection configured');
   }
 
@@ -189,8 +189,13 @@ class ProductionMonitoringSystem {
       memory: {
         total: process.memoryUsage().heapTotal / 1024 / 1024,
         used: process.memoryUsage().heapUsed / 1024 / 1024,
-        free: (process.memoryUsage().heapTotal - process.memoryUsage().heapUsed) / 1024 / 1024,
-        percentage: (process.memoryUsage().heapUsed / process.memoryUsage().heapTotal) * 100
+        free:
+          (process.memoryUsage().heapTotal - process.memoryUsage().heapUsed)
+          / 1024
+          / 1024,
+        percentage:
+          (process.memoryUsage().heapUsed / process.memoryUsage().heapTotal)
+          * 100
       },
       disk: {
         total: 100000, // MB
@@ -205,10 +210,10 @@ class ProductionMonitoringSystem {
         packetsOut: Math.random() * 10000
       }
     };
-    
+
     this.metrics.system.push(metrics);
     this.checkThresholds('system', metrics);
-    
+
     // Keep only last 1000 metrics
     if (this.metrics.system.length > 1000) {
       this.metrics.system.shift();
@@ -246,10 +251,10 @@ class ProductionMonitoringSystem {
         bytesPerSecond: Math.random() * 1000000
       }
     };
-    
+
     this.metrics.application.push(metrics);
     this.checkThresholds('application', metrics);
-    
+
     if (this.metrics.application.length > 1000) {
       this.metrics.application.shift();
     }
@@ -279,9 +284,9 @@ class ProductionMonitoringSystem {
         customerLifetimeValue: Math.random() * 1000
       }
     };
-    
+
     this.metrics.business.push(metrics);
-    
+
     if (this.metrics.business.length > 1000) {
       this.metrics.business.shift();
     }
@@ -315,10 +320,10 @@ class ProductionMonitoringSystem {
         low: Math.floor(Math.random() * 10)
       }
     };
-    
+
     this.metrics.security.push(metrics);
     this.checkThresholds('security', metrics);
-    
+
     if (this.metrics.security.length > 1000) {
       this.metrics.security.shift();
     }
@@ -329,7 +334,7 @@ class ProductionMonitoringSystem {
    */
   checkThresholds(category, metrics) {
     const alerts = [];
-    
+
     if (category === 'system') {
       if (metrics.cpu.usage > this.config.alertThresholds.cpu) {
         alerts.push({
@@ -340,7 +345,7 @@ class ProductionMonitoringSystem {
           threshold: this.config.alertThresholds.cpu
         });
       }
-      
+
       if (metrics.memory.percentage > this.config.alertThresholds.memory) {
         alerts.push({
           type: 'memory',
@@ -350,7 +355,7 @@ class ProductionMonitoringSystem {
           threshold: this.config.alertThresholds.memory
         });
       }
-      
+
       if (metrics.disk.percentage > this.config.alertThresholds.disk) {
         alerts.push({
           type: 'disk',
@@ -361,7 +366,7 @@ class ProductionMonitoringSystem {
         });
       }
     }
-    
+
     if (category === 'application') {
       const errorRate = (metrics.errors.count / metrics.requests.total) * 100;
       if (errorRate > this.config.alertThresholds.errorRate) {
@@ -373,8 +378,10 @@ class ProductionMonitoringSystem {
           threshold: this.config.alertThresholds.errorRate
         });
       }
-      
-      if (metrics.responses.avgTime > this.config.alertThresholds.responseTime) {
+
+      if (
+        metrics.responses.avgTime > this.config.alertThresholds.responseTime
+      ) {
         alerts.push({
           type: 'response_time',
           severity: 'warning',
@@ -384,7 +391,7 @@ class ProductionMonitoringSystem {
         });
       }
     }
-    
+
     if (category === 'security') {
       if (metrics.threats.detected > 0) {
         alerts.push({
@@ -396,7 +403,7 @@ class ProductionMonitoringSystem {
         });
       }
     }
-    
+
     // Trigger alerts
     for (const alert of alerts) {
       this.triggerAlert(alert);
@@ -408,7 +415,7 @@ class ProductionMonitoringSystem {
    */
   async setupAlertingSystem() {
     console.log('🚨 Setting up alerting system...');
-    
+
     // Configure alert channels
     this.alertChannels = {
       email: { enabled: true, recipients: ['admin@example.com'] },
@@ -416,7 +423,7 @@ class ProductionMonitoringSystem {
       sms: { enabled: false, numbers: [] },
       webhook: { enabled: false, url: process.env.ALERT_WEBHOOK }
     };
-    
+
     console.log('✅ Alerting system configured');
   }
 
@@ -425,7 +432,7 @@ class ProductionMonitoringSystem {
    */
   async triggerAlert(alert) {
     if (!this.config.enableAlerts) return;
-    
+
     const fullAlert = {
       ...alert,
       id: `alert-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -433,19 +440,21 @@ class ProductionMonitoringSystem {
       acknowledged: false,
       resolved: false
     };
-    
+
     this.alerts.push(fullAlert);
-    
-    console.log(`🚨 ALERT [${fullAlert.severity.toUpperCase()}]: ${fullAlert.message}`);
-    
+
+    console.log(
+      `🚨 ALERT [${fullAlert.severity.toUpperCase()}]: ${fullAlert.message}`
+    );
+
     // Send notifications
     await this.sendAlertNotifications(fullAlert);
-    
+
     // Create incident if critical
     if (fullAlert.severity === 'critical') {
       await this.createIncident(fullAlert);
     }
-    
+
     // Keep only last 1000 alerts
     if (this.alerts.length > 1000) {
       this.alerts.shift();
@@ -457,17 +466,19 @@ class ProductionMonitoringSystem {
    */
   async sendAlertNotifications(alert) {
     if (this.alertChannels.email.enabled) {
-      console.log(`📧 Email alert sent to: ${this.alertChannels.email.recipients.join(', ')}`);
+      console.log(
+        `📧 Email alert sent to: ${this.alertChannels.email.recipients.join(', ')}`
+      );
     }
-    
+
     if (this.alertChannels.slack.enabled) {
       console.log('💬 Slack notification sent');
     }
-    
+
     if (this.alertChannels.sms.enabled) {
       console.log('📱 SMS notification sent');
     }
-    
+
     if (this.alertChannels.webhook.enabled) {
       console.log('🔗 Webhook notification sent');
     }
@@ -494,10 +505,10 @@ class ProductionMonitoringSystem {
         }
       ]
     };
-    
+
     this.incidents.push(incident);
     console.log(`📋 Incident created: ${incident.id}`);
-    
+
     return incident;
   }
 
@@ -522,22 +533,22 @@ class ProductionMonitoringSystem {
    */
   async registerServices() {
     console.log('🔧 Registering services...');
-    
+
     this.registerService('api', {
       url: 'http://localhost:3000',
       healthCheckEndpoint: '/api/health'
     });
-    
+
     this.registerService('worker', {
       url: 'http://localhost:3001',
       healthCheckEndpoint: '/health'
     });
-    
+
     this.registerService('database', {
       url: 'localhost:5432',
       healthCheckEndpoint: 'SELECT 1'
     });
-    
+
     console.log(`✅ Registered ${this.services.size} services`);
   }
 
@@ -549,20 +560,20 @@ class ProductionMonitoringSystem {
       console.log('⚠️ Monitoring already running');
       return;
     }
-    
+
     console.log('🚀 Starting production monitoring...');
     this.isMonitoring = true;
-    
+
     // Run health checks periodically
     setInterval(async () => {
       await this.runHealthChecks();
     }, this.config.checkInterval);
-    
+
     // Check service status periodically
     setInterval(async () => {
       await this.checkServices();
     }, this.config.checkInterval);
-    
+
     console.log('✅ Production monitoring started');
   }
 
@@ -583,26 +594,28 @@ class ProductionMonitoringSystem {
       try {
         // Simulate service check
         await this.wait(Math.random() * 100);
-        
+
         service.status = 'healthy';
         service.lastCheck = new Date().toISOString();
         service.history.push({
           timestamp: service.lastCheck,
           status: 'healthy'
         });
-        
+
         // Keep only last 100 checks
         if (service.history.length > 100) {
           service.history.shift();
         }
-        
+
         // Calculate uptime
-        const healthyChecks = service.history.filter(h => h.status === 'healthy').length;
+        const healthyChecks = service.history.filter(
+          (h) => h.status === 'healthy'
+        ).length;
         service.uptime = (healthyChecks / service.history.length) * 100;
       } catch (error) {
         service.status = 'unhealthy';
         service.lastCheck = new Date().toISOString();
-        
+
         this.triggerAlert({
           type: 'service_down',
           severity: 'critical',
@@ -619,27 +632,28 @@ class ProductionMonitoringSystem {
   getSystemStatus() {
     const latestMetrics = {
       system: this.metrics.system[this.metrics.system.length - 1],
-      application: this.metrics.application[this.metrics.application.length - 1],
+      application:
+        this.metrics.application[this.metrics.application.length - 1],
       business: this.metrics.business[this.metrics.business.length - 1],
       security: this.metrics.security[this.metrics.security.length - 1]
     };
-    
+
     return {
       overall: this.calculateOverallHealth(),
       timestamp: new Date().toISOString(),
       metrics: latestMetrics,
       services: Array.from(this.services.values()),
-      healthChecks: Array.from(this.healthChecks.values()).map(hc => ({
+      healthChecks: Array.from(this.healthChecks.values()).map((hc) => ({
         name: hc.name,
         status: hc.status,
         lastCheck: hc.lastCheck
       })),
       alerts: {
-        active: this.alerts.filter(a => !a.resolved).length,
+        active: this.alerts.filter((a) => !a.resolved).length,
         recent: this.alerts.slice(-10)
       },
       incidents: {
-        open: this.incidents.filter(i => i.status === 'open').length,
+        open: this.incidents.filter((i) => i.status === 'open').length,
         recent: this.incidents.slice(-5)
       }
     };
@@ -649,16 +663,20 @@ class ProductionMonitoringSystem {
    * Calculate overall system health
    */
   calculateOverallHealth() {
-    const healthyServices = Array.from(this.services.values()).filter(s => s.status === 'healthy').length;
+    const healthyServices = Array.from(this.services.values()).filter(
+      (s) => s.status === 'healthy'
+    ).length;
     const totalServices = this.services.size;
     const serviceHealth = totalServices > 0 ? (healthyServices / totalServices) * 100 : 100;
-    
-    const healthyChecks = Array.from(this.healthChecks.values()).filter(hc => hc.status === 'healthy').length;
+
+    const healthyChecks = Array.from(this.healthChecks.values()).filter(
+      (hc) => hc.status === 'healthy'
+    ).length;
     const totalChecks = this.healthChecks.size;
     const checkHealth = totalChecks > 0 ? (healthyChecks / totalChecks) * 100 : 100;
-    
+
     const overallHealth = (serviceHealth + checkHealth) / 2;
-    
+
     if (overallHealth >= 95) return 'healthy';
     if (overallHealth >= 80) return 'degraded';
     return 'unhealthy';
@@ -675,21 +693,26 @@ class ProductionMonitoringSystem {
       '7d': 7 * 24 * 60 * 60 * 1000,
       '30d': 30 * 24 * 60 * 60 * 1000
     };
-    
+
     const periodMs = periods[period] || periods['24h'];
     const cutoff = now - periodMs;
-    
+
     return {
       period,
       generated: new Date().toISOString(),
       summary: {
         overallHealth: this.calculateOverallHealth(),
         uptime: this.calculateUptime(cutoff),
-        totalAlerts: this.alerts.filter(a => new Date(a.timestamp).getTime() > cutoff).length,
-        criticalAlerts: this.alerts.filter(a => 
-          new Date(a.timestamp).getTime() > cutoff && a.severity === 'critical'
+        totalAlerts: this.alerts.filter(
+          (a) => new Date(a.timestamp).getTime() > cutoff
         ).length,
-        incidents: this.incidents.filter(i => new Date(i.createdAt).getTime() > cutoff).length
+        criticalAlerts: this.alerts.filter(
+          (a) => new Date(a.timestamp).getTime() > cutoff
+            && a.severity === 'critical'
+        ).length,
+        incidents: this.incidents.filter(
+          (i) => new Date(i.createdAt).getTime() > cutoff
+        ).length
       },
       metrics: {
         system: this.aggregateMetrics(this.metrics.system, cutoff),
@@ -697,14 +720,16 @@ class ProductionMonitoringSystem {
         business: this.aggregateMetrics(this.metrics.business, cutoff),
         security: this.aggregateMetrics(this.metrics.security, cutoff)
       },
-      services: Array.from(this.services.values()).map(s => ({
+      services: Array.from(this.services.values()).map((s) => ({
         name: s.name,
         status: s.status,
         uptime: s.uptime
       })),
       topAlerts: this.alerts
-        .filter(a => new Date(a.timestamp).getTime() > cutoff)
-        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+        .filter((a) => new Date(a.timestamp).getTime() > cutoff)
+        .sort(
+          (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+        )
         .slice(0, 10)
     };
   }
@@ -721,12 +746,14 @@ class ProductionMonitoringSystem {
    * Aggregate metrics over time period
    */
   aggregateMetrics(metrics, cutoff) {
-    const filtered = metrics.filter(m => new Date(m.timestamp).getTime() > cutoff);
-    
+    const filtered = metrics.filter(
+      (m) => new Date(m.timestamp).getTime() > cutoff
+    );
+
     if (filtered.length === 0) {
       return { count: 0, message: 'No data available for this period' };
     }
-    
+
     return {
       count: filtered.length,
       first: filtered[0].timestamp,
@@ -736,7 +763,7 @@ class ProductionMonitoringSystem {
 
   // Utility methods
   wait(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }
 

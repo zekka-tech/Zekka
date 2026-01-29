@@ -24,7 +24,8 @@ const passwordSchema = Joi.string()
   .messages({
     'string.min': 'Password must be at least 12 characters long',
     'string.max': 'Password cannot exceed 128 characters',
-    'string.pattern.base': 'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character (@$!%*?&)',
+    'string.pattern.base':
+      'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character (@$!%*?&)',
     'any.required': 'Password is required'
   });
 
@@ -44,10 +45,7 @@ const emailSchema = Joi.string()
 /**
  * Name validation rules
  */
-const nameSchema = Joi.string()
-  .min(2)
-  .max(100)
-  .trim()
+const nameSchema = Joi.string().min(2).max(100).trim()
   .required()
   .messages({
     'string.min': 'Name must be at least 2 characters',
@@ -75,22 +73,18 @@ export const registerSchema = Joi.object({
  */
 export const loginSchema = Joi.object({
   email: emailSchema,
-  password: Joi.string()
-    .required()
-    .messages({
-      'any.required': 'Password is required'
-    })
+  password: Joi.string().required().messages({
+    'any.required': 'Password is required'
+  })
 }).options({ stripUnknown: true });
 
 /**
  * MFA verification schema
  */
 export const mfaVerifySchema = Joi.object({
-  tempToken: Joi.string()
-    .required()
-    .messages({
-      'any.required': 'Temporary token is required'
-    }),
+  tempToken: Joi.string().required().messages({
+    'any.required': 'Temporary token is required'
+  }),
   code: Joi.string()
     .length(6)
     .pattern(/^\d{6}$/)
@@ -121,33 +115,27 @@ export const mfaEnableSchema = Joi.object({
  * MFA disable schema
  */
 export const mfaDisableSchema = Joi.object({
-  password: Joi.string()
-    .required()
-    .messages({
-      'any.required': 'Password is required to disable MFA'
-    })
+  password: Joi.string().required().messages({
+    'any.required': 'Password is required to disable MFA'
+  })
 }).options({ stripUnknown: true });
 
 /**
  * Refresh token schema
  */
 export const refreshTokenSchema = Joi.object({
-  refreshToken: Joi.string()
-    .required()
-    .messages({
-      'any.required': 'Refresh token is required'
-    })
+  refreshToken: Joi.string().required().messages({
+    'any.required': 'Refresh token is required'
+  })
 }).options({ stripUnknown: true });
 
 /**
  * Logout schema
  */
 export const logoutSchema = Joi.object({
-  refreshToken: Joi.string()
-    .required()
-    .messages({
-      'any.required': 'Refresh token is required'
-    })
+  refreshToken: Joi.string().required().messages({
+    'any.required': 'Refresh token is required'
+  })
 }).options({ stripUnknown: true });
 
 /**
@@ -161,11 +149,9 @@ export const forgotPasswordSchema = Joi.object({
  * Reset password schema
  */
 export const resetPasswordSchema = Joi.object({
-  token: Joi.string()
-    .required()
-    .messages({
-      'any.required': 'Reset token is required'
-    }),
+  token: Joi.string().required().messages({
+    'any.required': 'Reset token is required'
+  }),
   newPassword: passwordSchema
 }).options({ stripUnknown: true });
 
@@ -173,11 +159,9 @@ export const resetPasswordSchema = Joi.object({
  * Change password schema
  */
 export const changePasswordSchema = Joi.object({
-  currentPassword: Joi.string()
-    .required()
-    .messages({
-      'any.required': 'Current password is required'
-    }),
+  currentPassword: Joi.string().required().messages({
+    'any.required': 'Current password is required'
+  }),
   newPassword: passwordSchema
 }).options({ stripUnknown: true });
 
@@ -185,11 +169,9 @@ export const changePasswordSchema = Joi.object({
  * Verify email schema
  */
 export const verifyEmailSchema = Joi.object({
-  token: Joi.string()
-    .required()
-    .messages({
-      'any.required': 'Verification token is required'
-    })
+  token: Joi.string().required().messages({
+    'any.required': 'Verification token is required'
+  })
 }).options({ stripUnknown: true });
 
 /**

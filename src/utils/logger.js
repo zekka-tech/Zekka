@@ -39,19 +39,21 @@ const logger = createLogger({
       filename: path.join(logsDir, 'error.log'),
       level: 'error',
       maxsize: 5242880, // 5MB
-      maxFiles: 5,
+      maxFiles: 5
     }),
     // Combined log file - all levels
     new transports.File({
       filename: path.join(logsDir, 'combined.log'),
       maxsize: 5242880, // 5MB
-      maxFiles: 5,
+      maxFiles: 5
     }),
     // Console output with colors
     new transports.Console({
       format: format.combine(
         format.colorize(),
-        format.printf(({ level, message, timestamp, ...metadata }) => {
+        format.printf(({
+          level, message, timestamp, ...metadata
+        }) => {
           let msg = `${timestamp} [${level}]: ${message}`;
           if (Object.keys(metadata).length > 0) {
             msg += ` ${JSON.stringify(metadata)}`;

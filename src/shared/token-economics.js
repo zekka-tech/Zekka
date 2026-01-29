@@ -9,20 +9,20 @@ class TokenEconomics {
     this.dailyBudget = options.dailyBudget || 50;
     this.monthlyBudget = options.monthlyBudget || 1000;
     this.contextBus = options.contextBus;
-    
+
     // Cost per 1K tokens (USD)
     // Updated 2025-01-20 with latest pricing from providers
     this.costs = {
       // Anthropic Claude Models (Updated pricing)
-      'claude-opus-4-5': { input: 0.015, output: 0.075 },      // Latest Opus model
-      'claude-sonnet-4-5': { input: 0.003, output: 0.015 },    // Latest Sonnet model (Arbitrator default)
-      'claude-sonnet-4': { input: 0.003, output: 0.015 },      // Legacy naming
-      'claude-haiku': { input: 0.00025, output: 0.00125 },     // Most economical Claude
+      'claude-opus-4-5': { input: 0.015, output: 0.075 }, // Latest Opus model
+      'claude-sonnet-4-5': { input: 0.003, output: 0.015 }, // Latest Sonnet model (Arbitrator default)
+      'claude-sonnet-4': { input: 0.003, output: 0.015 }, // Legacy naming
+      'claude-haiku': { input: 0.00025, output: 0.00125 }, // Most economical Claude
 
       // Google Gemini Models (NEW - Orchestrator default)
-      'gemini-pro': { input: 0.000125, output: 0.000375 },     // Most cost-effective for high volume
+      'gemini-pro': { input: 0.000125, output: 0.000375 }, // Most cost-effective for high volume
       'gemini-pro-vision': { input: 0.000125, output: 0.000375 },
-      'gemini-1.5-pro': { input: 0.00125, output: 0.005 },     // Long context version
+      'gemini-1.5-pro': { input: 0.00125, output: 0.005 }, // Long context version
 
       // OpenAI Models
       'gpt-4-turbo': { input: 0.01, output: 0.03 },
@@ -30,9 +30,9 @@ class TokenEconomics {
       'gpt-3.5-turbo': { input: 0.0005, output: 0.0015 },
 
       // Ollama (Local) Models - Minimal computational cost
-      'llama3.1:8b': { input: 0.0001, output: 0.0001 },        // Fallback model
-      'mistral': { input: 0.0001, output: 0.0001 },
-      'codellama': { input: 0.0001, output: 0.0001 }
+      'llama3.1:8b': { input: 0.0001, output: 0.0001 }, // Fallback model
+      mistral: { input: 0.0001, output: 0.0001 },
+      codellama: { input: 0.0001, output: 0.0001 }
     };
 
     // Initialize DB connection
@@ -51,10 +51,10 @@ class TokenEconomics {
 
   calculateCost(model, tokensInput, tokensOutput) {
     const modelCost = this.costs[model] || this.costs['gpt-3.5-turbo'];
-    
+
     const inputCost = (tokensInput / 1000) * modelCost.input;
     const outputCost = (tokensOutput / 1000) * modelCost.output;
-    
+
     return inputCost + outputCost;
   }
 
@@ -63,10 +63,12 @@ class TokenEconomics {
   // ========================================
 
   async recordCost(data) {
-    const { projectId, taskId, agentName, model, tokensInput, tokensOutput } = data;
-    
+    const {
+      projectId, taskId, agentName, model, tokensInput, tokensOutput
+    } = data;
+
     const cost = this.calculateCost(model, tokensInput, tokensOutput);
-    
+
     await this.db.query(
       `INSERT INTO cost_tracking (project_id, task_id, agent_name, model_used, tokens_input, tokens_output, cost_usd)
        VALUES ($1, $2, $3, $4, $5, $6, $7)`,
@@ -75,7 +77,7 @@ class TokenEconomics {
 
     // Update context bus metrics
     if (this.contextBus) {
-      await this.contextBus.incrementCounter(`cost:total`, cost);
+      await this.contextBus.incrementCounter('cost:total', cost);
       await this.contextBus.incrementCounter(`cost:${projectId}`, cost);
     }
 
@@ -84,16 +86,16 @@ class TokenEconomics {
 
   async getDailyCost(projectId = null) {
     const today = new Date().toISOString().split('T')[0];
-    
+
     const query = projectId
       ? `SELECT COALESCE(SUM(cost_usd), 0) as total FROM cost_tracking 
          WHERE project_id = $1 AND DATE(timestamp) = $2`
       : `SELECT COALESCE(SUM(cost_usd), 0) as total FROM cost_tracking 
          WHERE DATE(timestamp) = $1`;
-    
+
     const params = projectId ? [projectId, today] : [today];
     const result = await this.db.query(query, params);
-    
+
     return parseFloat(result.rows[0].total);
   }
 
@@ -101,23 +103,23 @@ class TokenEconomics {
     const firstDay = new Date();
     firstDay.setDate(1);
     const firstDayStr = firstDay.toISOString().split('T')[0];
-    
+
     const query = projectId
       ? `SELECT COALESCE(SUM(cost_usd), 0) as total FROM cost_tracking 
          WHERE project_id = $1 AND DATE(timestamp) >= $2`
       : `SELECT COALESCE(SUM(cost_usd), 0) as total FROM cost_tracking 
          WHERE DATE(timestamp) >= $1`;
-    
+
     const params = projectId ? [projectId, firstDayStr] : [firstDayStr];
     const result = await this.db.query(query, params);
-    
+
     return parseFloat(result.rows[0].total);
   }
 
   async getBudgetStatus(projectId = null) {
     const dailyCost = await this.getDailyCost(projectId);
     const monthlyCost = await this.getMonthlyCost(projectId);
-    
+
     return {
       daily: {
         spent: dailyCost,
@@ -151,13 +153,17 @@ class TokenEconomics {
     if (budgetStatus.daily.percent > 80) {
       console.log('⚠️  Daily budget at 80%+ - using economic models');
       // Use Gemini Pro (very cost-effective) for high complexity, Ollama for others
-      return taskComplexity === 'high' ? 'gemini-pro' : this.selectOllamaModel(taskComplexity);
+      return taskComplexity === 'high'
+        ? 'gemini-pro'
+        : this.selectOllamaModel(taskComplexity);
     }
 
     // If over 90% of monthly budget, be conservative
     if (budgetStatus.monthly.percent > 90) {
       console.log('⚠️  Monthly budget at 90%+ - using economic models');
-      return taskComplexity === 'high' ? 'gemini-pro' : this.selectOllamaModel(taskComplexity);
+      return taskComplexity === 'high'
+        ? 'gemini-pro'
+        : this.selectOllamaModel(taskComplexity);
     }
 
     // Normal budget - select based on task complexity
@@ -166,27 +172,27 @@ class TokenEconomics {
     // - Medium complexity: Gemini Pro (cost-effective, good quality)
     // - Low complexity: Ollama (free, fast)
     switch (taskComplexity) {
-      case 'high':
-        return 'claude-sonnet-4-5'; // Complex reasoning tasks
-      case 'medium':
-        return 'gemini-pro'; // Moderate tasks, cost-effective
-      case 'low':
-        return this.selectOllamaModel('low'); // Simple tasks
-      default:
-        return 'gemini-pro'; // Default to cost-effective Gemini
+    case 'high':
+      return 'claude-sonnet-4-5'; // Complex reasoning tasks
+    case 'medium':
+      return 'gemini-pro'; // Moderate tasks, cost-effective
+    case 'low':
+      return this.selectOllamaModel('low'); // Simple tasks
+    default:
+      return 'gemini-pro'; // Default to cost-effective Gemini
     }
   }
 
   selectOllamaModel(taskComplexity) {
     // Select appropriate Ollama model based on task
     switch (taskComplexity) {
-      case 'high':
-      case 'medium':
-        return 'llama3.1:8b'; // Best local model
-      case 'code':
-        return 'codellama'; // Code-specific
-      default:
-        return 'mistral'; // Fast general purpose
+    case 'high':
+    case 'medium':
+      return 'llama3.1:8b'; // Best local model
+    case 'code':
+      return 'codellama'; // Code-specific
+    default:
+      return 'mistral'; // Fast general purpose
     }
   }
 
@@ -196,7 +202,7 @@ class TokenEconomics {
 
   async getCostSummary(projectId = null, period = 'daily') {
     const budgetStatus = await this.getBudgetStatus(projectId);
-    
+
     // Get cost breakdown by model
     const modelQuery = projectId
       ? `SELECT model_used, SUM(cost_usd) as cost, COUNT(*) as calls 
@@ -207,10 +213,10 @@ class TokenEconomics {
          FROM cost_tracking 
          WHERE DATE(timestamp) = CURRENT_DATE
          GROUP BY model_used`;
-    
+
     const params = projectId ? [projectId] : [];
     const modelBreakdown = await this.db.query(modelQuery, params);
-    
+
     // Get cost by agent
     const agentQuery = projectId
       ? `SELECT agent_name, SUM(cost_usd) as cost, COUNT(*) as calls 
@@ -221,9 +227,9 @@ class TokenEconomics {
          FROM cost_tracking 
          WHERE DATE(timestamp) = CURRENT_DATE
          GROUP BY agent_name`;
-    
+
     const agentBreakdown = await this.db.query(agentQuery, params);
-    
+
     return {
       budget: budgetStatus,
       breakdown: {
@@ -236,11 +242,12 @@ class TokenEconomics {
 
   generateCostRecommendations(budgetStatus) {
     const recommendations = [];
-    
+
     if (budgetStatus.daily.percent > 90) {
       recommendations.push({
         severity: 'critical',
-        message: 'Daily budget nearly exhausted. Consider using Ollama for remaining tasks.',
+        message:
+          'Daily budget nearly exhausted. Consider using Ollama for remaining tasks.',
         action: 'switch_to_ollama'
       });
     } else if (budgetStatus.daily.percent > 80) {
@@ -250,7 +257,7 @@ class TokenEconomics {
         action: 'use_cheaper_models'
       });
     }
-    
+
     if (budgetStatus.monthly.percent > 90) {
       recommendations.push({
         severity: 'critical',
@@ -258,7 +265,7 @@ class TokenEconomics {
         action: 'review_budget'
       });
     }
-    
+
     // Calculate savings if using Ollama
     const potentialSavings = budgetStatus.daily.spent * 0.8; // Assume 80% savings
     if (potentialSavings > 5) {
@@ -268,7 +275,7 @@ class TokenEconomics {
         action: 'optimize_model_selection'
       });
     }
-    
+
     return recommendations;
   }
 
@@ -282,16 +289,17 @@ class TokenEconomics {
       new Date().getMonth() + 1,
       0
     ).getDate();
-    
+
     const currentDay = new Date().getDate();
     const dailyAverage = (await this.getMonthlyCost()) / currentDay;
     const forecast = dailyAverage * daysInMonth;
-    
+
     return {
       forecast,
       dailyAverage,
       daysRemaining: daysInMonth - currentDay,
-      projectedOverrun: forecast > this.monthlyBudget ? forecast - this.monthlyBudget : 0
+      projectedOverrun:
+        forecast > this.monthlyBudget ? forecast - this.monthlyBudget : 0
     };
   }
 

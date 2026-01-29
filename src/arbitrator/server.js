@@ -35,7 +35,7 @@ async function initialize() {
   // Arbitrator uses Claude Sonnet 4.5 by default with automatic fallback to Ollama
   modelClient = new ModelClient({
     logger: console,
-    contextBus: contextBus
+    contextBus
   });
 
   console.log('✅ Arbitrator Agent initialized with Claude Sonnet 4.5');
@@ -53,13 +53,13 @@ function verifyWebhookSignature(req, res, next) {
     console.error('❌ WEBHOOK_SECRET not configured');
     return res.status(500).json({ error: 'Server configuration error' });
   }
-  
+
   if (!signature) {
     return res.status(401).json({ error: 'Missing signature' });
   }
 
   const hmac = crypto.createHmac('sha256', secret);
-  const digest = 'sha256=' + hmac.update(JSON.stringify(req.body)).digest('hex');
+  const digest = `sha256=${hmac.update(JSON.stringify(req.body)).digest('hex')}`;
 
   if (signature !== digest) {
     return res.status(401).json({ error: 'Invalid signature' });
@@ -70,8 +70,8 @@ function verifyWebhookSignature(req, res, next) {
 
 // Health check
 app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'healthy', 
+  res.json({
+    status: 'healthy',
     service: 'arbitrator',
     contextBus: contextBus?.isConnected() || false
   });
@@ -100,7 +100,7 @@ app.post('/webhook/github', verifyWebhookSignature, async (req, res) => {
 
 async function handlePullRequest(payload) {
   const { action, pull_request } = payload;
-  
+
   if (action !== 'opened' && action !== 'synchronize') {
     return; // Only process new PRs or updates
   }
@@ -110,7 +110,7 @@ async function handlePullRequest(payload) {
   // Check if PR has conflicts
   if (pull_request.mergeable === false) {
     console.log(`⚠️  Conflict detected in PR #${pull_request.number}`);
-    
+
     // Record conflict in Context Bus
     const conflictId = await contextBus.recordConflict({
       taskId: `pr-${pull_request.number}`,
@@ -125,13 +125,19 @@ async function handlePullRequest(payload) {
 
     // Attempt automatic resolution
     const resolution = await resolveConflict(conflictId, pull_request);
-    
+
     if (resolution.success) {
-      console.log(`✅ Conflict resolved automatically`);
-      await postComment(pull_request, `🤖 **Arbitrator Agent**: Conflict resolved automatically\n\n${resolution.explanation}`);
+      console.log('✅ Conflict resolved automatically');
+      await postComment(
+        pull_request,
+        `🤖 **Arbitrator Agent**: Conflict resolved automatically\n\n${resolution.explanation}`
+      );
     } else {
-      console.log(`❌ Could not auto-resolve, manual intervention required`);
-      await postComment(pull_request, `🤖 **Arbitrator Agent**: Unable to automatically resolve conflict. Manual review required.\n\n**Reason**: ${resolution.reason}`);
+      console.log('❌ Could not auto-resolve, manual intervention required');
+      await postComment(
+        pull_request,
+        `🤖 **Arbitrator Agent**: Unable to automatically resolve conflict. Manual review required.\n\n**Reason**: ${resolution.reason}`
+      );
     }
   } else {
     console.log(`✅ No conflicts in PR #${pull_request.number}`);
@@ -140,8 +146,10 @@ async function handlePullRequest(payload) {
 
 async function handlePush(payload) {
   const { ref, commits, repository } = payload;
-  console.log(`📦 Push to ${ref} in ${repository.full_name}: ${commits.length} commits`);
-  
+  console.log(
+    `📦 Push to ${ref} in ${repository.full_name}: ${commits.length} commits`
+  );
+
   // Could track agent commits here
 }
 
@@ -203,7 +211,9 @@ Respond with a JSON object containing:
       fallbackUsed: response.fallbackUsed
     });
 
-    console.log(`✅ Conflict ${conflictId} resolved using ${response.model}${response.fallbackUsed ? ' (fallback)' : ''}`);
+    console.log(
+      `✅ Conflict ${conflictId} resolved using ${response.model}${response.fallbackUsed ? ' (fallback)' : ''}`
+    );
 
     return {
       success: true,
@@ -242,8 +252,8 @@ async function postComment(pullRequest, comment) {
       { body: comment },
       {
         headers: {
-          'Authorization': `token ${process.env.GITHUB_TOKEN}`,
-          'Accept': 'application/vnd.github.v3+json'
+          Authorization: `token ${process.env.GITHUB_TOKEN}`,
+          Accept: 'application/vnd.github.v3+json'
         }
       }
     );
@@ -258,7 +268,7 @@ app.post('/api/resolve/:conflictId', async (req, res) => {
   try {
     const { conflictId } = req.params;
     const conflict = await contextBus.getConflict(conflictId);
-    
+
     if (!conflict) {
       return res.status(404).json({ error: 'Conflict not found' });
     }

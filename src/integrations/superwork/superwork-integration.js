@@ -13,7 +13,10 @@ class SuperWorkAIIntegration extends EventEmitter {
     this.logger = logger;
     this.config = {
       apiKey: config.apiKey || process.env.SUPERWORK_API_KEY,
-      apiUrl: config.apiUrl || process.env.SUPERWORK_API_URL || 'https://api.super.work/v1',
+      apiUrl:
+        config.apiUrl
+        || process.env.SUPERWORK_API_URL
+        || 'https://api.super.work/v1',
       workspaceId: config.workspaceId || process.env.SUPERWORK_WORKSPACE_ID,
       autoOptimize: config.autoOptimize !== false,
       enableSmartScheduling: config.enableSmartScheduling !== false,
@@ -52,9 +55,10 @@ class SuperWorkAIIntegration extends EventEmitter {
         timestamp: new Date().toISOString()
       });
 
-      this.logger.info('[SuperWorkAI] Super.work AI integration initialized successfully');
+      this.logger.info(
+        '[SuperWorkAI] Super.work AI integration initialized successfully'
+      );
       return true;
-
     } catch (error) {
       this.logger.error('[SuperWorkAI] Initialization failed:', error);
       throw error;
@@ -138,7 +142,9 @@ class SuperWorkAIIntegration extends EventEmitter {
    * Create AI-powered workflow
    */
   async createWorkflow(projectId, workflowConfig) {
-    this.logger.info(`[SuperWorkAI] Creating AI workflow for project: ${projectId}`);
+    this.logger.info(
+      `[SuperWorkAI] Creating AI workflow for project: ${projectId}`
+    );
 
     const workflowId = `wf-${Date.now()}-${Math.random().toString(36).substring(7)}`;
 
@@ -188,7 +194,6 @@ class SuperWorkAIIntegration extends EventEmitter {
 
       this.logger.info(`[SuperWorkAI] Workflow created: ${workflowId}`);
       return workflow;
-
     } catch (error) {
       this.logger.error('[SuperWorkAI] Failed to create workflow:', error);
       throw error;
@@ -244,9 +249,10 @@ class SuperWorkAIIntegration extends EventEmitter {
         timestamp: optimization.appliedAt
       });
 
-      this.logger.info(`[SuperWorkAI] Workflow optimized: ${workflowId} (${optimization.estimatedImprovement}% improvement)`);
+      this.logger.info(
+        `[SuperWorkAI] Workflow optimized: ${workflowId} (${optimization.estimatedImprovement}% improvement)`
+      );
       return optimization;
-
     } catch (error) {
       this.logger.error('[SuperWorkAI] Workflow optimization failed:', error);
       throw error;
@@ -257,7 +263,9 @@ class SuperWorkAIIntegration extends EventEmitter {
    * Create AI-powered task
    */
   async createTask(workflowId, taskConfig) {
-    this.logger.info(`[SuperWorkAI] Creating AI task for workflow: ${workflowId}`);
+    this.logger.info(
+      `[SuperWorkAI] Creating AI task for workflow: ${workflowId}`
+    );
 
     const taskId = `task-${Date.now()}-${Math.random().toString(36).substring(7)}`;
 
@@ -290,9 +298,10 @@ class SuperWorkAIIntegration extends EventEmitter {
         timestamp: task.createdAt
       });
 
-      this.logger.info(`[SuperWorkAI] Task created: ${taskId} (Priority: ${aiAnalysis.priority})`);
+      this.logger.info(
+        `[SuperWorkAI] Task created: ${taskId} (Priority: ${aiAnalysis.priority})`
+      );
       return task;
-
     } catch (error) {
       this.logger.error('[SuperWorkAI] Failed to create task:', error);
       throw error;
@@ -324,23 +333,45 @@ class SuperWorkAIIntegration extends EventEmitter {
    */
   classifyTask(task) {
     // AI classification logic
-    const categories = ['development', 'design', 'testing', 'documentation', 'deployment'];
-    
+    const categories = [
+      'development',
+      'design',
+      'testing',
+      'documentation',
+      'deployment'
+    ];
+
     // Simplified classification based on keywords
     const text = `${task.title} ${task.description}`.toLowerCase();
-    
-    if (text.includes('code') || text.includes('implement') || text.includes('develop')) {
+
+    if (
+      text.includes('code')
+      || text.includes('implement')
+      || text.includes('develop')
+    ) {
       return 'development';
-    } else if (text.includes('design') || text.includes('ui') || text.includes('ux')) {
+    }
+    if (text.includes('design') || text.includes('ui') || text.includes('ux')) {
       return 'design';
-    } else if (text.includes('test') || text.includes('qa') || text.includes('bug')) {
+    }
+    if (text.includes('test') || text.includes('qa') || text.includes('bug')) {
       return 'testing';
-    } else if (text.includes('document') || text.includes('write') || text.includes('guide')) {
+    }
+    if (
+      text.includes('document')
+      || text.includes('write')
+      || text.includes('guide')
+    ) {
       return 'documentation';
-    } else if (text.includes('deploy') || text.includes('release') || text.includes('publish')) {
+    }
+    if (
+      text.includes('deploy')
+      || text.includes('release')
+      || text.includes('publish')
+    ) {
       return 'deployment';
     }
-    
+
     return categories[0];
   }
 
@@ -349,15 +380,21 @@ class SuperWorkAIIntegration extends EventEmitter {
    */
   predictPriority(task) {
     // AI priority prediction
-    const urgentKeywords = ['urgent', 'critical', 'asap', 'high priority', 'blocker'];
+    const urgentKeywords = [
+      'urgent',
+      'critical',
+      'asap',
+      'high priority',
+      'blocker'
+    ];
     const text = `${task.title} ${task.description}`.toLowerCase();
-    
+
     for (const keyword of urgentKeywords) {
       if (text.includes(keyword)) {
         return 'high';
       }
     }
-    
+
     return 'medium';
   }
 
@@ -367,7 +404,7 @@ class SuperWorkAIIntegration extends EventEmitter {
   estimateDuration(task) {
     // AI duration estimation in hours
     const category = this.classifyTask(task);
-    
+
     const baseDurations = {
       development: 8,
       design: 6,
@@ -375,7 +412,7 @@ class SuperWorkAIIntegration extends EventEmitter {
       documentation: 3,
       deployment: 2
     };
-    
+
     return baseDurations[category] || 4;
   }
 
@@ -385,13 +422,14 @@ class SuperWorkAIIntegration extends EventEmitter {
   assessComplexity(task) {
     // AI complexity assessment
     const text = `${task.title} ${task.description}`;
-    
+
     if (text.length > 200) {
       return 'high';
-    } else if (text.length > 100) {
+    }
+    if (text.length > 100) {
       return 'medium';
     }
-    
+
     return 'low';
   }
 
@@ -401,15 +439,23 @@ class SuperWorkAIIntegration extends EventEmitter {
   async suggestAssignee(task) {
     // AI-powered assignee suggestion based on skills and availability
     const category = this.classifyTask(task);
-    
+
     const suggestions = {
-      development: { id: 'dev-001', name: 'Senior Developer', confidence: 0.94 },
+      development: {
+        id: 'dev-001',
+        name: 'Senior Developer',
+        confidence: 0.94
+      },
       design: { id: 'des-001', name: 'UI/UX Designer', confidence: 0.92 },
       testing: { id: 'qa-001', name: 'QA Engineer', confidence: 0.89 },
-      documentation: { id: 'doc-001', name: 'Technical Writer', confidence: 0.87 },
+      documentation: {
+        id: 'doc-001',
+        name: 'Technical Writer',
+        confidence: 0.87
+      },
       deployment: { id: 'ops-001', name: 'DevOps Engineer', confidence: 0.95 }
     };
-    
+
     return suggestions[category] || suggestions.development;
   }
 
@@ -427,11 +473,14 @@ class SuperWorkAIIntegration extends EventEmitter {
     // - Resource constraints
 
     const now = new Date();
-    const scheduledDate = new Date(now.getTime() + (24 * 60 * 60 * 1000)); // Tomorrow
+    const scheduledDate = new Date(now.getTime() + 24 * 60 * 60 * 1000); // Tomorrow
 
     return {
       startDate: scheduledDate.toISOString(),
-      endDate: new Date(scheduledDate.getTime() + (task.aiAnalysis.estimatedDuration * 60 * 60 * 1000)).toISOString(),
+      endDate: new Date(
+        scheduledDate.getTime()
+          + task.aiAnalysis.estimatedDuration * 60 * 60 * 1000
+      ).toISOString(),
       confidence: 0.88,
       reasoning: 'Optimized based on team availability and project priorities'
     };
@@ -475,13 +524,19 @@ class SuperWorkAIIntegration extends EventEmitter {
       throw new Error(`Workflow not found: ${workflowId}`);
     }
 
-    const tasks = Array.from(this.tasks.values()).filter(t => t.workflowId === workflowId);
+    const tasks = Array.from(this.tasks.values()).filter(
+      (t) => t.workflowId === workflowId
+    );
 
     return {
       workflowId,
       totalTasks: tasks.length,
-      completedTasks: tasks.filter(t => t.status === 'completed').length,
-      averageDuration: tasks.reduce((sum, t) => sum + (t.aiAnalysis?.estimatedDuration || 0), 0) / tasks.length,
+      completedTasks: tasks.filter((t) => t.status === 'completed').length,
+      averageDuration:
+        tasks.reduce(
+          (sum, t) => sum + (t.aiAnalysis?.estimatedDuration || 0),
+          0
+        ) / tasks.length,
       efficiency: workflow.metrics.efficiency,
       aiOptimized: workflow.aiOptimized,
       optimizationGain: workflow.optimization?.estimatedImprovement || 0
@@ -496,12 +551,16 @@ class SuperWorkAIIntegration extends EventEmitter {
       return null;
     }
 
-    this.logger.info(`[SuperWorkAI] Generating predictive insights for project: ${projectId}`);
+    this.logger.info(
+      `[SuperWorkAI] Generating predictive insights for project: ${projectId}`
+    );
 
     return {
       projectId,
       predictions: {
-        completionDate: new Date(Date.now() + (30 * 24 * 60 * 60 * 1000)).toISOString(),
+        completionDate: new Date(
+          Date.now() + 30 * 24 * 60 * 60 * 1000
+        ).toISOString(),
         confidence: 0.85,
         riskFactors: [
           { factor: 'Resource Availability', risk: 'Medium', impact: 15 },
@@ -522,11 +581,11 @@ class SuperWorkAIIntegration extends EventEmitter {
    */
   getStatistics() {
     const tasks = Array.from(this.tasks.values());
-    
+
     return {
       workflows: this.workflows.size,
       tasks: tasks.length,
-      completedTasks: tasks.filter(t => t.status === 'completed').length,
+      completedTasks: tasks.filter((t) => t.status === 'completed').length,
       automations: this.automations.size,
       aiFeatures: Object.keys(this.aiFeatures).length,
       optimizationQueue: this.optimizationQueue.length,
@@ -541,7 +600,10 @@ class SuperWorkAIIntegration extends EventEmitter {
 
   calculateAveragePriority(tasks) {
     const priorities = { high: 3, medium: 2, low: 1 };
-    const total = tasks.reduce((sum, t) => sum + (priorities[t.aiAnalysis?.priority] || 2), 0);
+    const total = tasks.reduce(
+      (sum, t) => sum + (priorities[t.aiAnalysis?.priority] || 2),
+      0
+    );
     return (total / tasks.length).toFixed(2);
   }
 

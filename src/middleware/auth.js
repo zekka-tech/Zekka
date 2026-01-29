@@ -48,6 +48,7 @@ const Joi = require('joi');
 
 // Load configuration
 const config = require('../config');
+const logger = require('../utils/logger');
 
 // Constants from configuration (no defaults for security-critical values)
 const JWT_SECRET = config.jwt.secret;
@@ -111,12 +112,17 @@ const schemas = {
       if (PASSWORD_POLICY.requireNumbers && !/\d/.test(value)) {
         errors.push('number');
       }
-      if (PASSWORD_POLICY.requireSpecial && !/[!@#$%^&*(),.?":{}|<>]/.test(value)) {
+      if (
+        PASSWORD_POLICY.requireSpecial
+        && !/[!@#$%^&*(),.?":{}|<>]/.test(value)
+      ) {
         errors.push('special character');
       }
 
       if (errors.length > 0) {
-        return helpers.error('password.requirements', { missing: errors.join(', ') });
+        return helpers.error('password.requirements', {
+          missing: errors.join(', ')
+        });
       }
 
       return value;
@@ -132,10 +138,7 @@ const schemas = {
    * - 2-100 characters
    * - Trims whitespace
    */
-  name: Joi.string()
-    .min(2)
-    .max(100)
-    .required()
+  name: Joi.string().min(2).max(100).required()
     .trim()
     .messages({
       'string.min': 'Name must be at least 2 characters',
@@ -175,17 +178,21 @@ async function initializeUsersTable() {
 
   try {
     await pool.query(createTableQuery);
-    console.log('✅ Users table initialized');
+    logger.info('✅ Users table initialized');
   } catch (error) {
     // Table might already exist, which is fine
-    if (error.code !== '42P07') { // duplicate_table
-      console.error('⚠️ Warning: Could not initialize users table:', error.message);
+    if (error.code !== '42P07') {
+      // duplicate_table
+      logger.error(
+        '⚠️ Warning: Could not initialize users table:',
+        error.message
+      );
     }
   }
 }
 
 // Initialize table on module load
-initializeUsersTable().catch(console.error);
+initializeUsersTable().catch((err) => logger.error('Failed to initialize users table:', err));
 
 /**
  * Hash a password using bcrypt with a cost factor of 12.
@@ -261,9 +268,9 @@ function verifyToken(token) {
   } catch (error) {
     // Log for debugging but don't expose details
     if (error.name === 'TokenExpiredError') {
-      console.debug('Token expired');
+      logger.debug('Token expired');
     } else if (error.name === 'JsonWebTokenError') {
-      console.debug('Invalid token');
+      logger.debug('Invalid token');
     }
     return null;
   }
@@ -378,7 +385,7 @@ async function register(email, password, name) {
   // Validate input
   const { error, value } = validateRegistrationInput(email, password, name);
   if (error) {
-    const messages = error.details.map(d => d.message).join('; ');
+    const messages = error.details.map((d) => d.message).join('; ');
     throw new Error(`Validation failed: ${messages}`);
   }
 
@@ -459,8 +466,12 @@ async function login(email, password) {
 
   // Check if account is locked
   if (user.locked_until && new Date(user.locked_until) > new Date()) {
-    const lockRemaining = Math.ceil((new Date(user.locked_until) - new Date()) / 60000);
-    throw new Error(`Account is locked. Try again in ${lockRemaining} minutes.`);
+    const lockRemaining = Math.ceil(
+      (new Date(user.locked_until) - new Date()) / 60000
+    );
+    throw new Error(
+      `Account is locked. Try again in ${lockRemaining} minutes.`
+    );
   }
 
   // Verify password
@@ -477,7 +488,7 @@ async function login(email, password) {
     }
 
     await pool.query(
-      `UPDATE users SET login_attempts = $1, locked_until = $2 WHERE user_id = $3`,
+      'UPDATE users SET login_attempts = $1, locked_until = $2 WHERE user_id = $3',
       [newAttempts, lockedUntil, user.user_id]
     );
 

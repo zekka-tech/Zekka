@@ -28,8 +28,8 @@ class EconomicOrchestrator {
         reliability: 0.999
       }
     };
-    
-    this.costTarget = 1.20; // $ per story point
+
+    this.costTarget = 1.2; // $ per story point
     this.currentSpend = 0;
     this.metrics = {
       requests_routed: {},
@@ -47,10 +47,10 @@ class EconomicOrchestrator {
   async route(request, mode = 'balanced') {
     const complexity = this.estimateComplexity(request);
     const budget = this.calculateBudget(request);
-    
+
     // Decision matrix
     let selectedTier;
-    
+
     if (mode === 'cost_optimized') {
       selectedTier = this.selectCostOptimized(complexity, budget);
     } else if (mode === 'performance') {
@@ -58,7 +58,7 @@ class EconomicOrchestrator {
     } else {
       selectedTier = this.selectBalanced(complexity, budget);
     }
-    
+
     try {
       const result = await this.executeInference(selectedTier, request);
       this.recordMetrics(selectedTier, result, true);
@@ -78,29 +78,29 @@ class EconomicOrchestrator {
     if (complexity <= 3 && this.isAlamaAvailable()) {
       return 'local_alama';
     }
-    
+
     // Use elastic pool for medium complexity
     if (complexity <= 7 && budget > 0.01) {
       return 'elastic_gpu';
     }
-    
+
     // Premium only for high complexity
     return 'premium_api';
   }
 
   selectBalanced(complexity, budget) {
     const alamaLoad = this.getAlamaLoad();
-    
+
     // Route 80% to local ALAMA when available
     if (complexity <= 5 && alamaLoad < 0.8) {
       return 'local_alama';
     }
-    
+
     // Elastic pool for overflow
     if (complexity <= 8) {
       return 'elastic_gpu';
     }
-    
+
     return 'premium_api';
   }
 
@@ -114,34 +114,34 @@ class EconomicOrchestrator {
 
   estimateComplexity(request) {
     const { input_tokens, task_type, context_size } = request;
-    
+
     let score = 0;
-    
+
     // Token count
     if (input_tokens < 500) score += 1;
     else if (input_tokens < 2000) score += 3;
     else if (input_tokens < 8000) score += 5;
     else score += 8;
-    
+
     // Task type
     const taskScores = {
-      'simple_qa': 1,
-      'code_generation': 4,
-      'complex_reasoning': 7,
-      'multi_step_planning': 9
+      simple_qa: 1,
+      code_generation: 4,
+      complex_reasoning: 7,
+      multi_step_planning: 9
     };
     score += taskScores[task_type] || 5;
-    
+
     // Context size
     score += Math.min(Math.floor(context_size / 1000), 3);
-    
+
     return Math.min(score, 10);
   }
 
   calculateBudget(request) {
     const { input_tokens, estimated_output_tokens } = request;
     const total_tokens = input_tokens + (estimated_output_tokens || input_tokens);
-    
+
     // Budget = cost_target * (tokens / avg_tokens_per_story_point)
     const avg_tokens_per_sp = 5000;
     return this.costTarget * (total_tokens / avg_tokens_per_sp);
@@ -149,22 +149,22 @@ class EconomicOrchestrator {
 
   async executeInference(tier, request) {
     const startTime = Date.now();
-    
+
     let result;
     switch (tier) {
-      case 'local_alama':
-        result = await this.invokeAlama(request);
-        break;
-      case 'elastic_gpu':
-        result = await this.invokeElasticGPU(request);
-        break;
-      case 'premium_api':
-        result = await this.invokePremiumAPI(request);
-        break;
-      default:
-        throw new Error(`Unknown tier: ${tier}`);
+    case 'local_alama':
+      result = await this.invokeAlama(request);
+      break;
+    case 'elastic_gpu':
+      result = await this.invokeElasticGPU(request);
+      break;
+    case 'premium_api':
+      result = await this.invokePremiumAPI(request);
+      break;
+    default:
+      throw new Error(`Unknown tier: ${tier}`);
     }
-    
+
     result.latency_ms = Date.now() - startTime;
     result.tier = tier;
     return result;
@@ -214,13 +214,13 @@ class EconomicOrchestrator {
       this.metrics.requests_routed[tier] = 0;
     }
     this.metrics.requests_routed[tier]++;
-    
+
     const cost = this.calculateCost(tier, result);
     this.currentSpend += cost;
-    
+
     // Calculate savings vs. using premium API only
     const premiumCost = this.calculateCost('premium_api', result);
-    this.metrics.cost_savings += (premiumCost - cost);
+    this.metrics.cost_savings += premiumCost - cost;
   }
 
   calculateCost(tier, result) {
@@ -249,18 +249,29 @@ class EconomicOrchestrator {
   }
 
   getMetrics() {
-    const totalRequests = Object.values(this.metrics.requests_routed).reduce((a, b) => a + b, 0);
+    const totalRequests = Object.values(this.metrics.requests_routed).reduce(
+      (a, b) => a + b,
+      0
+    );
     const avgCostPerRequest = totalRequests > 0 ? this.currentSpend / totalRequests : 0;
-    
+
     return {
       total_requests: totalRequests,
       requests_by_tier: this.metrics.requests_routed,
       total_spend: this.currentSpend.toFixed(4),
       cost_savings: this.metrics.cost_savings.toFixed(4),
       avg_cost_per_request: avgCostPerRequest.toFixed(4),
-      cost_per_story_point: (this.currentSpend / (totalRequests / 100)).toFixed(2), // Assume 100 requests per story point
-      fallback_rate: totalRequests > 0 ? (this.metrics.fallback_count / totalRequests * 100).toFixed(2) + '%' : '0%',
-      cost_reduction: this.metrics.cost_savings > 0 ? ((this.metrics.cost_savings / (this.currentSpend + this.metrics.cost_savings)) * 100).toFixed(1) + '%' : '0%'
+      cost_per_story_point: (this.currentSpend / (totalRequests / 100)).toFixed(
+        2
+      ), // Assume 100 requests per story point
+      fallback_rate:
+        totalRequests > 0
+          ? `${((this.metrics.fallback_count / totalRequests) * 100).toFixed(2)}%`
+          : '0%',
+      cost_reduction:
+        this.metrics.cost_savings > 0
+          ? `${((this.metrics.cost_savings / (this.currentSpend + this.metrics.cost_savings)) * 100).toFixed(1)}%`
+          : '0%'
     };
   }
 }

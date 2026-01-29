@@ -97,7 +97,9 @@ class MultiChannelAuth extends EventEmitter {
    * Initialize authentication request
    */
   async initiateAuth(userId, channel, destination, options = {}) {
-    this.logger.info(`[MultiChannelAuth] Initiating ${channel} auth for user: ${userId}`);
+    this.logger.info(
+      `[MultiChannelAuth] Initiating ${channel} auth for user: ${userId}`
+    );
 
     // Validate channel
     if (!this.channels[channel] || !this.channels[channel].enabled) {
@@ -138,7 +140,9 @@ class MultiChannelAuth extends EventEmitter {
         timestamp: new Date().toISOString()
       });
 
-      this.logger.info(`[MultiChannelAuth] OTP sent via ${channel} to ${this.maskDestination(destination)}`);
+      this.logger.info(
+        `[MultiChannelAuth] OTP sent via ${channel} to ${this.maskDestination(destination)}`
+      );
 
       return {
         otpId,
@@ -146,9 +150,11 @@ class MultiChannelAuth extends EventEmitter {
         destination: this.maskDestination(destination),
         expiresIn: this.config.otpExpiry / 1000 // seconds
       };
-
     } catch (error) {
-      this.logger.error(`[MultiChannelAuth] Failed to send OTP via ${channel}:`, error);
+      this.logger.error(
+        `[MultiChannelAuth] Failed to send OTP via ${channel}:`,
+        error
+      );
       this.otpStore.delete(otpId);
       throw error;
     }
@@ -210,7 +216,9 @@ class MultiChannelAuth extends EventEmitter {
       timestamp: new Date().toISOString()
     });
 
-    this.logger.info(`[MultiChannelAuth] User ${otpData.userId} authenticated successfully via ${otpData.channel}`);
+    this.logger.info(
+      `[MultiChannelAuth] User ${otpData.userId} authenticated successfully via ${otpData.channel}`
+    );
 
     return session;
   }
@@ -239,10 +247,13 @@ class MultiChannelAuth extends EventEmitter {
    * SMS authentication via Twilio
    */
   async sendSMS(phoneNumber, otp, options = {}) {
-    const config = this.channels.sms.config;
-    const message = options.message || `Your verification code is: ${otp}. Valid for 5 minutes.`;
+    const { config } = this.channels.sms;
+    const message = options.message
+      || `Your verification code is: ${otp}. Valid for 5 minutes.`;
 
-    this.logger.info(`[MultiChannelAuth] Sending SMS to ${this.maskDestination(phoneNumber)}`);
+    this.logger.info(
+      `[MultiChannelAuth] Sending SMS to ${this.maskDestination(phoneNumber)}`
+    );
 
     // In production, integrate with Twilio SDK:
     // const twilio = require('twilio')(config.accountSid, config.authToken);
@@ -266,10 +277,13 @@ class MultiChannelAuth extends EventEmitter {
    * WhatsApp authentication via Twilio
    */
   async sendWhatsApp(phoneNumber, otp, options = {}) {
-    const config = this.channels.whatsapp.config;
-    const message = options.message || `🔐 Your Zekka verification code: *${otp}*\n\nValid for 5 minutes.`;
+    const { config } = this.channels.whatsapp;
+    const message = options.message
+      || `🔐 Your Zekka verification code: *${otp}*\n\nValid for 5 minutes.`;
 
-    this.logger.info(`[MultiChannelAuth] Sending WhatsApp to ${this.maskDestination(phoneNumber)}`);
+    this.logger.info(
+      `[MultiChannelAuth] Sending WhatsApp to ${this.maskDestination(phoneNumber)}`
+    );
 
     // In production, integrate with Twilio WhatsApp:
     // const twilio = require('twilio')(config.accountSid, config.authToken);
@@ -292,10 +306,13 @@ class MultiChannelAuth extends EventEmitter {
    * Telegram authentication
    */
   async sendTelegram(chatId, otp, options = {}) {
-    const config = this.channels.telegram.config;
-    const message = options.message || `🔐 Your verification code: \`${otp}\`\n\nValid for 5 minutes.`;
+    const { config } = this.channels.telegram;
+    const message = options.message
+      || `🔐 Your verification code: \`${otp}\`\n\nValid for 5 minutes.`;
 
-    this.logger.info(`[MultiChannelAuth] Sending Telegram message to ${chatId}`);
+    this.logger.info(
+      `[MultiChannelAuth] Sending Telegram message to ${chatId}`
+    );
 
     // In production, integrate with Telegram Bot API:
     // const axios = require('axios');
@@ -318,11 +335,13 @@ class MultiChannelAuth extends EventEmitter {
    * Email authentication via SendGrid
    */
   async sendEmail(email, otp, options = {}) {
-    const config = this.channels.email.config;
+    const { config } = this.channels.email;
     const subject = options.subject || 'Your Verification Code';
     const htmlContent = options.htmlContent || this.generateEmailTemplate(otp);
 
-    this.logger.info(`[MultiChannelAuth] Sending email to ${this.maskDestination(email)}`);
+    this.logger.info(
+      `[MultiChannelAuth] Sending email to ${this.maskDestination(email)}`
+    );
 
     // In production, integrate with SendGrid:
     // const sgMail = require('@sendgrid/mail');
@@ -347,10 +366,12 @@ class MultiChannelAuth extends EventEmitter {
    * Voice call authentication via Twilio
    */
   async sendVoiceCall(phoneNumber, otp, options = {}) {
-    const config = this.channels.voice.config;
+    const { config } = this.channels.voice;
     const message = `Your verification code is: ${otp.split('').join(', ')}. I repeat: ${otp.split('').join(', ')}`;
 
-    this.logger.info(`[MultiChannelAuth] Initiating voice call to ${this.maskDestination(phoneNumber)}`);
+    this.logger.info(
+      `[MultiChannelAuth] Initiating voice call to ${this.maskDestination(phoneNumber)}`
+    );
 
     // In production, integrate with Twilio Voice:
     // const twilio = require('twilio')(config.accountSid, config.authToken);
@@ -391,7 +412,7 @@ class MultiChannelAuth extends EventEmitter {
       userId,
       channel,
       createdAt: Date.now(),
-      expiresAt: Date.now() + (24 * 60 * 60 * 1000), // 24 hours
+      expiresAt: Date.now() + 24 * 60 * 60 * 1000, // 24 hours
       lastActivity: Date.now()
     };
 
@@ -416,7 +437,9 @@ class MultiChannelAuth extends EventEmitter {
     if (attempts && attempts.count >= this.config.maxAttempts) {
       const cooldownRemaining = attempts.cooldownUntil - Date.now();
       if (cooldownRemaining > 0) {
-        throw new Error(`Too many failed attempts. Try again in ${Math.ceil(cooldownRemaining / 60000)} minutes`);
+        throw new Error(
+          `Too many failed attempts. Try again in ${Math.ceil(cooldownRemaining / 60000)} minutes`
+        );
       } else {
         this.attemptTracker.delete(userId);
       }
@@ -442,13 +465,13 @@ class MultiChannelAuth extends EventEmitter {
       // Email
       const [local, domain] = destination.split('@');
       return `${local.substring(0, 2)}***@${domain}`;
-    } else if (destination.startsWith('+')) {
+    }
+    if (destination.startsWith('+')) {
       // Phone number
       return `${destination.substring(0, 3)}****${destination.slice(-2)}`;
-    } else {
-      // Other (e.g., Telegram chat ID)
-      return `***${destination.slice(-4)}`;
     }
+    // Other (e.g., Telegram chat ID)
+    return `***${destination.slice(-4)}`;
   }
 
   /**

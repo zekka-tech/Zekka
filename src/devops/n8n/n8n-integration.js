@@ -12,9 +12,15 @@ class N8nIntegration extends EventEmitter {
     this.contextBus = contextBus;
     this.logger = logger;
     this.config = {
-      apiUrl: config.apiUrl || process.env.N8N_API_URL || 'http://localhost:5678/api/v1',
+      apiUrl:
+        config.apiUrl
+        || process.env.N8N_API_URL
+        || 'http://localhost:5678/api/v1',
       apiKey: config.apiKey || process.env.N8N_API_KEY,
-      webhookUrl: config.webhookUrl || process.env.N8N_WEBHOOK_URL || 'http://localhost:5678/webhook',
+      webhookUrl:
+        config.webhookUrl
+        || process.env.N8N_WEBHOOK_URL
+        || 'http://localhost:5678/webhook',
       autoExecute: config.autoExecute !== false,
       enableMonitoring: config.enableMonitoring !== false,
       retryAttempts: config.retryAttempts || 3,
@@ -35,7 +41,9 @@ class N8nIntegration extends EventEmitter {
     this.logger.info('[N8nIntegration] Initializing N8n workflow automation');
 
     if (!this.config.apiKey) {
-      this.logger.warn('[N8nIntegration] API key not configured, using local mode');
+      this.logger.warn(
+        '[N8nIntegration] API key not configured, using local mode'
+      );
     }
 
     try {
@@ -54,9 +62,10 @@ class N8nIntegration extends EventEmitter {
         timestamp: new Date().toISOString()
       });
 
-      this.logger.info('[N8nIntegration] N8n integration initialized successfully');
+      this.logger.info(
+        '[N8nIntegration] N8n integration initialized successfully'
+      );
       return true;
-
     } catch (error) {
       this.logger.error('[N8nIntegration] Initialization failed:', error);
       throw error;
@@ -83,7 +92,9 @@ class N8nIntegration extends EventEmitter {
    * Create N8n workflow
    */
   async createWorkflow(workflowDefinition) {
-    this.logger.info(`[N8nIntegration] Creating workflow: ${workflowDefinition.name}`);
+    this.logger.info(
+      `[N8nIntegration] Creating workflow: ${workflowDefinition.name}`
+    );
 
     const workflowId = `wf-${Date.now()}-${Math.random().toString(36).substring(7)}`;
 
@@ -130,7 +141,6 @@ class N8nIntegration extends EventEmitter {
 
       this.logger.info(`[N8nIntegration] Workflow created: ${workflowId}`);
       return workflow;
-
     } catch (error) {
       this.logger.error('[N8nIntegration] Failed to create workflow:', error);
       throw error;
@@ -185,9 +195,10 @@ class N8nIntegration extends EventEmitter {
         timestamp: new Date().toISOString()
       });
 
-      this.logger.info(`[N8nIntegration] Workflow execution completed: ${executionId}`);
+      this.logger.info(
+        `[N8nIntegration] Workflow execution completed: ${executionId}`
+      );
       return execution;
-
     } catch (error) {
       this.logger.error('[N8nIntegration] Workflow execution failed:', error);
       throw error;
@@ -199,7 +210,7 @@ class N8nIntegration extends EventEmitter {
    */
   async simulateExecution(execution) {
     // Simulate processing time
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await new Promise((resolve) => setTimeout(resolve, 1000));
 
     execution.status = 'success';
     execution.endTime = Date.now();
@@ -217,7 +228,9 @@ class N8nIntegration extends EventEmitter {
    * Create webhook for workflow
    */
   async createWebhook(workflowId, config = {}) {
-    this.logger.info(`[N8nIntegration] Creating webhook for workflow: ${workflowId}`);
+    this.logger.info(
+      `[N8nIntegration] Creating webhook for workflow: ${workflowId}`
+    );
 
     const workflow = this.workflows.get(workflowId);
     if (!workflow) {
@@ -332,11 +345,16 @@ class N8nIntegration extends EventEmitter {
       try {
         await this.createWorkflow(wf);
       } catch (error) {
-        this.logger.error(`[N8nIntegration] Failed to load workflow: ${wf.name}`, error);
+        this.logger.error(
+          `[N8nIntegration] Failed to load workflow: ${wf.name}`,
+          error
+        );
       }
     }
 
-    this.logger.info(`[N8nIntegration] Loaded ${this.workflows.size} workflows`);
+    this.logger.info(
+      `[N8nIntegration] Loaded ${this.workflows.size} workflows`
+    );
   }
 
   /**
@@ -375,10 +393,14 @@ class N8nIntegration extends EventEmitter {
           });
 
           schedule.lastExecution = new Date().toISOString();
-          schedule.nextExecution = this.calculateNextExecution(schedule.schedule);
-
+          schedule.nextExecution = this.calculateNextExecution(
+            schedule.schedule
+          );
         } catch (error) {
-          this.logger.error(`[N8nIntegration] Scheduled execution failed: ${scheduleId}`, error);
+          this.logger.error(
+            `[N8nIntegration] Scheduled execution failed: ${scheduleId}`,
+            error
+          );
         }
       }
     }
@@ -391,10 +413,13 @@ class N8nIntegration extends EventEmitter {
     for (const [executionId, execution] of this.executions.entries()) {
       if (execution.status === 'running') {
         const duration = Date.now() - execution.startTime;
-        if (duration > 300000) { // 5 minutes timeout
+        if (duration > 300000) {
+          // 5 minutes timeout
           execution.status = 'timeout';
           execution.error = 'Execution timeout exceeded';
-          this.logger.warn(`[N8nIntegration] Execution timeout: ${executionId}`);
+          this.logger.warn(
+            `[N8nIntegration] Execution timeout: ${executionId}`
+          );
         }
       }
     }
@@ -419,7 +444,7 @@ class N8nIntegration extends EventEmitter {
    */
   getWorkflowExecutions(workflowId, limit = 10) {
     return Array.from(this.executions.values())
-      .filter(exec => exec.workflowId === workflowId)
+      .filter((exec) => exec.workflowId === workflowId)
       .sort((a, b) => b.startTime - a.startTime)
       .slice(0, limit);
   }
@@ -462,7 +487,9 @@ class N8nIntegration extends EventEmitter {
       timestamp: workflow.updatedAt
     });
 
-    this.logger.info(`[N8nIntegration] Workflow ${active ? 'activated' : 'deactivated'}: ${workflowId}`);
+    this.logger.info(
+      `[N8nIntegration] Workflow ${active ? 'activated' : 'deactivated'}: ${workflowId}`
+    );
     return workflow;
   }
 
@@ -514,7 +541,10 @@ class N8nIntegration extends EventEmitter {
     }
 
     this.logger.info(`[N8nIntegration] Retrying execution: ${executionId}`);
-    return await this.executeWorkflow(execution.workflowId, execution.inputData);
+    return await this.executeWorkflow(
+      execution.workflowId,
+      execution.inputData
+    );
   }
 
   /**
@@ -522,26 +552,36 @@ class N8nIntegration extends EventEmitter {
    */
   getStatistics() {
     const executions = Array.from(this.executions.values());
-    const successfulExecutions = executions.filter(e => e.status === 'success').length;
-    const failedExecutions = executions.filter(e => e.status === 'failed').length;
+    const successfulExecutions = executions.filter(
+      (e) => e.status === 'success'
+    ).length;
+    const failedExecutions = executions.filter(
+      (e) => e.status === 'failed'
+    ).length;
 
     return {
       workflows: {
         total: this.workflows.size,
-        active: Array.from(this.workflows.values()).filter(w => w.active).length,
-        inactive: Array.from(this.workflows.values()).filter(w => !w.active).length
+        active: Array.from(this.workflows.values()).filter((w) => w.active)
+          .length,
+        inactive: Array.from(this.workflows.values()).filter((w) => !w.active)
+          .length
       },
       executions: {
         total: executions.length,
         successful: successfulExecutions,
         failed: failedExecutions,
-        running: executions.filter(e => e.status === 'running').length,
-        successRate: executions.length > 0 ? (successfulExecutions / executions.length * 100).toFixed(2) + '%' : 'N/A'
+        running: executions.filter((e) => e.status === 'running').length,
+        successRate:
+          executions.length > 0
+            ? `${((successfulExecutions / executions.length) * 100).toFixed(2)}%`
+            : 'N/A'
       },
       webhooks: this.webhooks.size,
       schedules: {
         total: this.schedules.size,
-        active: Array.from(this.schedules.values()).filter(s => s.active).length
+        active: Array.from(this.schedules.values()).filter((s) => s.active)
+          .length
       }
     };
   }

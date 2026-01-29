@@ -1,7 +1,7 @@
 /**
  * Performance Optimizer
  * Database query optimization, indexing strategies, and performance monitoring
- * 
+ *
  * Features:
  * - Query optimization
  * - Index recommendations
@@ -52,19 +52,31 @@ class PerformanceOptimizer {
   initializeIndexRecommendations() {
     this.indexRecommendations = {
       users: [
-        { column: 'email', type: 'unique', reason: 'Frequent lookups by email' },
+        {
+          column: 'email',
+          type: 'unique',
+          reason: 'Frequent lookups by email'
+        },
         { column: 'created_at', type: 'btree', reason: 'Date range queries' }
       ],
       sessions: [
         { column: 'user_id', type: 'btree', reason: 'Join with users table' },
         { column: 'token', type: 'unique', reason: 'Token validation' },
-        { column: 'expires_at', type: 'btree', reason: 'Cleanup expired sessions' }
+        {
+          column: 'expires_at',
+          type: 'btree',
+          reason: 'Cleanup expired sessions'
+        }
       ],
       audit_logs: [
         { column: 'user_id', type: 'btree', reason: 'User activity queries' },
         { column: 'category', type: 'btree', reason: 'Category filtering' },
         { column: 'created_at', type: 'btree', reason: 'Time-based queries' },
-        { column: 'user_id, created_at', type: 'composite', reason: 'User timeline queries' }
+        {
+          column: 'user_id, created_at',
+          type: 'composite',
+          reason: 'User timeline queries'
+        }
       ],
       password_history: [
         { column: 'user_id', type: 'btree', reason: 'User password history' },
@@ -105,7 +117,7 @@ class PerformanceOptimizer {
       // Execute query if not cached
       if (!fromCache) {
         result = await queryFn();
-        
+
         // Cache result
         if (cache && this.cacheManager) {
           await this.cacheManager.set(queryKey, result, ttl);
@@ -120,10 +132,9 @@ class PerformanceOptimizer {
       }
 
       return result;
-
     } catch (error) {
       const duration = Date.now() - startTime;
-      
+
       if (track) {
         this.trackQuery(queryKey, duration, false, error);
       }
@@ -190,7 +201,10 @@ class PerformanceOptimizer {
       }
 
       if (this.config.enableQueryLogging) {
-        console.warn(`[PerformanceOptimizer] Slow query detected:`, slowQueryEntry);
+        console.warn(
+          '[PerformanceOptimizer] Slow query detected:',
+          slowQueryEntry
+        );
       }
     }
   }
@@ -210,9 +224,10 @@ class PerformanceOptimizer {
       slow: this.metrics.slowQueries,
       cached: this.metrics.cachedQueries,
       averageTime: Math.round(this.metrics.averageQueryTime),
-      cacheHitRate: this.metrics.totalQueries > 0
-        ? ((this.metrics.cachedQueries / this.metrics.totalQueries) * 100).toFixed(2) + '%'
-        : '0%',
+      cacheHitRate:
+        this.metrics.totalQueries > 0
+          ? `${((this.metrics.cachedQueries / this.metrics.totalQueries) * 100).toFixed(2)}%`
+          : '0%',
       topSlowQueries,
       recentSlowQueries: this.metrics.slowQueryLog.slice(-10)
     };
@@ -246,7 +261,7 @@ class PerformanceOptimizer {
 
     recommendations.forEach((rec, index) => {
       const indexName = `idx_${tableName}_${rec.column.replace(/,\s*/g, '_').replace(/\s+/g, '_')}`;
-      
+
       let sql;
       if (rec.type === 'unique') {
         sql = `CREATE UNIQUE INDEX ${indexName} ON ${tableName}(${rec.column});`;
@@ -272,7 +287,7 @@ class PerformanceOptimizer {
   generateAllIndexSQL() {
     const allSQL = [];
 
-    Object.keys(this.indexRecommendations).forEach(tableName => {
+    Object.keys(this.indexRecommendations).forEach((tableName) => {
       const tableSQL = this.generateIndexSQL(tableName);
       allSQL.push({
         table: tableName,
@@ -290,7 +305,7 @@ class PerformanceOptimizer {
    */
   analyzeQuery(queryKey) {
     const stats = this.metrics.queries.get(queryKey);
-    
+
     if (!stats) {
       return {
         status: 'unknown',
@@ -310,14 +325,13 @@ class PerformanceOptimizer {
       analysis.status = 'needs_optimization';
       analysis.recommendations.push({
         type: 'performance',
-        message: 'Query is consistently slow. Consider adding indexes or optimizing the query.'
+        message:
+          'Query is consistently slow. Consider adding indexes or optimizing the query.'
       });
     }
 
     // Analyze cache effectiveness
-    const cacheHitRate = stats.count > 0 
-      ? (stats.cacheHits / stats.count) * 100 
-      : 0;
+    const cacheHitRate = stats.count > 0 ? (stats.cacheHits / stats.count) * 100 : 0;
 
     if (cacheHitRate < 50 && stats.count > 10) {
       analysis.recommendations.push({
@@ -327,9 +341,7 @@ class PerformanceOptimizer {
     }
 
     // Analyze error rate
-    const errorRate = stats.count > 0 
-      ? (stats.errors / stats.count) * 100 
-      : 0;
+    const errorRate = stats.count > 0 ? (stats.errors / stats.count) * 100 : 0;
 
     if (errorRate > 5) {
       analysis.status = 'problematic';

@@ -1,7 +1,7 @@
 /**
  * Zekka Framework - Secure Main Server
  * Version: 2.0.0-secure
- * 
+ *
  * SECURITY ENHANCEMENTS:
  * - Environment variable validation on startup
  * - Database-backed user authentication
@@ -16,20 +16,27 @@
  */
 
 // Load and validate configuration FIRST
-const config = require('./config');
 const express = require('express');
 const http = require('http');
 const cookieParser = require('cookie-parser');
 const compression = require('compression');
+const swaggerUi = require('swagger-ui-express');
+const config = require('./config');
 const addRequestId = require('express-request-id')();
 
 // Initialize logger from config
-const logger = config.logger;
+const { logger } = config;
 
 // Import middleware
 const { securityMiddleware } = require('./middleware/security.middleware');
-const { csrfProtection, csrfErrorHandler } = require('./middleware/csrf.middleware');
-const { errorHandler, notFoundHandler } = require('./middleware/error.middleware');
+const {
+  csrfProtection,
+  csrfErrorHandler
+} = require('./middleware/csrf.middleware');
+const {
+  errorHandler,
+  notFoundHandler
+} = require('./middleware/error.middleware');
 const { apiLimiter } = require('./middleware/rateLimit.enhanced');
 
 // Import repositories and services
@@ -48,7 +55,6 @@ const TokenEconomics = require('./shared/token-economics');
 const ZekkaOrchestrator = require('./orchestrator/orchestrator');
 const { metricsMiddleware, getMetrics } = require('./middleware/metrics');
 const websocket = require('./middleware/websocket');
-const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./swagger');
 
 // Initialize Express app
@@ -97,25 +103,27 @@ app.use((req, res, next) => {
 // CORE SERVICES INITIALIZATION
 // ============================================================================
 
-let contextBus, tokenEconomics, orchestrator;
+let contextBus;
+let tokenEconomics;
+let orchestrator;
 
 async function initializeServices() {
   try {
     logger.info('🚀 Initializing Zekka Framework services...');
-    
+
     // Initialize database connection
     const db = require('./config/database');
     await db.pool.query('SELECT NOW()');
     logger.info('✅ Database connected');
-    
+
     // Initialize database schema
     await userRepository.initializeDatabase();
     logger.info('✅ User repository initialized');
-    
+
     // Initialize WebSocket
     websocket.initializeWebSocket(server, logger);
     logger.info('✅ WebSocket initialized');
-    
+
     // Initialize Context Bus (Redis)
     contextBus = new ContextBus({
       host: config.redis.host,
@@ -123,7 +131,7 @@ async function initializeServices() {
     });
     await contextBus.connect();
     logger.info('✅ Context Bus connected');
-    
+
     // Initialize Token Economics
     tokenEconomics = new TokenEconomics({
       dailyBudget: config.budgets.daily,
@@ -131,7 +139,7 @@ async function initializeServices() {
       contextBus
     });
     logger.info('✅ Token Economics initialized');
-    
+
     // Initialize Orchestrator with circuit breakers
     orchestrator = new ZekkaOrchestrator({
       contextBus,
@@ -148,7 +156,7 @@ async function initializeServices() {
     });
     await orchestrator.initialize();
     logger.info('✅ Orchestrator initialized');
-    
+
     logger.info('🎉 All services initialized successfully!');
     return true;
   } catch (error) {
@@ -168,7 +176,7 @@ app.get('/health', async (req, res) => {
   try {
     const db = require('./config/database');
     await db.pool.query('SELECT 1');
-    
+
     res.json({
       status: 'healthy',
       timestamp: new Date().toISOString(),
@@ -216,7 +224,7 @@ authRouter.get('/csrf-token', (req, res) => {
 authRouter.post('/register', async (req, res, next) => {
   try {
     const { email, password, name } = req.body;
-    
+
     // Validate input
     if (!email || !password || !name) {
       return res.status(400).json({
@@ -224,16 +232,16 @@ authRouter.post('/register', async (req, res, next) => {
         required: ['email', 'password', 'name']
       });
     }
-    
+
     const result = await register(email, password, name);
-    
+
     logger.info({
       requestId: req.id,
       action: 'user_registered',
       userId: result.user.id,
       email: result.user.email
     });
-    
+
     res.status(201).json(result);
   } catch (error) {
     next(error);
@@ -244,23 +252,23 @@ authRouter.post('/register', async (req, res, next) => {
 authRouter.post('/login', async (req, res, next) => {
   try {
     const { email, password } = req.body;
-    
+
     if (!email || !password) {
       return res.status(400).json({
         error: 'Missing credentials',
         required: ['email', 'password']
       });
     }
-    
+
     const result = await login(email, password);
-    
+
     logger.info({
       requestId: req.id,
       action: 'user_login',
       userId: result.user.id,
       email: result.user.email
     });
-    
+
     res.json(result);
   } catch (error) {
     next(error);
@@ -290,8 +298,10 @@ projectRouter.use(apiLimiter);
 // Create project
 projectRouter.post('/', async (req, res, next) => {
   try {
-    const { name, requirements, storyPoints, budget } = req.body;
-    
+    const {
+      name, requirements, storyPoints, budget
+    } = req.body;
+
     if (!name || !requirements || !Array.isArray(requirements)) {
       return res.status(400).json({
         error: 'Invalid project data',
@@ -303,7 +313,7 @@ projectRouter.post('/', async (req, res, next) => {
         }
       });
     }
-    
+
     const project = await orchestrator.createProject({
       name,
       requirements,
@@ -311,14 +321,14 @@ projectRouter.post('/', async (req, res, next) => {
       budget: budget || 0,
       userId: req.user.userId
     });
-    
+
     logger.info({
       requestId: req.id,
       action: 'project_created',
       projectId: project.id,
       userId: req.user.userId
     });
-    
+
     res.status(201).json({ project });
   } catch (error) {
     next(error);
@@ -329,9 +339,9 @@ projectRouter.post('/', async (req, res, next) => {
 projectRouter.post('/:projectId/execute', async (req, res, next) => {
   try {
     const { projectId } = req.params;
-    
+
     // Start execution asynchronously
-    orchestrator.executeProject(projectId).catch(error => {
+    orchestrator.executeProject(projectId).catch((error) => {
       logger.error({
         requestId: req.id,
         action: 'project_execution_failed',
@@ -339,14 +349,14 @@ projectRouter.post('/:projectId/execute', async (req, res, next) => {
         error: error.message
       });
     });
-    
+
     logger.info({
       requestId: req.id,
       action: 'project_execution_started',
       projectId,
       userId: req.user.userId
     });
-    
+
     res.json({
       message: 'Project execution started',
       projectId
@@ -361,11 +371,11 @@ projectRouter.get('/:projectId', async (req, res, next) => {
   try {
     const { projectId } = req.params;
     const project = await orchestrator.getProject(projectId);
-    
+
     if (!project) {
       return res.status(404).json({ error: 'Project not found' });
     }
-    
+
     res.json({ project });
   } catch (error) {
     next(error);
@@ -429,7 +439,7 @@ async function startServer() {
   try {
     // Initialize services first
     await initializeServices();
-    
+
     // Start HTTP server
     server.listen(config.port, config.host, () => {
       logger.info(`
@@ -452,41 +462,40 @@ async function startServer() {
 ╚════════════════════════════════════════════════════════════════╝
       `);
     });
-    
+
     // Graceful shutdown
     const shutdown = async (signal) => {
       logger.info(`${signal} received. Starting graceful shutdown...`);
-      
+
       server.close(async () => {
         logger.info('HTTP server closed');
-        
+
         try {
           if (contextBus) {
             await contextBus.disconnect();
             logger.info('Context Bus disconnected');
           }
-          
+
           const db = require('./config/database');
           await db.pool.end();
           logger.info('Database pool closed');
-          
+
           process.exit(0);
         } catch (error) {
           logger.error('Error during shutdown:', error);
           process.exit(1);
         }
       });
-      
+
       // Force shutdown after 30 seconds
       setTimeout(() => {
         logger.error('Forced shutdown after timeout');
         process.exit(1);
       }, 30000);
     };
-    
+
     process.on('SIGTERM', () => shutdown('SIGTERM'));
     process.on('SIGINT', () => shutdown('SIGINT'));
-    
   } catch (error) {
     logger.error('Failed to start server:', error);
     process.exit(1);
@@ -495,7 +504,7 @@ async function startServer() {
 
 // Start the server
 if (require.main === module) {
-  startServer().catch(error => {
+  startServer().catch((error) => {
     logger.error('Fatal error:', error);
     process.exit(1);
   });

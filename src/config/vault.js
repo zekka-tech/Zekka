@@ -24,6 +24,7 @@
  */
 
 const VaultService = require('../services/vault-service');
+const logger = require('../utils/logger');
 
 let vaultInstance = null;
 
@@ -48,10 +49,12 @@ async function initVault(logger = console) {
 
   // Validate required environment variables
   const requiredVars = ['VAULT_ADDR', 'VAULT_ROLE_ID', 'VAULT_SECRET_ID'];
-  const missing = requiredVars.filter(v => !process.env[v]);
+  const missing = requiredVars.filter((v) => !process.env[v]);
 
   if (missing.length > 0) {
-    throw new Error(`Missing required Vault environment variables: ${missing.join(', ')}`);
+    throw new Error(
+      `Missing required Vault environment variables: ${missing.join(', ')}`
+    );
   }
 
   try {
@@ -108,7 +111,9 @@ async function getVaultSecret(vaultPath, envVarName, field = null) {
   if (!vaultInstance) {
     const envValue = process.env[envVarName];
     if (!envValue) {
-      throw new Error(`Secret not found: Vault not available and ${envVarName} not set`);
+      throw new Error(
+        `Secret not found: Vault not available and ${envVarName} not set`
+      );
     }
     return envValue;
   }
@@ -129,7 +134,7 @@ async function getVaultSecret(vaultPath, envVarName, field = null) {
     // Fall back to environment variable if Vault fails
     const envValue = process.env[envVarName];
     if (envValue) {
-      console.warn(`⚠️  Vault failed, using fallback env var: ${envVarName}`);
+      logger.warn(`⚠️  Vault failed, using fallback env var: ${envVarName}`);
       return envValue;
     }
     throw error;

@@ -1,7 +1,7 @@
 /**
  * Security Middleware
  * ===================
- * 
+ *
  * Comprehensive security middleware for:
  * - JWT authentication
  * - MFA enforcement
@@ -18,11 +18,14 @@ import pool from '../config/database.js';
 import redis from '../config/redis.js';
 import auditService from '../services/audit-service.js';
 import passwordService from '../services/password-service.js';
+import logger from '../utils/logger.js';
 
-const JWT_SECRET = process.env.JWT_SECRET;
+const { JWT_SECRET } = process.env;
 
 if (!JWT_SECRET) {
-  throw new Error('JWT_SECRET environment variable is required for security middleware');
+  throw new Error(
+    'JWT_SECRET environment variable is required for security middleware'
+  );
 }
 
 /**
@@ -32,7 +35,7 @@ export const authenticate = async (req, res, next) => {
   try {
     // Get token from header
     const authHeader = req.headers.authorization;
-    
+
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return res.status(401).json({
         success: false,
@@ -87,7 +90,7 @@ export const authenticate = async (req, res, next) => {
       });
     }
 
-    console.error('Authentication error:', error);
+    logger.error('Authentication error:', error);
     res.status(500).json({
       success: false,
       error: 'Authentication failed'
@@ -98,39 +101,37 @@ export const authenticate = async (req, res, next) => {
 /**
  * Require specific role(s)
  */
-export const requireRole = (...roles) => {
-  return (req, res, next) => {
-    if (!req.user) {
-      return res.status(401).json({
-        success: false,
-        error: 'Authentication required'
-      });
-    }
+export const requireRole = (...roles) => (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      error: 'Authentication required'
+    });
+  }
 
-    if (!roles.includes(req.user.role)) {
-      // Log unauthorized access attempt
-      auditService.log({
-        userId: req.user.id,
-        username: req.user.email,
-        action: 'unauthorized_access_attempt',
-        resourceType: req.baseUrl,
-        endpoint: req.path,
-        method: req.method,
-        ipAddress: req.ip,
-        userAgent: req.get('user-agent'),
-        success: false,
-        errorMessage: `Required role: ${roles.join(' or ')}`,
-        riskLevel: 'high'
-      });
+  if (!roles.includes(req.user.role)) {
+    // Log unauthorized access attempt
+    auditService.log({
+      userId: req.user.id,
+      username: req.user.email,
+      action: 'unauthorized_access_attempt',
+      resourceType: req.baseUrl,
+      endpoint: req.path,
+      method: req.method,
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+      success: false,
+      errorMessage: `Required role: ${roles.join(' or ')}`,
+      riskLevel: 'high'
+    });
 
-      return res.status(403).json({
-        success: false,
-        error: 'Insufficient permissions'
-      });
-    }
+    return res.status(403).json({
+      success: false,
+      error: 'Insufficient permissions'
+    });
+  }
 
-    next();
-  };
+  next();
 };
 
 /**
@@ -143,11 +144,16 @@ export const checkPasswordExpiration = async (req, res, next) => {
     }
 
     // Skip for password change endpoints
-    if (req.path.includes('/password/change') || req.path.includes('/password/reset')) {
+    if (
+      req.path.includes('/password/change')
+      || req.path.includes('/password/reset')
+    ) {
       return next();
     }
 
-    const expiration = await passwordService.checkPasswordExpiration(req.user.id);
+    const expiration = await passwordService.checkPasswordExpiration(
+      req.user.id
+    );
 
     if (expiration.expired) {
       return res.status(403).json({
@@ -169,7 +175,7 @@ export const checkPasswordExpiration = async (req, res, next) => {
 
     next();
   } catch (error) {
-    console.error('Password expiration check error:', error);
+    logger.error('Password expiration check error:', error);
     // Don't block request on error
     next();
   }
@@ -185,7 +191,10 @@ export const checkForcePasswordReset = async (req, res, next) => {
     }
 
     // Skip for password change endpoints
-    if (req.path.includes('/password/change') || req.path.includes('/password/reset')) {
+    if (
+      req.path.includes('/password/change')
+      || req.path.includes('/password/reset')
+    ) {
       return next();
     }
 
@@ -200,7 +209,7 @@ export const checkForcePasswordReset = async (req, res, next) => {
 
     next();
   } catch (error) {
-    console.error('Force password reset check error:', error);
+    logger.error('Force password reset check error:', error);
     next();
   }
 };
@@ -210,97 +219,93 @@ export const checkForcePasswordReset = async (req, res, next) => {
  */
 const rateLimitStore = new Map();
 
-export const rateLimitByUser = (maxRequests = 100, windowMs = 60000) => {
-  return async (req, res, next) => {
-    try {
-      const userId = req.user?.id || req.ip;
-      const key = `ratelimit:${userId}`;
+export const rateLimitByUser = (maxRequests = 100, windowMs = 60000) => async (req, res, next) => {
+  try {
+    const userId = req.user?.id || req.ip;
+    const key = `ratelimit:${userId}`;
 
-      // Get current count from Redis
-      const count = await redis.get(key);
+    // Get current count from Redis
+    const count = await redis.get(key);
 
-      if (count && parseInt(count) >= maxRequests) {
-        // Log rate limit exceeded
-        await auditService.log({
-          userId: req.user?.id,
-          username: req.user?.email,
-          action: 'rate_limit_exceeded',
-          endpoint: req.path,
-          method: req.method,
-          ipAddress: req.ip,
-          userAgent: req.get('user-agent'),
-          success: false,
-          errorMessage: `Rate limit exceeded: ${maxRequests} requests per ${windowMs}ms`,
-          riskLevel: 'medium'
-        });
+    if (count && parseInt(count) >= maxRequests) {
+      // Log rate limit exceeded
+      await auditService.log({
+        userId: req.user?.id,
+        username: req.user?.email,
+        action: 'rate_limit_exceeded',
+        endpoint: req.path,
+        method: req.method,
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent'),
+        success: false,
+        errorMessage: `Rate limit exceeded: ${maxRequests} requests per ${windowMs}ms`,
+        riskLevel: 'medium'
+      });
 
-        return res.status(429).json({
-          success: false,
-          error: 'Rate limit exceeded',
-          message: `Maximum ${maxRequests} requests per ${windowMs / 1000} seconds`,
-          retryAfter: windowMs / 1000
-        });
-      }
-
-      // Increment count
-      if (count) {
-        await redis.incr(key);
-      } else {
-        await redis.setex(key, Math.ceil(windowMs / 1000), '1');
-      }
-
-      next();
-    } catch (error) {
-      console.error('Rate limiting error:', error);
-      // Don't block request on error
-      next();
+      return res.status(429).json({
+        success: false,
+        error: 'Rate limit exceeded',
+        message: `Maximum ${maxRequests} requests per ${windowMs / 1000} seconds`,
+        retryAfter: windowMs / 1000
+      });
     }
-  };
+
+    // Increment count
+    if (count) {
+      await redis.incr(key);
+    } else {
+      await redis.setex(key, Math.ceil(windowMs / 1000), '1');
+    }
+
+    next();
+  } catch (error) {
+    logger.error('Rate limiting error:', error);
+    // Don't block request on error
+    next();
+  }
 };
 
 /**
  * IP-based rate limiting
  */
-export const rateLimitByIP = (maxRequests = 100, windowMs = 60000) => {
-  return async (req, res, next) => {
-    try {
-      const key = `ratelimit:ip:${req.ip}`;
+export const rateLimitByIP = (maxRequests = 100, windowMs = 60000) => async (req, res, next) => {
+  try {
+    const key = `ratelimit:ip:${req.ip}`;
 
-      const count = await redis.get(key);
+    const count = await redis.get(key);
 
-      if (count && parseInt(count) >= maxRequests) {
-        // Log rate limit exceeded
-        await auditService.log({
-          action: 'rate_limit_exceeded_ip',
-          endpoint: req.path,
-          method: req.method,
-          ipAddress: req.ip,
-          userAgent: req.get('user-agent'),
-          success: false,
-          errorMessage: `IP rate limit exceeded: ${maxRequests} requests per ${windowMs}ms`,
-          riskLevel: 'high'
-        });
+    if (count && parseInt(count) >= maxRequests) {
+      // Log rate limit exceeded
+      await auditService.log({
+        action: 'rate_limit_exceeded_ip',
+        endpoint: req.path,
+        method: req.method,
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent'),
+        success: false,
+        errorMessage: `IP rate limit exceeded: ${maxRequests} requests per ${windowMs}ms`,
+        riskLevel: 'high'
+      });
 
-        return res.status(429).json({
-          success: false,
-          error: 'Rate limit exceeded',
-          message: 'Too many requests from this IP address',
-          retryAfter: windowMs / 1000
-        });
-      }
-
-      if (count) {
-        await redis.incr(key);
-      } else {
-        await redis.setex(key, Math.ceil(windowMs / 1000), '1');
-      }
-
-      next();
-    } catch (error) {
-      console.error('IP rate limiting error:', error);
-      next();
+      return res.status(429).json({
+        success: false,
+        error: 'Rate limit exceeded',
+        message: 'Too many requests from this IP address',
+        retryAfter: windowMs / 1000
+      });
     }
-  };
+
+    if (count) {
+      await redis.incr(key);
+    } else {
+      await redis.setex(key, Math.ceil(windowMs / 1000), '1');
+    }
+
+    next();
+  } catch (error) {
+    logger.error('IP rate limiting error:', error);
+    next();
+  }
 };
 
 /**
@@ -324,11 +329,10 @@ export const auditMiddleware = async (req, res, next) => {
       const duration = Date.now() - startTime;
 
       // Determine if request should be audited
-      const shouldAudit = 
-        req.method !== 'GET' || // Audit all non-GET requests
-        req.path.includes('/audit') || // Audit access to audit logs
-        req.path.includes('/security') || // Audit security endpoints
-        res.statusCode >= 400; // Audit all errors
+      const shouldAudit = req.method !== 'GET' // Audit all non-GET requests
+        || req.path.includes('/audit') // Audit access to audit logs
+        || req.path.includes('/security') // Audit security endpoints
+        || res.statusCode >= 400; // Audit all errors
 
       if (shouldAudit) {
         await auditService.log({
@@ -349,7 +353,7 @@ export const auditMiddleware = async (req, res, next) => {
         });
       }
     } catch (error) {
-      console.error('Audit middleware error:', error);
+      logger.error('Audit middleware error:', error);
     }
   });
 
@@ -359,29 +363,27 @@ export const auditMiddleware = async (req, res, next) => {
 /**
  * Validate request body against schema
  */
-export const validateBody = (schema) => {
-  return (req, res, next) => {
-    const { error, value } = schema.validate(req.body, {
-      abortEarly: false,
-      stripUnknown: true
+export const validateBody = (schema) => (req, res, next) => {
+  const { error, value } = schema.validate(req.body, {
+    abortEarly: false,
+    stripUnknown: true
+  });
+
+  if (error) {
+    const errors = error.details.map((detail) => ({
+      field: detail.path.join('.'),
+      message: detail.message
+    }));
+
+    return res.status(400).json({
+      success: false,
+      error: 'Validation failed',
+      errors
     });
+  }
 
-    if (error) {
-      const errors = error.details.map(detail => ({
-        field: detail.path.join('.'),
-        message: detail.message
-      }));
-
-      return res.status(400).json({
-        success: false,
-        error: 'Validation failed',
-        errors
-      });
-    }
-
-    req.body = value;
-    next();
-  };
+  req.body = value;
+  next();
 };
 
 /**
@@ -415,7 +417,7 @@ function sanitizeObject(obj) {
   }
 
   if (Array.isArray(obj)) {
-    return obj.map(item => sanitizeObject(item));
+    return obj.map((item) => sanitizeObject(item));
   }
 
   const sanitized = {};
@@ -488,12 +490,15 @@ export const securityHeaders = (req, res, next) => {
   // Content Security Policy
   res.setHeader(
     'Content-Security-Policy',
-    "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:;"
+    'default-src \'self\'; script-src \'self\' \'unsafe-inline\'; style-src \'self\' \'unsafe-inline\'; img-src \'self\' data: https:; font-src \'self\' data:;'
   );
 
   // Strict Transport Security (HTTPS only)
   if (req.secure) {
-    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    res.setHeader(
+      'Strict-Transport-Security',
+      'max-age=31536000; includeSubDomains'
+    );
   }
 
   next();
@@ -505,7 +510,7 @@ export const securityHeaders = (req, res, next) => {
 export const optionalAuth = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
-    
+
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return next();
     }
@@ -532,34 +537,32 @@ export const optionalAuth = async (req, res, next) => {
 /**
  * Check IP whitelist
  */
-export const checkIPWhitelist = (whitelist = []) => {
-  return (req, res, next) => {
-    if (whitelist.length === 0) {
-      return next();
-    }
+export const checkIPWhitelist = (whitelist = []) => (req, res, next) => {
+  if (whitelist.length === 0) {
+    return next();
+  }
 
-    const clientIP = req.ip;
+  const clientIP = req.ip;
 
-    if (!whitelist.includes(clientIP)) {
-      auditService.log({
-        action: 'ip_whitelist_violation',
-        ipAddress: clientIP,
-        endpoint: req.path,
-        method: req.method,
-        success: false,
-        errorMessage: 'IP not in whitelist',
-        riskLevel: 'high'
-      });
+  if (!whitelist.includes(clientIP)) {
+    auditService.log({
+      action: 'ip_whitelist_violation',
+      ipAddress: clientIP,
+      endpoint: req.path,
+      method: req.method,
+      success: false,
+      errorMessage: 'IP not in whitelist',
+      riskLevel: 'high'
+    });
 
-      return res.status(403).json({
-        success: false,
-        error: 'Access denied',
-        message: 'Your IP address is not authorized'
-      });
-    }
+    return res.status(403).json({
+      success: false,
+      error: 'Access denied',
+      message: 'Your IP address is not authorized'
+    });
+  }
 
-    next();
-  };
+  next();
 };
 
 /**
@@ -578,14 +581,15 @@ export const checkMaintenance = async (req, res, next) => {
       return res.status(503).json({
         success: false,
         error: 'Service unavailable',
-        message: 'System is currently under maintenance. Please try again later.',
+        message:
+          'System is currently under maintenance. Please try again later.',
         maintenanceMode: true
       });
     }
 
     next();
   } catch (error) {
-    console.error('Maintenance check error:', error);
+    logger.error('Maintenance check error:', error);
     next();
   }
 };

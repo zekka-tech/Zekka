@@ -15,16 +15,20 @@ const orchestrator = new EconomicOrchestrator();
  */
 router.post('/inference', async (req, res) => {
   try {
-    const { prompt, task_type = 'code_generation', economic_mode = 'balanced' } = req.body;
-    
+    const {
+      prompt,
+      task_type = 'code_generation',
+      economic_mode = 'balanced'
+    } = req.body;
+
     if (!prompt) {
       return res.status(400).json({ error: 'Prompt is required' });
     }
-    
+
     // Estimate token counts
     const input_tokens = Math.ceil(prompt.length / 4); // Rough estimate
     const estimated_output_tokens = input_tokens; // Assume similar output
-    
+
     // Create inference request
     const request = {
       prompt,
@@ -33,10 +37,10 @@ router.post('/inference', async (req, res) => {
       task_type,
       context_size: input_tokens
     };
-    
+
     // Route through economic orchestrator
     const result = await orchestrator.route(request, economic_mode);
-    
+
     res.json({
       success: true,
       result,
@@ -74,7 +78,7 @@ router.get('/inference/metrics', (req, res) => {
  */
 router.post('/inference/mode', (req, res) => {
   const { mode } = req.body;
-  
+
   const validModes = ['cost_optimized', 'balanced', 'performance'];
   if (!validModes.includes(mode)) {
     return res.status(400).json({
@@ -82,7 +86,7 @@ router.post('/inference/mode', (req, res) => {
       error: `Invalid mode. Must be one of: ${validModes.join(', ')}`
     });
   }
-  
+
   res.json({
     success: true,
     message: `Economic mode set to: ${mode}`,
@@ -102,11 +106,11 @@ router.get('/inference/health', async (req, res) => {
       premium_api: true, // TODO: Implement actual health check
       orchestrator: 'healthy'
     };
-    
-    const allHealthy = Object.values(health).every(status => 
-      status === true || status === 'healthy'
+
+    const allHealthy = Object.values(health).every(
+      (status) => status === true || status === 'healthy'
     );
-    
+
     res.status(allHealthy ? 200 : 503).json({
       success: allHealthy,
       health,

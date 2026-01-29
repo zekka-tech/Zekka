@@ -1,6 +1,6 @@
 /**
  * Enhanced Audit Logging System
- * 
+ *
  * Features:
  * - Structured audit logs with retention policies
  * - Log rotation and archiving
@@ -51,15 +51,15 @@ class AuditLogger {
     this.maxFiles = options.maxFiles || '90d';
     this.batchSize = options.batchSize || 100;
     this.batchInterval = options.batchInterval || 5000; // 5 seconds
-    
+
     this.eventBatch = [];
     this.batchTimer = null;
-    
+
     this.ensureLogDirectory();
     this.initializeLogger();
     this.startBatchProcessor();
   }
-  
+
   /**
    * Ensure log directory exists
    */
@@ -75,7 +75,7 @@ class AuditLogger {
       }
     }
   }
-  
+
   /**
    * Initialize Winston logger with daily rotation
    */
@@ -91,7 +91,7 @@ class AuditLogger {
         format.json()
       )
     });
-    
+
     // Security events transport (separate file for critical events)
     const securityTransport = new transports.DailyRotateFile({
       filename: path.join(this.logDir, 'security-%DATE%.log'),
@@ -104,7 +104,7 @@ class AuditLogger {
         format.json()
       )
     });
-    
+
     this.logger = createLogger({
       transports: [
         auditTransport,
@@ -114,15 +114,17 @@ class AuditLogger {
           format: format.combine(
             format.colorize(),
             format.timestamp({ format: 'HH:mm:ss' }),
-            format.printf(({ timestamp, level, message, ...meta }) => {
-              return `${timestamp} [AUDIT] ${level}: ${message} ${Object.keys(meta).length ? JSON.stringify(meta) : ''}`;
-            })
+            format.printf(
+              ({
+                timestamp, level, message, ...meta
+              }) => `${timestamp} [AUDIT] ${level}: ${message} ${Object.keys(meta).length ? JSON.stringify(meta) : ''}`
+            )
           )
         })
       ]
     });
   }
-  
+
   /**
    * Start batch processor for performance optimization
    */
@@ -131,35 +133,40 @@ class AuditLogger {
       this.flushBatch();
     }, this.batchInterval);
   }
-  
+
   /**
    * Flush event batch to logger
    */
   flushBatch() {
     if (this.eventBatch.length === 0) return;
-    
+
     const events = [...this.eventBatch];
     this.eventBatch = [];
-    
-    events.forEach(event => {
+
+    events.forEach((event) => {
       const level = this.getSeverityLevel(event.severity);
       this.logger.log(level, event.message, event.metadata);
     });
   }
-  
+
   /**
    * Get Winston log level from audit severity
    */
   getSeverityLevel(severity) {
     switch (severity) {
-      case AuditSeverity.INFO: return 'info';
-      case AuditSeverity.WARNING: return 'warn';
-      case AuditSeverity.ERROR: return 'error';
-      case AuditSeverity.CRITICAL: return 'error';
-      default: return 'info';
+    case AuditSeverity.INFO:
+      return 'info';
+    case AuditSeverity.WARNING:
+      return 'warn';
+    case AuditSeverity.ERROR:
+      return 'error';
+    case AuditSeverity.CRITICAL:
+      return 'error';
+    default:
+      return 'info';
     }
   }
-  
+
   /**
    * Log audit event
    */
@@ -184,7 +191,7 @@ class AuditLogger {
         additionalData: event.additionalData || {}
       }
     };
-    
+
     // Critical events are logged immediately
     if (event.severity === AuditSeverity.CRITICAL) {
       const level = this.getSeverityLevel(event.severity);
@@ -192,23 +199,26 @@ class AuditLogger {
     } else {
       // Add to batch for performance
       this.eventBatch.push(auditEvent);
-      
+
       // Flush if batch is full
       if (this.eventBatch.length >= this.batchSize) {
         this.flushBatch();
       }
     }
-    
+
     return auditEvent.eventId;
   }
-  
+
   /**
    * Log authentication event
    */
   logAuthentication(action, outcome, actor, additionalData = {}) {
     return this.log({
       category: AuditCategory.AUTHENTICATION,
-      severity: outcome === AuditOutcome.FAILURE ? AuditSeverity.WARNING : AuditSeverity.INFO,
+      severity:
+        outcome === AuditOutcome.FAILURE
+          ? AuditSeverity.WARNING
+          : AuditSeverity.INFO,
       outcome,
       action,
       message: `Authentication ${action}: ${outcome}`,
@@ -216,14 +226,17 @@ class AuditLogger {
       additionalData
     });
   }
-  
+
   /**
    * Log authorization event
    */
   logAuthorization(action, outcome, actor, resource, additionalData = {}) {
     return this.log({
       category: AuditCategory.AUTHORIZATION,
-      severity: outcome === AuditOutcome.FAILURE ? AuditSeverity.WARNING : AuditSeverity.INFO,
+      severity:
+        outcome === AuditOutcome.FAILURE
+          ? AuditSeverity.WARNING
+          : AuditSeverity.INFO,
       outcome,
       action,
       resource,
@@ -232,7 +245,7 @@ class AuditLogger {
       additionalData
     });
   }
-  
+
   /**
    * Log data access event
    */
@@ -248,7 +261,7 @@ class AuditLogger {
       additionalData
     });
   }
-  
+
   /**
    * Log data modification event
    */
@@ -265,7 +278,7 @@ class AuditLogger {
       additionalData
     });
   }
-  
+
   /**
    * Log security event
    */
@@ -280,7 +293,7 @@ class AuditLogger {
       additionalData
     });
   }
-  
+
   /**
    * Log admin action
    */
@@ -296,21 +309,21 @@ class AuditLogger {
       additionalData
     });
   }
-  
+
   /**
    * Log API call
    */
   logApiCall(method, path, statusCode, actor, requestId, additionalData = {}) {
-    const outcome = statusCode >= 200 && statusCode < 400 
-      ? AuditOutcome.SUCCESS 
+    const outcome = statusCode >= 200 && statusCode < 400
+      ? AuditOutcome.SUCCESS
       : AuditOutcome.FAILURE;
-    
-    const severity = statusCode >= 500 
-      ? AuditSeverity.ERROR 
-      : statusCode >= 400 
-        ? AuditSeverity.WARNING 
+
+    const severity = statusCode >= 500
+      ? AuditSeverity.ERROR
+      : statusCode >= 400
+        ? AuditSeverity.WARNING
         : AuditSeverity.INFO;
-    
+
     return this.log({
       category: AuditCategory.API_CALL,
       severity,
@@ -327,14 +340,14 @@ class AuditLogger {
       }
     });
   }
-  
+
   /**
    * Generate unique event ID
    */
   generateEventId() {
     return `audit_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
   }
-  
+
   /**
    * Graceful shutdown
    */
@@ -342,10 +355,10 @@ class AuditLogger {
     if (this.batchTimer) {
       clearInterval(this.batchTimer);
     }
-    
+
     // Flush remaining events
     this.flushBatch();
-    
+
     // Wait for logger to finish
     return new Promise((resolve) => {
       this.logger.on('finish', resolve);

@@ -20,7 +20,7 @@ class ConversationsController {
    */
   async listConversations(req, res, next) {
     try {
-      const userId = req.user.userId;
+      const { userId } = req.user;
       const { projectId, limit, offset } = req.query;
 
       const pagination = {
@@ -50,7 +50,7 @@ class ConversationsController {
    */
   async createConversation(req, res, next) {
     try {
-      const userId = req.user.userId;
+      const { userId } = req.user;
       const { title, projectId, metadata } = req.body;
 
       const conversation = await conversationService.createConversation(
@@ -76,10 +76,13 @@ class ConversationsController {
    */
   async getConversation(req, res, next) {
     try {
-      const userId = req.user.userId;
+      const { userId } = req.user;
       const { id } = req.params;
 
-      const conversation = await conversationService.getConversation(id, userId);
+      const conversation = await conversationService.getConversation(
+        id,
+        userId
+      );
 
       res.status(200).json({
         success: true,
@@ -96,7 +99,7 @@ class ConversationsController {
    */
   async updateConversation(req, res, next) {
     try {
-      const userId = req.user.userId;
+      const { userId } = req.user;
       const { id } = req.params;
       const updates = req.body;
 
@@ -122,7 +125,7 @@ class ConversationsController {
    */
   async deleteConversation(req, res, next) {
     try {
-      const userId = req.user.userId;
+      const { userId } = req.user;
       const { id } = req.params;
 
       await conversationService.deleteConversation(id, userId);
@@ -142,7 +145,7 @@ class ConversationsController {
    */
   async getMessages(req, res, next) {
     try {
-      const userId = req.user.userId;
+      const { userId } = req.user;
       const { id } = req.params;
       const { limit, offset } = req.query;
 
@@ -169,7 +172,7 @@ class ConversationsController {
    */
   async sendMessage(req, res, next) {
     try {
-      const userId = req.user.userId;
+      const { userId } = req.user;
       const { id } = req.params;
       const { content, role, metadata } = req.body;
 
@@ -203,7 +206,7 @@ class ConversationsController {
    */
   async sendMessageStream(req, res, next) {
     try {
-      const userId = req.user.userId;
+      const { userId } = req.user;
       const { id } = req.params;
       const { content, role, metadata } = req.body;
 
@@ -227,25 +230,31 @@ class ConversationsController {
       );
 
       // Send user message confirmation
-      res.write(`data: ${JSON.stringify({
-        type: 'userMessage',
-        data: userMessage
-      })}\n\n`);
+      res.write(
+        `data: ${JSON.stringify({
+          type: 'userMessage',
+          data: userMessage
+        })}\n\n`
+      );
 
       // In a real implementation, this would integrate with AI service
       // For now, we'll create a placeholder for the streaming logic
 
       // Example streaming response structure:
       // The actual AI integration would go here
-      res.write(`data: ${JSON.stringify({
-        type: 'info',
-        message: 'AI streaming integration pending - implement in AI service'
-      })}\n\n`);
+      res.write(
+        `data: ${JSON.stringify({
+          type: 'info',
+          message: 'AI streaming integration pending - implement in AI service'
+        })}\n\n`
+      );
 
       // Send completion event
-      res.write(`data: ${JSON.stringify({
-        type: 'done'
-      })}\n\n`);
+      res.write(
+        `data: ${JSON.stringify({
+          type: 'done'
+        })}\n\n`
+      );
 
       res.end();
     } catch (error) {
@@ -256,10 +265,12 @@ class ConversationsController {
         res.setHeader('Connection', 'keep-alive');
       }
 
-      res.write(`data: ${JSON.stringify({
-        type: 'error',
-        error: error.message || 'Failed to send message'
-      })}\n\n`);
+      res.write(
+        `data: ${JSON.stringify({
+          type: 'error',
+          error: error.message || 'Failed to send message'
+        })}\n\n`
+      );
 
       res.end();
     }
@@ -271,7 +282,7 @@ class ConversationsController {
    */
   async updateMessage(req, res, next) {
     try {
-      const userId = req.user.userId;
+      const { userId } = req.user;
       const { msgId } = req.params;
       const { content, metadata } = req.body;
 
@@ -298,7 +309,7 @@ class ConversationsController {
    */
   async deleteMessage(req, res, next) {
     try {
-      const userId = req.user.userId;
+      const { userId } = req.user;
       const { msgId } = req.params;
 
       await conversationService.deleteMessage(msgId, userId);

@@ -16,10 +16,15 @@
  */
 
 const express = require('express');
+
 const router = express.Router();
 const conversationsController = require('../controllers/conversations.controller');
 const conversationSchemas = require('../schemas/conversations.schema');
-const { validateBody, validateQuery, validateParams } = require('../middleware/validate');
+const {
+  validateBody,
+  validateQuery,
+  validateParams
+} = require('../middleware/validate');
 const { authenticate } = require('../middleware/auth');
 
 // Apply authentication to all conversation routes

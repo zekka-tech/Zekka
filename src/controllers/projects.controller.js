@@ -19,8 +19,10 @@ class ProjectsController {
    */
   async listProjects(req, res, next) {
     try {
-      const userId = req.user.userId;
-      const { status, search, limit, offset } = req.query;
+      const { userId } = req.user;
+      const {
+        status, search, limit, offset
+      } = req.query;
 
       const filters = {};
       if (status) filters.status = status;
@@ -31,7 +33,11 @@ class ProjectsController {
         offset: parseInt(offset) || 0
       };
 
-      const result = await projectService.listProjects(userId, filters, pagination);
+      const result = await projectService.listProjects(
+        userId,
+        filters,
+        pagination
+      );
 
       res.status(200).json({
         success: true,
@@ -49,7 +55,7 @@ class ProjectsController {
    */
   async createProject(req, res, next) {
     try {
-      const userId = req.user.userId;
+      const { userId } = req.user;
       const { name, description, settings } = req.body;
 
       const project = await projectService.createProject(userId, {
@@ -74,7 +80,7 @@ class ProjectsController {
    */
   async getProject(req, res, next) {
     try {
-      const userId = req.user.userId;
+      const { userId } = req.user;
       const { id } = req.params;
 
       const project = await projectService.getProject(id, userId);
@@ -94,7 +100,7 @@ class ProjectsController {
    */
   async updateProject(req, res, next) {
     try {
-      const userId = req.user.userId;
+      const { userId } = req.user;
       const { id } = req.params;
       const updates = req.body;
 
@@ -116,7 +122,7 @@ class ProjectsController {
    */
   async deleteProject(req, res, next) {
     try {
-      const userId = req.user.userId;
+      const { userId } = req.user;
       const { id } = req.params;
 
       await projectService.deleteProject(id, userId);
@@ -136,7 +142,7 @@ class ProjectsController {
    */
   async getProjectStats(req, res, next) {
     try {
-      const userId = req.user.userId;
+      const { userId } = req.user;
       const { id } = req.params;
 
       const stats = await projectService.getProjectStats(id, userId);
@@ -156,7 +162,7 @@ class ProjectsController {
    */
   async getProjectMembers(req, res, next) {
     try {
-      const userId = req.user.userId;
+      const { userId } = req.user;
       const { id } = req.params;
 
       const members = await projectService.getProjectMembers(id, userId);
@@ -176,11 +182,16 @@ class ProjectsController {
    */
   async addMember(req, res, next) {
     try {
-      const userId = req.user.userId;
+      const { userId } = req.user;
       const { id } = req.params;
       const { userId: newUserId, role } = req.body;
 
-      const member = await projectService.addMember(id, userId, newUserId, role);
+      const member = await projectService.addMember(
+        id,
+        userId,
+        newUserId,
+        role
+      );
 
       res.status(201).json({
         success: true,
@@ -198,7 +209,7 @@ class ProjectsController {
    */
   async removeMember(req, res, next) {
     try {
-      const userId = req.user.userId;
+      const { userId } = req.user;
       const { id, userId: memberId } = req.params;
 
       await projectService.removeMember(id, userId, memberId);

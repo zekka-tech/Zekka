@@ -1,6 +1,6 @@
 /**
  * Advanced Prometheus Metrics Configuration
- * 
+ *
  * Features:
  * - Custom business metrics
  * - Histogram for latency tracking
@@ -250,11 +250,11 @@ const circuitBreakerFailures = new client.Counter({
 function metricsMiddleware(req, res, next) {
   const start = Date.now();
   const requestSize = parseInt(req.get('content-length') || 0);
-  
+
   // Track request size
   if (requestSize > 0) {
     httpRequestSize.observe(
-      { 
+      {
         method: req.method,
         route: req.route?.path || req.path,
         api_version: req.apiVersion || 'unknown'
@@ -262,34 +262,34 @@ function metricsMiddleware(req, res, next) {
       requestSize
     );
   }
-  
+
   // Capture the original end function
   const originalEnd = res.end;
-  
+
   // Override end function to capture response metrics
-  res.end = function(...args) {
+  res.end = function (...args) {
     const duration = (Date.now() - start) / 1000;
     const responseSize = parseInt(res.get('content-length') || 0);
-    
+
     const labels = {
       method: req.method,
       route: req.route?.path || req.path,
       status_code: res.statusCode,
       api_version: req.apiVersion || 'unknown'
     };
-    
+
     // Record metrics
     httpRequestsTotal.inc(labels);
     httpRequestDuration.observe(labels, duration);
-    
+
     if (responseSize > 0) {
       httpResponseSize.observe(labels, responseSize);
     }
-    
+
     // Call original end
     return originalEnd.apply(this, args);
   };
-  
+
   next();
 }
 
@@ -299,12 +299,23 @@ function metricsMiddleware(req, res, next) {
 
 const metrics = {
   // HTTP
-  recordHttpRequest: (method, route, statusCode, duration, apiVersion = 'v1') => {
-    const labels = { method, route, status_code: statusCode, api_version: apiVersion };
+  recordHttpRequest: (
+    method,
+    route,
+    statusCode,
+    duration,
+    apiVersion = 'v1'
+  ) => {
+    const labels = {
+      method,
+      route,
+      status_code: statusCode,
+      api_version: apiVersion
+    };
     httpRequestsTotal.inc(labels);
     httpRequestDuration.observe(labels, duration);
   },
-  
+
   // Authentication
   recordAuthAttempt: (status, reason = 'none') => {
     authAttemptsTotal.inc({ status, reason });
@@ -312,95 +323,95 @@ const metrics = {
       authFailuresTotal.inc({ reason });
     }
   },
-  
+
   setActiveSessions: (count) => {
     activeSessionsGauge.set(count);
   },
-  
+
   recordSessionDuration: (duration) => {
     sessionDuration.observe(duration);
   },
-  
+
   // Database
   recordDbQuery: (operation, table, status, duration) => {
     dbQueriesTotal.inc({ operation, table, status });
     dbQueryDuration.observe({ operation, table }, duration);
   },
-  
+
   setDbConnections: (active, idle) => {
     dbConnectionsActive.set(active);
     dbConnectionsIdle.set(idle);
   },
-  
+
   recordDbError: (errorType) => {
     dbConnectionErrors.inc({ error_type: errorType });
   },
-  
+
   // Security
   recordSecurityEvent: (type, severity) => {
     securityEventsTotal.inc({ type, severity });
   },
-  
+
   recordSecurityAlert: (alertType, severity) => {
     securityAlertsTotal.inc({ alert_type: alertType, severity });
   },
-  
+
   recordRateLimitHit: (endpoint, ip) => {
     rateLimitHits.inc({ endpoint, ip });
   },
-  
+
   recordCsrfViolation: () => {
     csrfViolations.inc();
   },
-  
+
   recordAccountLockout: () => {
     accountLockouts.inc();
   },
-  
+
   // Business
   setUsersCount: (total, active) => {
     usersTotal.set({ status: 'total' }, total);
     usersTotal.set({ status: 'active' }, active);
   },
-  
+
   setProjectsCount: (total, active, completed) => {
     projectsTotal.set({ status: 'total' }, total);
     projectsTotal.set({ status: 'active' }, active);
     projectsTotal.set({ status: 'completed' }, completed);
   },
-  
+
   recordProjectExecution: (duration) => {
     projectExecutionDuration.observe(duration);
   },
-  
+
   recordApiCall: (service, operation, status) => {
     apiCallsTotal.inc({ service, operation, status });
   },
-  
+
   // Errors
   recordError: (errorCode, category, severity) => {
     errorsTotal.inc({ error_code: errorCode, category, severity });
   },
-  
+
   setErrorRate: (rate) => {
     errorRate.set(rate);
   },
-  
+
   // Cache
   recordCacheHit: (cacheName) => {
     cacheHits.inc({ cache_name: cacheName });
   },
-  
+
   recordCacheMiss: (cacheName) => {
     cacheMisses.inc({ cache_name: cacheName });
   },
-  
+
   // Circuit Breaker
   setCircuitBreakerState: (service, state) => {
     // 0=closed, 1=open, 2=half-open
     circuitBreakerState.set({ service }, state);
   },
-  
+
   recordCircuitBreakerFailure: (service) => {
     circuitBreakerFailures.inc({ service });
   }

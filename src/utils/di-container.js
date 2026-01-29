@@ -1,7 +1,7 @@
 /**
  * Dependency Injection Container
  * Enterprise-grade IoC container with lifecycle management
- * 
+ *
  * Features:
  * - Service registration and resolution
  * - Singleton and transient lifetimes
@@ -9,7 +9,7 @@
  * - Circular dependency detection
  * - Service factories
  * - Lifecycle hooks (onInit, onDispose)
- * 
+ *
  * @version 1.0.0
  * @module utils/di-container
  */
@@ -101,7 +101,7 @@ class DIContainer {
 
     try {
       // Resolve dependencies
-      const deps = service.dependencies.map(dep => this.resolve(dep));
+      const deps = service.dependencies.map((dep) => this.resolve(dep));
 
       // Create instance
       const instance = service.factory(...deps);
@@ -118,7 +118,6 @@ class DIContainer {
 
       this.resolving.delete(name);
       return instance;
-
     } catch (error) {
       this.resolving.delete(name);
       throw new Error(`Failed to resolve service '${name}': ${error.message}`);

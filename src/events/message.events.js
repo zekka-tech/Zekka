@@ -8,9 +8,15 @@
  */
 
 const Joi = require('joi');
-const { wrapHandler, validateEventData, createSuccessResponse, createErrorResponse } = require('../middleware/socket-error-handler');
+const {
+  wrapHandler,
+  validateEventData,
+  createSuccessResponse,
+  createErrorResponse
+} = require('../middleware/socket-error-handler');
 const { trackRoom, untrackRoom } = require('../middleware/websocket');
 const { getUserId } = require('../utils/socket-auth');
+const conversationService = require('../services/conversation.service');
 
 // Validation schemas
 const messageSendSchema = Joi.object({
@@ -39,169 +45,239 @@ const typingUsers = new Map(); // conversationId -> Set of userIds
  */
 function setupMessageEvents(io, socket, logger) {
   // Join conversation room
-  socket.on('conversation:join', wrapHandler(async (data, callback) => {
-    const validation = validateEventData(data, conversationJoinSchema);
-    if (!validation.valid) {
-      if (callback) callback(createErrorResponse(validation.error, 'VALIDATION_ERROR'));
-      return;
-    }
+  socket.on(
+    'conversation:join',
+    wrapHandler(
+      async (data, callback) => {
+        const validation = validateEventData(data, conversationJoinSchema);
+        if (!validation.valid) {
+          if (callback) callback(createErrorResponse(validation.error, 'VALIDATION_ERROR'));
+          return;
+        }
 
-    const { conversationId } = validation.value;
-    const userId = getUserId(socket);
-    const room = `conversation:${conversationId}`;
+        const { conversationId } = validation.value;
+        const userId = getUserId(socket);
+        const room = `conversation:${conversationId}`;
 
-    // Join the room
-    socket.join(room);
-    trackRoom(socket.id, room);
+        // Join the room
+        socket.join(room);
+        trackRoom(socket.id, room);
 
-    logger.info(`User joined conversation: ${conversationId}`, {
-      socketId: socket.id,
-      userId
-    });
+        logger.info(`User joined conversation: ${conversationId}`, {
+          socketId: socket.id,
+          userId
+        });
 
-    // Notify other members
-    socket.to(room).emit('conversation:userJoined', {
-      conversationId,
-      userId,
-      username: socket.user?.username,
-      timestamp: Date.now()
-    });
+        // Notify other members
+        socket.to(room).emit('conversation:userJoined', {
+          conversationId,
+          userId,
+          username: socket.user?.username,
+          timestamp: Date.now()
+        });
 
-    // Send success response
-    if (callback) {
-      callback(createSuccessResponse({
-        conversationId,
-        joined: true
-      }));
-    }
-  }, socket, logger, 'conversation:join'));
+        // Send success response
+        if (callback) {
+          callback(
+            createSuccessResponse({
+              conversationId,
+              joined: true
+            })
+          );
+        }
+      },
+      socket,
+      logger,
+      'conversation:join'
+    )
+  );
 
   // Leave conversation room
-  socket.on('conversation:leave', wrapHandler(async (data, callback) => {
-    const validation = validateEventData(data, conversationJoinSchema);
-    if (!validation.valid) {
-      if (callback) callback(createErrorResponse(validation.error, 'VALIDATION_ERROR'));
-      return;
-    }
+  socket.on(
+    'conversation:leave',
+    wrapHandler(
+      async (data, callback) => {
+        const validation = validateEventData(data, conversationJoinSchema);
+        if (!validation.valid) {
+          if (callback) callback(createErrorResponse(validation.error, 'VALIDATION_ERROR'));
+          return;
+        }
 
-    const { conversationId } = validation.value;
-    const userId = getUserId(socket);
-    const room = `conversation:${conversationId}`;
+        const { conversationId } = validation.value;
+        const userId = getUserId(socket);
+        const room = `conversation:${conversationId}`;
 
-    // Leave the room
-    socket.leave(room);
-    untrackRoom(socket.id, room);
+        // Leave the room
+        socket.leave(room);
+        untrackRoom(socket.id, room);
 
-    // Clear typing indicator if set
-    clearTypingIndicator(conversationId, userId, io);
+        // Clear typing indicator if set
+        clearTypingIndicator(conversationId, userId, io);
 
-    logger.info(`User left conversation: ${conversationId}`, {
-      socketId: socket.id,
-      userId
-    });
+        logger.info(`User left conversation: ${conversationId}`, {
+          socketId: socket.id,
+          userId
+        });
 
-    // Notify other members
-    socket.to(room).emit('conversation:userLeft', {
-      conversationId,
-      userId,
-      username: socket.user?.username,
-      timestamp: Date.now()
-    });
+        // Notify other members
+        socket.to(room).emit('conversation:userLeft', {
+          conversationId,
+          userId,
+          username: socket.user?.username,
+          timestamp: Date.now()
+        });
 
-    if (callback) {
-      callback(createSuccessResponse({
-        conversationId,
-        left: true
-      }));
-    }
-  }, socket, logger, 'conversation:leave'));
+        if (callback) {
+          callback(
+            createSuccessResponse({
+              conversationId,
+              left: true
+            })
+          );
+        }
+      },
+      socket,
+      logger,
+      'conversation:leave'
+    )
+  );
 
   // Send message
-  socket.on('message:send', wrapHandler(async (data, callback) => {
-    const validation = validateEventData(data, messageSendSchema);
-    if (!validation.valid) {
-      if (callback) callback(createErrorResponse(validation.error, 'VALIDATION_ERROR'));
-      return;
-    }
+  socket.on(
+    'message:send',
+    wrapHandler(
+      async (data, callback) => {
+        const validation = validateEventData(data, messageSendSchema);
+        if (!validation.valid) {
+          if (callback) callback(createErrorResponse(validation.error, 'VALIDATION_ERROR'));
+          return;
+        }
 
-    const { conversationId, content, metadata } = validation.value;
-    const userId = getUserId(socket);
+        const { conversationId, content, metadata } = validation.value;
+        const userId = getUserId(socket);
 
-    // TODO: Save message to database
-    // For now, generate a mock message ID
-    const messageId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        try {
+          // Save message to database
+          const messageMetadata = {
+            ...metadata,
+            role: socket.user?.role || 'user'
+          };
 
-    const message = {
-      id: messageId,
-      conversationId,
-      userId,
-      username: socket.user?.username,
-      role: socket.user?.role || 'user',
-      content,
-      metadata: metadata || {},
-      createdAt: new Date().toISOString(),
-      timestamp: Date.now()
-    };
+          const savedMessage = await conversationService.sendMessage(
+            conversationId,
+            userId,
+            content,
+            messageMetadata
+          );
 
-    logger.info(`Message sent: ${messageId}`, {
-      conversationId,
-      userId,
-      contentLength: content.length
-    });
+          const message = {
+            id: savedMessage.id,
+            conversationId: savedMessage.conversation_id,
+            userId: savedMessage.user_id,
+            username: socket.user?.username,
+            role: savedMessage.role,
+            content: savedMessage.content,
+            metadata: savedMessage.metadata || {},
+            createdAt: savedMessage.created_at,
+            timestamp: Date.now()
+          };
 
-    // Clear typing indicator
-    clearTypingIndicator(conversationId, userId, io);
+          logger.info(`Message sent: ${message.id}`, {
+            conversationId,
+            userId,
+            contentLength: content.length
+          });
 
-    // Broadcast to conversation members
-    io.to(`conversation:${conversationId}`).emit('message:received', message);
+          // Clear typing indicator
+          clearTypingIndicator(conversationId, userId, io);
 
-    // Send acknowledgment to sender
-    if (callback) {
-      callback(createSuccessResponse({
-        messageId,
-        sent: true
-      }));
-    }
-  }, socket, logger, 'message:send'));
+          // Broadcast to conversation members
+          io.to(`conversation:${conversationId}`).emit(
+            'message:received',
+            message
+          );
+
+          // Send acknowledgment to sender
+          if (callback) {
+            callback(
+              createSuccessResponse({
+                messageId: message.id,
+                sent: true
+              })
+            );
+          }
+        } catch (error) {
+          logger.error('Failed to save message', {
+            conversationId,
+            userId,
+            error: error.message
+          });
+
+          if (callback) {
+            callback(createErrorResponse(error.message, 'MESSAGE_SAVE_FAILED'));
+          }
+        }
+      },
+      socket,
+      logger,
+      'message:send'
+    )
+  );
 
   // Typing indicator
-  socket.on('message:typing', wrapHandler(async (data) => {
-    const validation = validateEventData(data, messageTypingSchema);
-    if (!validation.valid) return;
+  socket.on(
+    'message:typing',
+    wrapHandler(
+      async (data) => {
+        const validation = validateEventData(data, messageTypingSchema);
+        if (!validation.valid) return;
 
-    const { conversationId } = validation.value;
-    const userId = getUserId(socket);
+        const { conversationId } = validation.value;
+        const userId = getUserId(socket);
 
-    // Track typing user
-    if (!typingUsers.has(conversationId)) {
-      typingUsers.set(conversationId, new Set());
-    }
-    typingUsers.get(conversationId).add(userId);
+        // Track typing user
+        if (!typingUsers.has(conversationId)) {
+          typingUsers.set(conversationId, new Set());
+        }
+        typingUsers.get(conversationId).add(userId);
 
-    // Broadcast typing indicator to others
-    socket.to(`conversation:${conversationId}`).emit('user:isTyping', {
-      conversationId,
-      userId,
-      username: socket.user?.username,
-      timestamp: Date.now()
-    });
+        // Broadcast typing indicator to others
+        socket.to(`conversation:${conversationId}`).emit('user:isTyping', {
+          conversationId,
+          userId,
+          username: socket.user?.username,
+          timestamp: Date.now()
+        });
 
-    // Auto-clear typing indicator after 3 seconds
-    setTimeout(() => {
-      clearTypingIndicator(conversationId, userId, io);
-    }, 3000);
-  }, socket, logger, 'message:typing'));
+        // Auto-clear typing indicator after 3 seconds
+        setTimeout(() => {
+          clearTypingIndicator(conversationId, userId, io);
+        }, 3000);
+      },
+      socket,
+      logger,
+      'message:typing'
+    )
+  );
 
   // Stop typing
-  socket.on('message:stopTyping', wrapHandler(async (data) => {
-    const validation = validateEventData(data, messageTypingSchema);
-    if (!validation.valid) return;
+  socket.on(
+    'message:stopTyping',
+    wrapHandler(
+      async (data) => {
+        const validation = validateEventData(data, messageTypingSchema);
+        if (!validation.valid) return;
 
-    const { conversationId } = validation.value;
-    const userId = getUserId(socket);
+        const { conversationId } = validation.value;
+        const userId = getUserId(socket);
 
-    clearTypingIndicator(conversationId, userId, io);
-  }, socket, logger, 'message:stopTyping'));
+        clearTypingIndicator(conversationId, userId, io);
+      },
+      socket,
+      logger,
+      'message:stopTyping'
+    )
+  );
 }
 
 /**

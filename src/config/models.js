@@ -61,8 +61,8 @@ const MODELS = {
     contextWindow: 200000,
     maxOutputTokens: 8192,
     pricing: {
-      input: 0.003,  // $3 per 1M input tokens
-      output: 0.015  // $15 per 1M output tokens
+      input: 0.003, // $3 per 1M input tokens
+      output: 0.015 // $15 per 1M output tokens
     },
     capabilities: ['reasoning', 'code', 'analysis', 'long-context'],
     recommendedFor: ['arbitrator', 'complex-reasoning', 'code-review'],
@@ -75,10 +75,16 @@ const MODELS = {
     contextWindow: 200000,
     maxOutputTokens: 8192,
     pricing: {
-      input: 0.015,  // $15 per 1M input tokens
-      output: 0.075  // $75 per 1M output tokens
+      input: 0.015, // $15 per 1M input tokens
+      output: 0.075 // $75 per 1M output tokens
     },
-    capabilities: ['advanced-reasoning', 'code', 'analysis', 'long-context', 'complex-tasks'],
+    capabilities: [
+      'advanced-reasoning',
+      'code',
+      'analysis',
+      'long-context',
+      'complex-tasks'
+    ],
     recommendedFor: ['critical-decisions', 'complex-analysis'],
     defaultTemperature: 0.3
   },
@@ -89,8 +95,8 @@ const MODELS = {
     contextWindow: 200000,
     maxOutputTokens: 4096,
     pricing: {
-      input: 0.00025,  // $0.25 per 1M input tokens
-      output: 0.00125  // $1.25 per 1M output tokens
+      input: 0.00025, // $0.25 per 1M input tokens
+      output: 0.00125 // $1.25 per 1M output tokens
     },
     capabilities: ['fast', 'code', 'analysis'],
     recommendedFor: ['simple-tasks', 'budget-conscious'],
@@ -105,8 +111,8 @@ const MODELS = {
     contextWindow: 32768,
     maxOutputTokens: 8192,
     pricing: {
-      input: 0.000125,   // $0.125 per 1M input tokens (free tier: 60 RPM)
-      output: 0.000375   // $0.375 per 1M output tokens
+      input: 0.000125, // $0.125 per 1M input tokens (free tier: 60 RPM)
+      output: 0.000375 // $0.375 per 1M output tokens
     },
     capabilities: ['reasoning', 'code', 'structured-output', 'fast'],
     recommendedFor: ['orchestrator', 'workflow-planning', 'high-volume'],
@@ -130,11 +136,11 @@ const MODELS = {
     provider: 'google',
     apiModel: 'gemini-1.5-pro',
     displayName: 'Gemini 1.5 Pro',
-    contextWindow: 1000000,  // 1M tokens!
+    contextWindow: 1000000, // 1M tokens!
     maxOutputTokens: 8192,
     pricing: {
-      input: 0.00125,   // $1.25 per 1M input tokens
-      output: 0.005     // $5 per 1M output tokens
+      input: 0.00125, // $1.25 per 1M input tokens
+      output: 0.005 // $5 per 1M output tokens
     },
     capabilities: ['long-context', 'reasoning', 'code', 'multimodal'],
     recommendedFor: ['long-documents', 'large-codebases'],
@@ -149,14 +155,14 @@ const MODELS = {
     contextWindow: 8192,
     maxOutputTokens: 2048,
     pricing: {
-      input: 0.0001,   // Minimal computational cost
+      input: 0.0001, // Minimal computational cost
       output: 0.0001
     },
     capabilities: ['general', 'code', 'reasoning'],
     recommendedFor: ['fallback', 'development', 'offline'],
     defaultTemperature: 0.7
   },
-  'codellama': {
+  codellama: {
     provider: 'ollama',
     apiModel: 'codellama',
     displayName: 'CodeLlama',
@@ -170,7 +176,7 @@ const MODELS = {
     recommendedFor: ['code-generation', 'fallback'],
     defaultTemperature: 0.2
   },
-  'mistral': {
+  mistral: {
     provider: 'ollama',
     apiModel: 'mistral',
     displayName: 'Mistral',
@@ -196,7 +202,7 @@ const COMPONENT_MODELS = {
     fallback: process.env.FALLBACK_MODEL || 'llama3.1:8b',
     description: 'AI-powered conflict resolution requires advanced reasoning',
     maxTokens: 4000,
-    temperature: 0.3  // Lower temperature for deterministic decisions
+    temperature: 0.3 // Lower temperature for deterministic decisions
   },
   orchestrator: {
     // Orchestrator uses Gemini Pro for cost-effective workflow coordination
@@ -204,11 +210,12 @@ const COMPONENT_MODELS = {
     fallback: process.env.FALLBACK_MODEL || 'llama3.1:8b',
     description: 'Workflow coordination optimized for cost and performance',
     maxTokens: 2000,
-    temperature: 0.7  // Moderate temperature for planning
+    temperature: 0.7 // Moderate temperature for planning
   },
   agents: {
     // General agents use token economics for dynamic selection
-    description: 'Model selected dynamically based on task complexity and budget',
+    description:
+      'Model selected dynamically based on task complexity and budget',
     selectionStrategy: 'token-economics'
   }
 };
@@ -218,11 +225,11 @@ const COMPONENT_MODELS = {
  */
 const FALLBACK_CONFIG = {
   enabled: true,
-  strategy: 'primary-to-ollama',  // Primary → Ollama
-  retryAttempts: 2,                // Retry primary model twice before fallback
-  retryDelay: 1000,                // Wait 1s between retries
-  logFallbacks: true,              // Log all fallback events
-  alertThreshold: 10               // Alert if >10 fallbacks per hour
+  strategy: 'primary-to-ollama', // Primary → Ollama
+  retryAttempts: 2, // Retry primary model twice before fallback
+  retryDelay: 1000, // Wait 1s between retries
+  logFallbacks: true, // Log all fallback events
+  alertThreshold: 10 // Alert if >10 fallbacks per hour
 };
 
 /**
@@ -240,16 +247,20 @@ const API_CONFIG = {
     timeout: 60000,
     requiredEnvVar: 'GEMINI_API_KEY',
     safetySettings: {
-      harassment: process.env.GEMINI_SAFETY_HARASSMENT || 'BLOCK_MEDIUM_AND_ABOVE',
-      hateSpeech: process.env.GEMINI_SAFETY_HATE_SPEECH || 'BLOCK_MEDIUM_AND_ABOVE',
-      sexuallyExplicit: process.env.GEMINI_SAFETY_SEXUALLY_EXPLICIT || 'BLOCK_MEDIUM_AND_ABOVE',
-      dangerous: process.env.GEMINI_SAFETY_DANGEROUS || 'BLOCK_MEDIUM_AND_ABOVE'
+      harassment:
+        process.env.GEMINI_SAFETY_HARASSMENT || 'BLOCK_MEDIUM_AND_ABOVE',
+      hateSpeech:
+        process.env.GEMINI_SAFETY_HATE_SPEECH || 'BLOCK_MEDIUM_AND_ABOVE',
+      sexuallyExplicit:
+        process.env.GEMINI_SAFETY_SEXUALLY_EXPLICIT || 'BLOCK_MEDIUM_AND_ABOVE',
+      dangerous:
+        process.env.GEMINI_SAFETY_DANGEROUS || 'BLOCK_MEDIUM_AND_ABOVE'
     }
   },
   ollama: {
     baseUrl: process.env.OLLAMA_HOST || 'http://localhost:11434',
-    timeout: 120000,  // 2 minutes for local processing
-    requiredEnvVar: null  // No API key needed
+    timeout: 120000, // 2 minutes for local processing
+    requiredEnvVar: null // No API key needed
   }
 };
 

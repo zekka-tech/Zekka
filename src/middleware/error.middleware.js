@@ -1,11 +1,12 @@
 /**
  * Error Handling Middleware
- * 
+ *
  * SECURITY FIX: Phase 3 - Comprehensive error handling
  */
 
 const config = require('../config');
 const { logAuditEvent } = require('./auth.secure');
+const logger = require('../utils/logger');
 
 /**
  * Error response formatter
@@ -18,13 +19,13 @@ function formatError(err, requestId) {
     timestamp: new Date().toISOString(),
     requestId
   };
-  
+
   // Add details in development only
   if (config.isDevelopment) {
     error.stack = err.stack;
     error.details = err.details;
   }
-  
+
   return error;
 }
 
@@ -44,14 +45,14 @@ function logError(err, req) {
     requestId: req.id,
     timestamp: new Date().toISOString()
   };
-  
+
   // Log based on severity
   if (err.statusCode >= 500) {
-    console.error('❌ ERROR:', JSON.stringify(errorLog, null, 2));
+    logger.error('❌ ERROR:', JSON.stringify(errorLog, null, 2));
   } else if (err.statusCode >= 400) {
-    console.warn('⚠️  WARNING:', JSON.stringify(errorLog, null, 2));
+    logger.warn('⚠️  WARNING:', JSON.stringify(errorLog, null, 2));
   }
-  
+
   // Log to audit trail for security-related errors
   if (err.name === 'AuthenticationError' || err.name === 'AuthorizationError') {
     logAuditEvent('error.security', errorLog);
@@ -64,10 +65,10 @@ function logError(err, req) {
 function errorHandler(err, req, res, next) {
   // Log error
   logError(err, req);
-  
+
   // Format error response
   const errorResponse = formatError(err, req.id);
-  
+
   // Send response
   res.status(errorResponse.statusCode).json({
     error: errorResponse
@@ -105,12 +106,12 @@ function asyncHandler(fn) {
  */
 function setupUnhandledRejectionHandler() {
   process.on('unhandledRejection', (reason, promise) => {
-    console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+    logger.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
     // Log to monitoring service
   });
-  
+
   process.on('uncaughtException', (error) => {
-    console.error('❌ Uncaught Exception:', error);
+    logger.error('❌ Uncaught Exception:', error);
     // Log to monitoring service
     // Graceful shutdown
     process.exit(1);

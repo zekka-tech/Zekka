@@ -1,7 +1,7 @@
 /**
  * Orchestrator Service
  * Business logic for multi-agent orchestration
- * 
+ *
  * Features:
  * - Agent coordination
  * - Task management
@@ -19,7 +19,7 @@ class OrchestratorService {
     this.orchestrator = orchestrator;
     this.config = config;
     this.auditLogger = new AuditLogger();
-    
+
     // Circuit breaker for agent operations
     this.agentCircuitBreaker = new CircuitBreaker({
       name: 'agent-operations',
@@ -40,10 +40,7 @@ class OrchestratorService {
 
     try {
       const {
-        description,
-        context = {},
-        options = {},
-        budget = {}
+        description, context = {}, options = {}, budget = {}
       } = taskData;
 
       // Validate input
@@ -69,8 +66,8 @@ class OrchestratorService {
       });
 
       // Execute task with circuit breaker protection
-      const result = await this.agentCircuitBreaker.execute(async () => {
-        return await this.orchestrator.executeTask({
+      const result = await this.agentCircuitBreaker.execute(
+        async () => await this.orchestrator.executeTask({
           description,
           context,
           options: {
@@ -81,8 +78,8 @@ class OrchestratorService {
               monthly: budget.monthly || this.config.monthlyBudget
             }
           }
-        });
-      });
+        })
+      );
 
       const duration = Date.now() - startTime;
 
@@ -109,7 +106,6 @@ class OrchestratorService {
           tokensUsed: result.tokensUsed
         }
       };
-
     } catch (error) {
       const duration = Date.now() - startTime;
 
@@ -164,7 +160,6 @@ class OrchestratorService {
           stats: this.agentCircuitBreaker.getStats()
         }
       };
-
     } catch (error) {
       throw new AppError(
         'Failed to get agent status',
@@ -193,7 +188,6 @@ class OrchestratorService {
       });
 
       return { message: 'Task cancelled successfully' };
-
     } catch (error) {
       throw new AppError(
         'Failed to cancel task',
@@ -213,11 +207,7 @@ class OrchestratorService {
   async getTaskHistory(userId, filters = {}) {
     try {
       const {
-        limit = 50,
-        offset = 0,
-        status,
-        startDate,
-        endDate
+        limit = 50, offset = 0, status, startDate, endDate
       } = filters;
 
       // In production, this would query a database
@@ -228,7 +218,6 @@ class OrchestratorService {
         limit,
         offset
       };
-
     } catch (error) {
       throw new AppError(
         'Failed to retrieve task history',
@@ -246,12 +235,15 @@ class OrchestratorService {
   async getMetrics() {
     try {
       const status = await this.getAgentStatus();
-      
+
       return {
         agents: {
           active: status.activeAgents,
           available: status.availableAgents,
-          utilization: (status.activeAgents / status.availableAgents * 100).toFixed(2)
+          utilization: (
+            (status.activeAgents / status.availableAgents)
+            * 100
+          ).toFixed(2)
         },
         tasks: {
           queued: status.queuedTasks
@@ -260,7 +252,6 @@ class OrchestratorService {
         budget: status.budget,
         circuitBreaker: status.circuitBreaker
       };
-
     } catch (error) {
       throw new AppError(
         'Failed to get metrics',
@@ -299,7 +290,6 @@ class OrchestratorService {
       });
 
       return { message: 'Configuration updated successfully' };
-
     } catch (error) {
       if (error instanceof AppError) {
         throw error;
@@ -320,7 +310,7 @@ class OrchestratorService {
   async healthCheck() {
     try {
       const status = await this.getAgentStatus();
-      
+
       const health = {
         status: 'healthy',
         checks: {
@@ -330,12 +320,11 @@ class OrchestratorService {
         }
       };
 
-      health.status = Object.values(health.checks).every(v => v) 
-        ? 'healthy' 
+      health.status = Object.values(health.checks).every((v) => v)
+        ? 'healthy'
         : 'degraded';
 
       return health;
-
     } catch (error) {
       return {
         status: 'unhealthy',

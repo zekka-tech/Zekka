@@ -163,7 +163,7 @@ function validateEventData(data, schema) {
   if (error) {
     return {
       valid: false,
-      error: error.details.map(d => d.message).join(', '),
+      error: error.details.map((d) => d.message).join(', '),
       value: null
     };
   }
@@ -192,35 +192,40 @@ function rateLimitHandler(handler, options = {}) {
 
   const requests = new Map(); // socketId -> [timestamps]
 
-  return function(socket, logger, eventName) {
-    return wrapHandler(async (...args) => {
-      const now = Date.now();
-      const socketRequests = requests.get(socket.id) || [];
+  return function (socket, logger, eventName) {
+    return wrapHandler(
+      async (...args) => {
+        const now = Date.now();
+        const socketRequests = requests.get(socket.id) || [];
 
-      // Remove old requests outside window
-      const validRequests = socketRequests.filter(
-        timestamp => now - timestamp < windowMs
-      );
+        // Remove old requests outside window
+        const validRequests = socketRequests.filter(
+          (timestamp) => now - timestamp < windowMs
+        );
 
-      if (validRequests.length >= maxRequests) {
-        logger.warn(`Rate limit exceeded for ${eventName}`, {
-          socketId: socket.id,
-          userId: socket.user?.userId
-        });
+        if (validRequests.length >= maxRequests) {
+          logger.warn(`Rate limit exceeded for ${eventName}`, {
+            socketId: socket.id,
+            userId: socket.user?.userId
+          });
 
-        throw {
-          message,
-          code: 'RATE_LIMIT_EXCEEDED'
-        };
-      }
+          throw {
+            message,
+            code: 'RATE_LIMIT_EXCEEDED'
+          };
+        }
 
-      // Add current request
-      validRequests.push(now);
-      requests.set(socket.id, validRequests);
+        // Add current request
+        validRequests.push(now);
+        requests.set(socket.id, validRequests);
 
-      // Execute handler
-      return await handler(...args);
-    }, socket, logger, eventName);
+        // Execute handler
+        return await handler(...args);
+      },
+      socket,
+      logger,
+      eventName
+    );
   };
 }
 
@@ -233,7 +238,7 @@ function rateLimitHandler(handler, options = {}) {
  * @returns {number} - Delay in milliseconds
  */
 function calculateBackoff(attempt, baseDelay = 1000, maxDelay = 30000) {
-  const delay = Math.min(baseDelay * Math.pow(2, attempt), maxDelay);
+  const delay = Math.min(baseDelay * 2 ** attempt, maxDelay);
   // Add jitter (±25%)
   const jitter = delay * 0.25 * (Math.random() * 2 - 1);
   return Math.floor(delay + jitter);
@@ -264,7 +269,7 @@ async function retryWithBackoff(operation, options = {}) {
 
       if (attempt < maxRetries && shouldRetry(error)) {
         const delay = calculateBackoff(attempt, baseDelay, maxDelay);
-        await new Promise(resolve => setTimeout(resolve, delay));
+        await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
   }

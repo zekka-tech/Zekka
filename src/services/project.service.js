@@ -10,10 +10,11 @@
  * - Authorization checks
  */
 
+const { v4: uuidv4 } = require('uuid');
 const { AppError } = require('../utils/errors');
 const db = require('../config/database');
-const { v4: uuidv4 } = require('uuid');
 const { getIO } = require('../middleware/websocket');
+const logger = require('../utils/logger');
 
 // Simple ID generator for compatibility
 const generateId = () => {
@@ -173,7 +174,10 @@ class ProjectService {
 
       const parsedProject = {
         ...project,
-        settings: typeof project.settings === 'string' ? JSON.parse(project.settings) : project.settings
+        settings:
+          typeof project.settings === 'string'
+            ? JSON.parse(project.settings)
+            : project.settings
       };
 
       // Emit real-time event through WebSocket
@@ -186,7 +190,7 @@ class ProjectService {
           });
         }
       } catch (wsError) {
-        console.error('Failed to broadcast project creation:', wsError);
+        logger.error('Failed to broadcast project creation:', wsError);
       }
 
       return parsedProject;
@@ -229,7 +233,10 @@ class ProjectService {
 
       return {
         ...project,
-        settings: typeof project.settings === 'string' ? JSON.parse(project.settings) : project.settings
+        settings:
+          typeof project.settings === 'string'
+            ? JSON.parse(project.settings)
+            : project.settings
       };
     } catch (error) {
       if (error instanceof AppError) throw error;
@@ -274,10 +281,12 @@ class ProjectService {
       const updateValues = [];
       let paramCount = 1;
 
-      Object.keys(updates).forEach(key => {
+      Object.keys(updates).forEach((key) => {
         if (allowedFields.includes(key) && updates[key] !== undefined) {
           updateFields.push(`${key} = $${paramCount}`);
-          updateValues.push(key === 'settings' ? JSON.stringify(updates[key]) : updates[key]);
+          updateValues.push(
+            key === 'settings' ? JSON.stringify(updates[key]) : updates[key]
+          );
           paramCount++;
         }
       });
@@ -286,7 +295,7 @@ class ProjectService {
         throw new AppError('No valid fields to update', 400);
       }
 
-      updateFields.push(`updated_at = CURRENT_TIMESTAMP`);
+      updateFields.push('updated_at = CURRENT_TIMESTAMP');
 
       const query = `
         UPDATE projects
@@ -307,7 +316,10 @@ class ProjectService {
 
       const parsedProject = {
         ...project,
-        settings: typeof project.settings === 'string' ? JSON.parse(project.settings) : project.settings
+        settings:
+          typeof project.settings === 'string'
+            ? JSON.parse(project.settings)
+            : project.settings
       };
 
       // Emit real-time event through WebSocket
@@ -320,7 +332,7 @@ class ProjectService {
           });
         }
       } catch (wsError) {
-        console.error('Failed to broadcast project update:', wsError);
+        logger.error('Failed to broadcast project update:', wsError);
       }
 
       return parsedProject;
@@ -359,19 +371,19 @@ class ProjectService {
 
       // Soft delete project
       await client.query(
-        `UPDATE projects SET deleted_at = CURRENT_TIMESTAMP WHERE id = $1`,
+        'UPDATE projects SET deleted_at = CURRENT_TIMESTAMP WHERE id = $1',
         [projectId]
       );
 
       // Soft delete associated conversations
       await client.query(
-        `UPDATE conversations SET deleted_at = CURRENT_TIMESTAMP WHERE project_id = $1`,
+        'UPDATE conversations SET deleted_at = CURRENT_TIMESTAMP WHERE project_id = $1',
         [projectId]
       );
 
       // Soft delete associated sources
       await client.query(
-        `UPDATE sources SET deleted_at = CURRENT_TIMESTAMP WHERE project_id = $1`,
+        'UPDATE sources SET deleted_at = CURRENT_TIMESTAMP WHERE project_id = $1',
         [projectId]
       );
 
@@ -387,7 +399,7 @@ class ProjectService {
           });
         }
       } catch (wsError) {
-        console.error('Failed to broadcast project deletion:', wsError);
+        logger.error('Failed to broadcast project deletion:', wsError);
       }
     } catch (error) {
       await client.query('ROLLBACK');
@@ -461,11 +473,14 @@ class ProjectService {
       // Validate role
       const validRoles = ['owner', 'editor', 'viewer'];
       if (!validRoles.includes(role)) {
-        throw new AppError('Invalid role. Must be owner, editor, or viewer', 400);
+        throw new AppError(
+          'Invalid role. Must be owner, editor, or viewer',
+          400
+        );
       }
 
       // Check if user exists
-      const userQuery = `SELECT id, name, email FROM users WHERE id = $1`;
+      const userQuery = 'SELECT id, name, email FROM users WHERE id = $1';
       const userResult = await client.query(userQuery, [newUserId]);
 
       if (userResult.rows.length === 0) {
@@ -474,7 +489,7 @@ class ProjectService {
 
       // Check if already a member
       const memberCheck = await client.query(
-        `SELECT id FROM project_members WHERE project_id = $1 AND user_id = $2`,
+        'SELECT id FROM project_members WHERE project_id = $1 AND user_id = $2',
         [projectId, newUserId]
       );
 
@@ -490,7 +505,12 @@ class ProjectService {
         RETURNING *
       `;
 
-      const result = await client.query(insertQuery, [memberId, projectId, newUserId, role]);
+      const result = await client.query(insertQuery, [
+        memberId,
+        projectId,
+        newUserId,
+        role
+      ]);
 
       await client.query('COMMIT');
 
@@ -591,7 +611,10 @@ class ProjectService {
       return result.rows;
     } catch (error) {
       if (error instanceof AppError) throw error;
-      throw new AppError(`Failed to get project members: ${error.message}`, 500);
+      throw new AppError(
+        `Failed to get project members: ${error.message}`,
+        500
+      );
     }
   }
 }

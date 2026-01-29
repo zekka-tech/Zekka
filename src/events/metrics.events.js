@@ -8,13 +8,22 @@
  */
 
 const Joi = require('joi');
-const { wrapHandler, validateEventData, createSuccessResponse, createErrorResponse } = require('../middleware/socket-error-handler');
+const {
+  wrapHandler,
+  validateEventData,
+  createSuccessResponse,
+  createErrorResponse
+} = require('../middleware/socket-error-handler');
 const { trackRoom, untrackRoom } = require('../middleware/websocket');
 const { getUserId } = require('../utils/socket-auth');
+const { getAnalyticsService } = require('../services/analytics.service');
+const prometheusMetrics = require('../services/prometheus-metrics.service');
 
 // Validation schemas
 const metricsRequestSchema = Joi.object({
-  period: Joi.string().valid('realtime', 'hourly', 'daily', 'weekly', 'monthly').default('realtime'),
+  period: Joi.string()
+    .valid('realtime', 'hourly', 'daily', 'weekly', 'monthly')
+    .default('realtime'),
   metrics: Joi.array().items(Joi.string()).optional()
 });
 
@@ -27,101 +36,230 @@ const metricsRequestSchema = Joi.object({
  */
 function setupMetricsEvents(io, socket, logger) {
   // Subscribe to metrics updates
-  socket.on('metrics:subscribe', wrapHandler(async (data, callback) => {
-    const validation = validateEventData(data || {}, metricsRequestSchema);
-    if (!validation.valid) {
-      if (callback) callback(createErrorResponse(validation.error, 'VALIDATION_ERROR'));
-      return;
-    }
+  socket.on(
+    'metrics:subscribe',
+    wrapHandler(
+      async (data, callback) => {
+        const validation = validateEventData(data || {}, metricsRequestSchema);
+        if (!validation.valid) {
+          if (callback) callback(createErrorResponse(validation.error, 'VALIDATION_ERROR'));
+          return;
+        }
 
-    const { period } = validation.value;
-    const userId = getUserId(socket);
-    const room = `metrics:${period}`;
+        const { period } = validation.value;
+        const userId = getUserId(socket);
+        const room = `metrics:${period}`;
 
-    socket.join(room);
-    trackRoom(socket.id, room);
+        socket.join(room);
+        trackRoom(socket.id, room);
 
-    logger.info(`User subscribed to metrics: ${period}`, {
-      socketId: socket.id,
-      userId
-    });
+        logger.info(`User subscribed to metrics: ${period}`, {
+          socketId: socket.id,
+          userId
+        });
 
-    if (callback) {
-      callback(createSuccessResponse({
-        subscribed: true,
-        period
-      }));
-    }
-  }, socket, logger, 'metrics:subscribe'));
+        if (callback) {
+          callback(
+            createSuccessResponse({
+              subscribed: true,
+              period
+            })
+          );
+        }
+      },
+      socket,
+      logger,
+      'metrics:subscribe'
+    )
+  );
 
   // Unsubscribe from metrics
-  socket.on('metrics:unsubscribe', wrapHandler(async (data, callback) => {
-    const validation = validateEventData(data || {}, metricsRequestSchema);
-    if (!validation.valid) {
-      if (callback) callback(createErrorResponse(validation.error, 'VALIDATION_ERROR'));
-      return;
-    }
+  socket.on(
+    'metrics:unsubscribe',
+    wrapHandler(
+      async (data, callback) => {
+        const validation = validateEventData(data || {}, metricsRequestSchema);
+        if (!validation.valid) {
+          if (callback) callback(createErrorResponse(validation.error, 'VALIDATION_ERROR'));
+          return;
+        }
 
-    const { period } = validation.value;
-    const userId = getUserId(socket);
-    const room = `metrics:${period}`;
+        const { period } = validation.value;
+        const userId = getUserId(socket);
+        const room = `metrics:${period}`;
 
-    socket.leave(room);
-    untrackRoom(socket.id, room);
+        socket.leave(room);
+        untrackRoom(socket.id, room);
 
-    logger.info(`User unsubscribed from metrics: ${period}`, {
-      socketId: socket.id,
-      userId
-    });
+        logger.info(`User unsubscribed from metrics: ${period}`, {
+          socketId: socket.id,
+          userId
+        });
 
-    if (callback) {
-      callback(createSuccessResponse({
-        unsubscribed: true,
-        period
-      }));
-    }
-  }, socket, logger, 'metrics:unsubscribe'));
+        if (callback) {
+          callback(
+            createSuccessResponse({
+              unsubscribed: true,
+              period
+            })
+          );
+        }
+      },
+      socket,
+      logger,
+      'metrics:unsubscribe'
+    )
+  );
 
   // Request current metrics snapshot
-  socket.on('metrics:request', wrapHandler(async (data, callback) => {
-    const validation = validateEventData(data || {}, metricsRequestSchema);
-    if (!validation.valid) {
-      if (callback) callback(createErrorResponse(validation.error, 'VALIDATION_ERROR'));
-      return;
-    }
+  socket.on(
+    'metrics:request',
+    wrapHandler(
+      async (data, callback) => {
+        const validation = validateEventData(data || {}, metricsRequestSchema);
+        if (!validation.valid) {
+          if (callback) callback(createErrorResponse(validation.error, 'VALIDATION_ERROR'));
+          return;
+        }
 
-    const { period, metrics } = validation.value;
+        const { period, metrics: requestedMetrics } = validation.value;
+        const userId = getUserId(socket);
 
-    // TODO: Fetch actual metrics from database/service
-    const mockMetrics = generateMockMetrics(period, metrics);
+        try {
+          // Get analytics service instance
+          const analyticsService = getAnalyticsService();
 
-    if (callback) {
-      callback(createSuccessResponse({
-        period,
-        data: mockMetrics
-      }));
-    }
-  }, socket, logger, 'metrics:request'));
+          // Map period to analytics service format
+          const analyticsPeriod = mapPeriodToAnalyticsPeriod(period);
+
+          // Fetch business metrics from analytics service
+          const [businessMetrics, systemMetrics] = await Promise.all([
+            userId
+              ? analyticsService.getMetrics(userId, analyticsPeriod)
+              : Promise.resolve(null),
+            Promise.resolve(prometheusMetrics.getSystemMetrics())
+          ]);
+
+          // Combine metrics based on requested metrics
+          const combinedMetrics = {
+            system: {
+              cpu:
+                systemMetrics.cpu.usage_percent
+                || systemMetrics.cpu.load[0] * 10,
+              memory: systemMetrics.memory.usage_percent,
+              disk: 0, // Not available from current system metrics
+              uptime: systemMetrics.uptime,
+              platform: systemMetrics.platform,
+              arch: systemMetrics.arch
+            },
+            business: businessMetrics
+              ? {
+                projects: {
+                  total: parseInt(businessMetrics.total_projects) || 0,
+                  active: 0, // Not directly available
+                  completed: 0 // Not directly available
+                },
+                conversations:
+                    parseInt(businessMetrics.total_conversations) || 0,
+                messages: parseInt(businessMetrics.total_messages) || 0,
+                tokens: {
+                  input: parseInt(businessMetrics.total_input_tokens) || 0,
+                  output: parseInt(businessMetrics.total_output_tokens) || 0,
+                  total:
+                      (parseInt(businessMetrics.total_input_tokens) || 0)
+                      + (parseInt(businessMetrics.total_output_tokens) || 0)
+                },
+                costs: {
+                  total: parseFloat(businessMetrics.total_cost) || 0,
+                  currency: 'USD',
+                  period: analyticsPeriod
+                },
+                agents: {
+                  used: parseInt(businessMetrics.agents_used) || 0
+                },
+                models: {
+                  used: parseInt(businessMetrics.models_used) || 0
+                }
+              }
+              : null
+          };
+
+          // Filter metrics if specific ones requested
+          let responseData = combinedMetrics;
+          if (requestedMetrics && requestedMetrics.length > 0) {
+            responseData = {};
+            requestedMetrics.forEach((key) => {
+              if (combinedMetrics[key]) {
+                responseData[key] = combinedMetrics[key];
+              }
+            });
+          }
+
+          if (callback) {
+            callback(
+              createSuccessResponse({
+                period,
+                data: responseData
+              })
+            );
+          }
+        } catch (error) {
+          logger.error('Failed to fetch metrics', {
+            error: error.message,
+            stack: error.stack,
+            userId,
+            period
+          });
+
+          // Fallback to mock metrics on error
+          const mockMetrics = generateMockMetrics(period, requestedMetrics);
+
+          if (callback) {
+            callback(
+              createSuccessResponse({
+                period,
+                data: mockMetrics,
+                warning: 'Using fallback metrics due to error'
+              })
+            );
+          }
+        }
+      },
+      socket,
+      logger,
+      'metrics:request'
+    )
+  );
 
   // Subscribe to cost updates
-  socket.on('costs:subscribe', wrapHandler(async (data, callback) => {
-    const userId = getUserId(socket);
-    const room = 'costs:updates';
+  socket.on(
+    'costs:subscribe',
+    wrapHandler(
+      async (data, callback) => {
+        const userId = getUserId(socket);
+        const room = 'costs:updates';
 
-    socket.join(room);
-    trackRoom(socket.id, room);
+        socket.join(room);
+        trackRoom(socket.id, room);
 
-    logger.info(`User subscribed to cost updates`, {
-      socketId: socket.id,
-      userId
-    });
+        logger.info('User subscribed to cost updates', {
+          socketId: socket.id,
+          userId
+        });
 
-    if (callback) {
-      callback(createSuccessResponse({
-        subscribed: true
-      }));
-    }
-  }, socket, logger, 'costs:subscribe'));
+        if (callback) {
+          callback(
+            createSuccessResponse({
+              subscribed: true
+            })
+          );
+        }
+      },
+      socket,
+      logger,
+      'costs:subscribe'
+    )
+  );
 }
 
 /**
@@ -264,6 +402,23 @@ function broadcastUsageStats(io, usage) {
 }
 
 /**
+ * Map WebSocket period format to analytics service period format
+ *
+ * @param {string} period - WebSocket period (realtime, hourly, daily, weekly, monthly)
+ * @returns {string} - Analytics service period (day, week, month, all)
+ */
+function mapPeriodToAnalyticsPeriod(period) {
+  const periodMap = {
+    realtime: 'day',
+    hourly: 'day',
+    daily: 'week',
+    weekly: 'month',
+    monthly: 'all'
+  };
+  return periodMap[period] || 'month';
+}
+
+/**
  * Generate mock metrics for testing
  *
  * @param {string} period - Time period
@@ -298,7 +453,7 @@ function generateMockMetrics(period, requestedMetrics) {
   // Filter metrics if specific ones requested
   if (requestedMetrics && requestedMetrics.length > 0) {
     const filtered = {};
-    requestedMetrics.forEach(key => {
+    requestedMetrics.forEach((key) => {
       if (baseMetrics[key]) {
         filtered[key] = baseMetrics[key];
       }

@@ -81,7 +81,7 @@ class PreferenceService {
       // Transform flat structure to nested object
       const preferences = { ...DEFAULT_PREFERENCES };
 
-      result.rows.forEach(row => {
+      result.rows.forEach((row) => {
         if (!preferences[row.category]) {
           preferences[row.category] = {};
         }
@@ -115,8 +115,8 @@ class PreferenceService {
         [userId, category]
       );
 
-      const categoryPrefs = { ...DEFAULT_PREFERENCES[category] || {} };
-      result.rows.forEach(row => {
+      const categoryPrefs = { ...(DEFAULT_PREFERENCES[category] || {}) };
+      result.rows.forEach((row) => {
         categoryPrefs[row.key] = row.value;
       });
 
@@ -205,7 +205,12 @@ class PreferenceService {
       for (const [category, preferences] of Object.entries(updates)) {
         if (typeof preferences === 'object') {
           for (const [key, value] of Object.entries(preferences)) {
-            const result = await this.setPreference(userId, category, key, value);
+            const result = await this.setPreference(
+              userId,
+              category,
+              key,
+              value
+            );
             results.push(result);
           }
         }
@@ -256,10 +261,9 @@ class PreferenceService {
       }
 
       // Delete all user preferences
-      await db.query(
-        `DELETE FROM user_preferences WHERE user_id = $1`,
-        [userId]
-      );
+      await db.query('DELETE FROM user_preferences WHERE user_id = $1', [
+        userId
+      ]);
 
       // Reset notification preferences to defaults
       await db.query(
@@ -370,7 +374,7 @@ class PreferenceService {
       }
 
       const result = await db.query(
-        `SELECT * FROM notification_preferences WHERE user_id = $1`,
+        'SELECT * FROM notification_preferences WHERE user_id = $1',
         [userId]
       );
 

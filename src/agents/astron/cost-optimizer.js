@@ -76,7 +76,9 @@ class CostOptimizer extends EventEmitter {
 
     try {
       // Get current cost metrics
-      const metrics = await this.tokenEconomics.getCostSummary({ period: 'day' });
+      const metrics = await this.tokenEconomics.getCostSummary({
+        period: 'day'
+      });
 
       // Analyze cost patterns
       const analysis = this.analyzeCostPatterns(metrics);
@@ -93,14 +95,20 @@ class CostOptimizer extends EventEmitter {
         metrics,
         recommendations,
         applied,
-        savings: applied.reduce((sum, opt) => sum + (opt.estimatedSavings || 0), 0)
+        savings: applied.reduce(
+          (sum, opt) => sum + (opt.estimatedSavings || 0),
+          0
+        )
       });
 
       // Publish results
       await this.contextBus.publish('astron.cost.optimization-complete', {
         recommendations: recommendations.length,
         applied: applied.length,
-        estimatedSavings: applied.reduce((sum, opt) => sum + (opt.estimatedSavings || 0), 0),
+        estimatedSavings: applied.reduce(
+          (sum, opt) => sum + (opt.estimatedSavings || 0),
+          0
+        ),
         timestamp: new Date().toISOString()
       });
 
@@ -109,7 +117,6 @@ class CostOptimizer extends EventEmitter {
         applied,
         analysis
       };
-
     } catch (error) {
       this.logger.error('[Astron:Cost] Optimization failed:', error);
       throw error;
@@ -144,7 +151,7 @@ class CostOptimizer extends EventEmitter {
             severity: 'high',
             current: avgCost,
             expected: historicalAvg,
-            increase: ((avgCost - historicalAvg) / historicalAvg * 100).toFixed(2) + '%'
+            increase: `${(((avgCost - historicalAvg) / historicalAvg) * 100).toFixed(2)}%`
           });
         }
       }
@@ -158,7 +165,7 @@ class CostOptimizer extends EventEmitter {
           analysis.inefficiencies.push({
             category,
             cost,
-            percentage: percentage.toFixed(2) + '%',
+            percentage: `${percentage.toFixed(2)}%`,
             suggestion: `High cost concentration in ${category}`
           });
         }
@@ -208,7 +215,9 @@ class CostOptimizer extends EventEmitter {
       recommendations.push(opportunity);
     }
 
-    return recommendations.sort((a, b) => b.estimatedSavings - a.estimatedSavings);
+    return recommendations.sort(
+      (a, b) => b.estimatedSavings - a.estimatedSavings
+    );
   }
 
   /**
@@ -223,7 +232,8 @@ class CostOptimizer extends EventEmitter {
         type: 'batching',
         priority: 'medium',
         title: 'Implement request batching',
-        description: 'High request volume detected - batching could reduce costs',
+        description:
+          'High request volume detected - batching could reduce costs',
         action: 'Batch similar requests to reduce API calls',
         estimatedSavings: metrics.totalCost * 0.15, // 15% savings
         autoApplicable: true
@@ -235,7 +245,8 @@ class CostOptimizer extends EventEmitter {
       type: 'caching',
       priority: 'high',
       title: 'Implement result caching',
-      description: 'Cache frequently requested results to avoid redundant API calls',
+      description:
+        'Cache frequently requested results to avoid redundant API calls',
       action: 'Enable Redis caching for common queries',
       estimatedSavings: metrics.totalCost * 0.25, // 25% savings
       autoApplicable: true
@@ -247,8 +258,9 @@ class CostOptimizer extends EventEmitter {
       priority: 'medium',
       title: 'Optimize model selection',
       description: 'Use smaller, more efficient models for simple tasks',
-      action: 'Route simple tasks to cheaper models (e.g., GPT-3.5 instead of GPT-4)',
-      estimatedSavings: metrics.totalCost * 0.20, // 20% savings
+      action:
+        'Route simple tasks to cheaper models (e.g., GPT-3.5 instead of GPT-4)',
+      estimatedSavings: metrics.totalCost * 0.2, // 20% savings
       autoApplicable: false
     });
 
@@ -261,32 +273,36 @@ class CostOptimizer extends EventEmitter {
   async applyOptimizations(recommendations) {
     const applied = [];
 
-    for (const rec of recommendations.filter(r => r.autoApplicable)) {
+    for (const rec of recommendations.filter((r) => r.autoApplicable)) {
       try {
         this.logger.info(`[Astron:Cost] Applying optimization: ${rec.title}`);
 
         switch (rec.type) {
-          case 'batching':
-            await this.enableBatching();
-            applied.push(rec);
-            break;
+        case 'batching':
+          await this.enableBatching();
+          applied.push(rec);
+          break;
 
-          case 'caching':
-            await this.enableCaching();
-            applied.push(rec);
-            break;
+        case 'caching':
+          await this.enableCaching();
+          applied.push(rec);
+          break;
 
-          case 'efficiency-improvement':
-            await this.optimizeCategory(rec);
-            applied.push(rec);
-            break;
+        case 'efficiency-improvement':
+          await this.optimizeCategory(rec);
+          applied.push(rec);
+          break;
 
-          default:
-            this.logger.warn(`[Astron:Cost] Unknown optimization type: ${rec.type}`);
+        default:
+          this.logger.warn(
+            `[Astron:Cost] Unknown optimization type: ${rec.type}`
+          );
         }
-
       } catch (error) {
-        this.logger.error(`[Astron:Cost] Failed to apply optimization ${rec.title}:`, error);
+        this.logger.error(
+          `[Astron:Cost] Failed to apply optimization ${rec.title}:`,
+          error
+        );
       }
     }
 
@@ -306,11 +322,13 @@ class CostOptimizer extends EventEmitter {
     const dailyUsage = (metrics.totalCost / dailyBudget) * 100;
 
     if (dailyUsage >= this.config.budgetAlertThreshold) {
-      this.logger.warn(`[Astron:Cost] Budget alert: ${dailyUsage.toFixed(2)}% of daily budget used`);
+      this.logger.warn(
+        `[Astron:Cost] Budget alert: ${dailyUsage.toFixed(2)}% of daily budget used`
+      );
 
       await this.contextBus.publish('astron.cost.budget-alert', {
         level: dailyUsage >= 95 ? 'critical' : 'warning',
-        dailyUsage: dailyUsage.toFixed(2) + '%',
+        dailyUsage: `${dailyUsage.toFixed(2)}%`,
         currentCost: metrics.totalCost,
         dailyBudget,
         timestamp: new Date().toISOString()
@@ -332,14 +350,16 @@ class CostOptimizer extends EventEmitter {
     const metrics = await this.tokenEconomics.getCostSummary({ period: 'all' });
 
     const totalSavings = this.optimizationHistory.reduce(
-      (sum, opt) => sum + (opt.savings || 0), 0
+      (sum, opt) => sum + (opt.savings || 0),
+      0
     );
 
     return {
       currentMetrics: metrics,
       totalOptimizations: this.optimizationHistory.length,
       totalSavings,
-      avgSavingsPerOptimization: totalSavings / (this.optimizationHistory.length || 1),
+      avgSavingsPerOptimization:
+        totalSavings / (this.optimizationHistory.length || 1),
       recentOptimizations: this.optimizationHistory.slice(-10)
     };
   }
@@ -367,7 +387,9 @@ class CostOptimizer extends EventEmitter {
         appliedAt: new Date().toISOString()
       })
     );
-    this.logger.info(`[Astron:Cost] Optimized category: ${recommendation.category}`);
+    this.logger.info(
+      `[Astron:Cost] Optimized category: ${recommendation.category}`
+    );
   }
 }
 

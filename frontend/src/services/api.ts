@@ -116,7 +116,7 @@ class ApiService {
     return response.data
   }
 
-  async updateProject(id: string, data: any) {
+  async updateProject(id: string, data: Record<string, unknown>) {
     const response = await this.axiosInstance.put(`/api/projects/${id}`, data)
     return response.data
   }
@@ -201,6 +201,61 @@ class ApiService {
   async getCostsBreakdown() {
     const response = await this.axiosInstance.get('/api/costs/breakdown')
     return response.data
+  }
+
+  // ===== Source APIs =====
+
+  async getSources(projectId: string) {
+    const response = await this.axiosInstance.get('/api/v1/sources', {
+      params: { projectId }
+    })
+    return response.data.data
+  }
+
+  async getSourceFolders(projectId: string) {
+    const response = await this.axiosInstance.get('/api/v1/sources/folders', {
+      params: { projectId }
+    })
+    return response.data.data
+  }
+
+  async createSource(projectId: string, formData: FormData) {
+    formData.append('projectId', projectId)
+    const response = await this.axiosInstance.post('/api/v1/sources', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    })
+    return response.data.data
+  }
+
+  async deleteSource(sourceId: string) {
+    const response = await this.axiosInstance.delete(`/api/v1/sources/${sourceId}`)
+    return response.data
+  }
+
+  async createSourceFolder(projectId: string, data: { name: string; parentId?: string }) {
+    const response = await this.axiosInstance.post('/api/v1/sources/folders', {
+      projectId,
+      ...data
+    })
+    return response.data.data
+  }
+
+  async searchSources(projectId: string, query: string, options: { type?: string; limit?: number } = {}) {
+    const response = await this.axiosInstance.get('/api/v1/sources/search', {
+      params: {
+        projectId,
+        q: query,
+        ...options
+      }
+    })
+    return response.data.data
+  }
+
+  async getProjectStats(projectId: string) {
+    const response = await this.axiosInstance.get(`/api/v1/projects/${projectId}/stats`)
+    return response.data.data
   }
 
   // ===== Health Check =====

@@ -13,7 +13,7 @@ const apiLimiter = rateLimit({
     error: 'Too many requests from this IP, please try again after 15 minutes'
   },
   standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
-  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+  legacyHeaders: false // Disable the `X-RateLimit-*` headers
 });
 
 // Stricter rate limiter for project creation
@@ -21,10 +21,11 @@ const createProjectLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
   max: 10, // Limit each IP to 10 project creations per hour
   message: {
-    error: 'Too many projects created from this IP, please try again after an hour'
+    error:
+      'Too many projects created from this IP, please try again after an hour'
   },
   standardHeaders: true,
-  legacyHeaders: false,
+  legacyHeaders: false
 });
 
 // Authentication rate limiter
@@ -36,7 +37,7 @@ const authLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  skipSuccessfulRequests: true, // Don't count successful requests
+  skipSuccessfulRequests: true // Don't count successful requests
 });
 
 module.exports = {

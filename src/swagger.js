@@ -11,7 +11,8 @@ const options = {
     info: {
       title: 'Zekka Framework API',
       version: '2.0.0',
-      description: 'Multi-Agent AI Orchestration Platform API - Complete reference for managing 50+ AI agents across 10 workflow stages',
+      description:
+        'Multi-Agent AI Orchestration Platform API - Complete reference for managing 50+ AI agents across 10 workflow stages',
       contact: {
         name: 'Zekka Tech',
         url: 'https://github.com/zekka-tech/Zekka',

@@ -17,16 +17,16 @@ class TutorAgent extends BaseAgentZero {
    */
   async executeTask(task) {
     switch (task.type) {
-      case 'session':
-        return await this.conductSession(task.agentId, task.topic);
-      case 'answer':
-        return await this.answerQuestion(task.question, task.context);
-      case 'review':
-        return await this.reviewWork(task.agentId, task.work);
-      case 'adapt':
-        return await this.adaptLearningPath(task.agentId, task.performance);
-      default:
-        throw new Error(`Unknown task type: ${task.type}`);
+    case 'session':
+      return await this.conductSession(task.agentId, task.topic);
+    case 'answer':
+      return await this.answerQuestion(task.question, task.context);
+    case 'review':
+      return await this.reviewWork(task.agentId, task.work);
+    case 'adapt':
+      return await this.adaptLearningPath(task.agentId, task.performance);
+    default:
+      throw new Error(`Unknown task type: ${task.type}`);
     }
   }
 
@@ -50,7 +50,11 @@ class TutorAgent extends BaseAgentZero {
     const history = await this.getLearningHistory(agentId);
 
     // Assess current understanding
-    const understanding = await this.assessUnderstanding(agentId, topic, history);
+    const understanding = await this.assessUnderstanding(
+      agentId,
+      topic,
+      history
+    );
 
     // Create personalized lesson plan
     const lessonPlan = this.createLessonPlan(topic, understanding);
@@ -61,7 +65,7 @@ class TutorAgent extends BaseAgentZero {
     this.sessions.set(session.sessionId, session);
 
     // Start interactive session
-    await this.contextBus.publish(`agent.tutor.session-started`, {
+    await this.contextBus.publish('agent.tutor.session-started', {
       sessionId: session.sessionId,
       agentId,
       topic,
@@ -190,10 +194,16 @@ class TutorAgent extends BaseAgentZero {
     // Update learning path based on insights
     if (insights.averageScore >= 85) {
       // Agent is excelling, accelerate
-      learningPath.recommendedPath = this.acceleratePath(learningPath, insights);
+      learningPath.recommendedPath = this.acceleratePath(
+        learningPath,
+        insights
+      );
     } else if (insights.averageScore < 60) {
       // Agent is struggling, provide support
-      learningPath.recommendedPath = this.supportivePath(learningPath, insights);
+      learningPath.recommendedPath = this.supportivePath(
+        learningPath,
+        insights
+      );
     } else {
       // Agent is progressing normally
       learningPath.recommendedPath = this.balancedPath(learningPath, insights);
@@ -219,13 +229,15 @@ class TutorAgent extends BaseAgentZero {
   async getLearningHistory(agentId) {
     const historyKey = `agent:${agentId}:learning-history`;
     const history = await this.contextBus.get(historyKey);
-    return history ? JSON.parse(history) : { sessions: [], scores: [], topics: [] };
+    return history
+      ? JSON.parse(history)
+      : { sessions: [], scores: [], topics: [] };
   }
 
   async assessUnderstanding(agentId, topic, history) {
     // Check if agent has studied this topic before
-    const previousStudy = history.topics.find(t => t.name === topic);
-    
+    const previousStudy = history.topics.find((t) => t.name === topic);
+
     if (previousStudy) {
       return {
         level: previousStudy.level || 'beginner',
@@ -248,7 +260,11 @@ class TutorAgent extends BaseAgentZero {
       lessons.push({
         title: 'Fundamentals',
         duration: '20 min',
-        activities: ['Concept introduction', 'Basic examples', 'Simple exercises']
+        activities: [
+          'Concept introduction',
+          'Basic examples',
+          'Simple exercises'
+        ]
       });
     }
 
@@ -264,7 +280,11 @@ class TutorAgent extends BaseAgentZero {
       lessons.push({
         title: 'Advanced Topics',
         duration: '40 min',
-        activities: ['Expert-level content', 'Real-world scenarios', 'Optimization techniques']
+        activities: [
+          'Expert-level content',
+          'Real-world scenarios',
+          'Optimization techniques'
+        ]
       });
     }
 
@@ -280,7 +300,7 @@ class TutorAgent extends BaseAgentZero {
   analyzeQuestionComplexity(question) {
     const words = question.split(' ').length;
     const hasAdvancedTerms = /advanced|complex|optimize|architecture|design pattern/i.test(question);
-    
+
     if (words > 20 || hasAdvancedTerms) return 'high';
     if (words > 10) return 'medium';
     return 'low';
@@ -292,13 +312,21 @@ class TutorAgent extends BaseAgentZero {
   }
 
   async generateExplanation(question, context) {
-    return `This concept works by... [detailed explanation would be generated based on the question and context]`;
+    return 'This concept works by... [detailed explanation would be generated based on the question and context]';
   }
 
   generateContextualExamples(question, context) {
     return [
-      { title: 'Basic Example', code: '// Example code here', explanation: 'This shows the basic usage' },
-      { title: 'Advanced Example', code: '// Advanced code here', explanation: 'This demonstrates advanced features' }
+      {
+        title: 'Basic Example',
+        code: '// Example code here',
+        explanation: 'This shows the basic usage'
+      },
+      {
+        title: 'Advanced Example',
+        code: '// Advanced code here',
+        explanation: 'This demonstrates advanced features'
+      }
     ];
   }
 
@@ -313,17 +341,23 @@ class TutorAgent extends BaseAgentZero {
   analyzeWork(work) {
     // Simplified work analysis
     const score = Math.floor(Math.random() * 40) + 60; // 60-100 for demo
-    
+
     return {
       score,
-      strengths: score >= 80 ? ['Good structure', 'Clean code', 'Proper error handling'] : ['Basic understanding demonstrated'],
-      weaknesses: score < 80 ? ['Could improve error handling', 'Add more documentation'] : []
+      strengths:
+        score >= 80
+          ? ['Good structure', 'Clean code', 'Proper error handling']
+          : ['Basic understanding demonstrated'],
+      weaknesses:
+        score < 80
+          ? ['Could improve error handling', 'Add more documentation']
+          : []
     };
   }
 
   generateSpecificFeedback(work, analysis) {
     const feedback = [];
-    
+
     if (analysis.score >= 80) {
       feedback.push('Excellent work overall!');
       feedback.push('Your approach is well-structured and efficient');
@@ -342,13 +376,12 @@ class TutorAgent extends BaseAgentZero {
         'Try tackling more complex problems',
         'Consider helping other agents learn'
       ];
-    } else {
-      return [
-        'Review the fundamentals again',
-        'Practice with simpler examples first',
-        'Don\'t hesitate to ask questions'
-      ];
     }
+    return [
+      'Review the fundamentals again',
+      'Practice with simpler examples first',
+      'Don\'t hesitate to ask questions'
+    ];
   }
 
   generateEncouragement(score, analysis) {
@@ -361,15 +394,19 @@ class TutorAgent extends BaseAgentZero {
   async trackProgress(agentId, topic, score) {
     const historyKey = `agent:${agentId}:learning-history`;
     const history = await this.getLearningHistory(agentId);
-    
+
     history.scores.push({ topic, score, timestamp: new Date().toISOString() });
-    
-    const topicIndex = history.topics.findIndex(t => t.name === topic);
+
+    const topicIndex = history.topics.findIndex((t) => t.name === topic);
     if (topicIndex >= 0) {
       history.topics[topicIndex].score = score;
       history.topics[topicIndex].lastStudied = new Date().toISOString();
     } else {
-      history.topics.push({ name: topic, score, lastStudied: new Date().toISOString() });
+      history.topics.push({
+        name: topic,
+        score,
+        lastStudied: new Date().toISOString()
+      });
     }
 
     await this.contextBus.set(historyKey, JSON.stringify(history), 86400); // 24 hours
@@ -377,8 +414,9 @@ class TutorAgent extends BaseAgentZero {
 
   analyzePerformance(performance) {
     const scores = performance.recentScores || [];
-    const averageScore = scores.length > 0 ? 
-      scores.reduce((sum, s) => sum + s, 0) / scores.length : 0;
+    const averageScore = scores.length > 0
+      ? scores.reduce((sum, s) => sum + s, 0) / scores.length
+      : 0;
 
     return {
       averageScore,
@@ -393,8 +431,10 @@ class TutorAgent extends BaseAgentZero {
     const recent = scores.slice(-3);
     const older = scores.slice(-6, -3);
     const recentAvg = recent.reduce((s, n) => s + n, 0) / recent.length;
-    const olderAvg = older.length > 0 ? older.reduce((s, n) => s + n, 0) / older.length : recentAvg;
-    
+    const olderAvg = older.length > 0
+      ? older.reduce((s, n) => s + n, 0) / older.length
+      : recentAvg;
+
     if (recentAvg > olderAvg + 5) return 'improving';
     if (recentAvg < olderAvg - 5) return 'declining';
     return 'stable';

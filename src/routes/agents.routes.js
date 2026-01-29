@@ -4,6 +4,7 @@
  */
 
 const express = require('express');
+
 const router = express.Router();
 const agentsController = require('../controllers/agents.controller');
 const { authenticate } = require('../middleware/auth');

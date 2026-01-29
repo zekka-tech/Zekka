@@ -1,7 +1,7 @@
 /**
  * Advanced Cache Manager
  * Multi-tier caching with Redis and in-memory fallback
- * 
+ *
  * Features:
  * - Redis primary cache
  * - In-memory LRU fallback cache
@@ -65,9 +65,11 @@ class CacheManager {
         console.log('[CacheManager] Redis ready');
         this.redisAvailable = true;
       });
-
     } catch (error) {
-      console.error('[CacheManager] Failed to initialize Redis:', error.message);
+      console.error(
+        '[CacheManager] Failed to initialize Redis:',
+        error.message
+      );
       this.redis = null;
       this.redisAvailable = false;
     }
@@ -113,11 +115,11 @@ class CacheManager {
       if (this.redisAvailable && this.redis) {
         try {
           const value = await this.redis.get(key);
-          
+
           if (value !== null) {
             this.incrementStat('hits');
             this.incrementStat('redis.hits');
-            
+
             // Parse JSON if possible
             try {
               return JSON.parse(value);
@@ -142,7 +144,6 @@ class CacheManager {
       // Cache miss
       this.incrementStat('misses');
       return null;
-
     } catch (error) {
       console.error('[CacheManager] Get error:', error.message);
       this.incrementStat('errors');
@@ -179,7 +180,6 @@ class CacheManager {
 
       this.incrementStat('sets');
       return true;
-
     } catch (error) {
       console.error('[CacheManager] Set error:', error.message);
       this.incrementStat('errors');
@@ -209,7 +209,6 @@ class CacheManager {
 
       this.incrementStat('deletes');
       return true;
-
     } catch (error) {
       console.error('[CacheManager] Delete error:', error.message);
       this.incrementStat('errors');
@@ -234,7 +233,10 @@ class CacheManager {
             deletedCount = await this.redis.del(...keys);
           }
         } catch (error) {
-          console.error('[CacheManager] Redis deletePattern error:', error.message);
+          console.error(
+            '[CacheManager] Redis deletePattern error:',
+            error.message
+          );
           this.incrementStat('redis.errors');
         }
       }
@@ -242,8 +244,8 @@ class CacheManager {
       // Delete from memory cache (simple pattern matching)
       const memoryKeys = Array.from(this.memoryCache.keys());
       const regex = new RegExp(pattern.replace('*', '.*'));
-      
-      memoryKeys.forEach(key => {
+
+      memoryKeys.forEach((key) => {
         if (regex.test(key)) {
           this.memoryCache.delete(key);
           deletedCount++;
@@ -251,7 +253,6 @@ class CacheManager {
       });
 
       return deletedCount;
-
     } catch (error) {
       console.error('[CacheManager] DeletePattern error:', error.message);
       this.incrementStat('errors');
@@ -276,16 +277,15 @@ class CacheManager {
 
       // Fetch fresh value
       const freshValue = await fetchFn();
-      
+
       // Store in cache
       await this.set(key, freshValue, ttl);
-      
-      return freshValue;
 
+      return freshValue;
     } catch (error) {
       console.error('[CacheManager] GetOrSet error:', error.message);
       this.incrementStat('errors');
-      
+
       // Try to return cached value even if expired
       try {
         return await this.get(key);
@@ -318,7 +318,7 @@ class CacheManager {
    */
   getStats() {
     const totalRequests = this.stats.hits + this.stats.misses;
-    const hitRate = totalRequests > 0 
+    const hitRate = totalRequests > 0
       ? ((this.stats.hits / totalRequests) * 100).toFixed(2)
       : 0;
 
@@ -358,7 +358,6 @@ class CacheManager {
       this.memoryCache.clear();
 
       return true;
-
     } catch (error) {
       console.error('[CacheManager] Clear error:', error.message);
       this.incrementStat('errors');
@@ -379,11 +378,16 @@ class CacheManager {
         await this.set(entry.key, entry.value, entry.ttl);
         loadedCount++;
       } catch (error) {
-        console.error(`[CacheManager] Warmup error for key ${entry.key}:`, error.message);
+        console.error(
+          `[CacheManager] Warmup error for key ${entry.key}:`,
+          error.message
+        );
       }
     }
 
-    console.log(`[CacheManager] Cache warmed up with ${loadedCount}/${entries.length} entries`);
+    console.log(
+      `[CacheManager] Cache warmed up with ${loadedCount}/${entries.length} entries`
+    );
     return loadedCount;
   }
 

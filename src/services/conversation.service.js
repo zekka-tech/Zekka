@@ -11,10 +11,11 @@
  * - Authorization checks via project membership
  */
 
+const { v4: uuidv4 } = require('uuid');
 const { AppError } = require('../utils/errors');
 const db = require('../config/database');
-const { v4: uuidv4 } = require('uuid');
 const { getIO } = require('../middleware/websocket');
+const logger = require('../utils/logger');
 
 // Simple ID generator for compatibility
 const generateId = () => {
@@ -99,9 +100,12 @@ class ConversationService {
       const total = parseInt(countResult.rows[0].total);
 
       return {
-        conversations: result.rows.map(conv => ({
+        conversations: result.rows.map((conv) => ({
           ...conv,
-          metadata: typeof conv.metadata === 'string' ? JSON.parse(conv.metadata) : conv.metadata
+          metadata:
+            typeof conv.metadata === 'string'
+              ? JSON.parse(conv.metadata)
+              : conv.metadata
         })),
         pagination: {
           total,
@@ -165,7 +169,10 @@ class ConversationService {
       const conversation = result.rows[0];
       const parsedConversation = {
         ...conversation,
-        metadata: typeof conversation.metadata === 'string' ? JSON.parse(conversation.metadata) : conversation.metadata
+        metadata:
+          typeof conversation.metadata === 'string'
+            ? JSON.parse(conversation.metadata)
+            : conversation.metadata
       };
 
       // Emit real-time event through WebSocket
@@ -179,13 +186,16 @@ class ConversationService {
           });
         }
       } catch (wsError) {
-        console.error('Failed to broadcast conversation creation:', wsError);
+        logger.error('Failed to broadcast conversation creation:', wsError);
       }
 
       return parsedConversation;
     } catch (error) {
       if (error instanceof AppError) throw error;
-      throw new AppError(`Failed to create conversation: ${error.message}`, 500);
+      throw new AppError(
+        `Failed to create conversation: ${error.message}`,
+        500
+      );
     }
   }
 
@@ -221,7 +231,10 @@ class ConversationService {
 
       return {
         ...conversation,
-        metadata: typeof conversation.metadata === 'string' ? JSON.parse(conversation.metadata) : conversation.metadata
+        metadata:
+          typeof conversation.metadata === 'string'
+            ? JSON.parse(conversation.metadata)
+            : conversation.metadata
       };
     } catch (error) {
       if (error instanceof AppError) throw error;
@@ -247,10 +260,12 @@ class ConversationService {
       const updateValues = [];
       let paramCount = 1;
 
-      Object.keys(updates).forEach(key => {
+      Object.keys(updates).forEach((key) => {
         if (allowedFields.includes(key) && updates[key] !== undefined) {
           updateFields.push(`${key} = $${paramCount}`);
-          updateValues.push(key === 'metadata' ? JSON.stringify(updates[key]) : updates[key]);
+          updateValues.push(
+            key === 'metadata' ? JSON.stringify(updates[key]) : updates[key]
+          );
           paramCount++;
         }
       });
@@ -259,7 +274,7 @@ class ConversationService {
         throw new AppError('No valid fields to update', 400);
       }
 
-      updateFields.push(`updated_at = CURRENT_TIMESTAMP`);
+      updateFields.push('updated_at = CURRENT_TIMESTAMP');
 
       const query = `
         UPDATE conversations
@@ -280,11 +295,17 @@ class ConversationService {
 
       return {
         ...conversation,
-        metadata: typeof conversation.metadata === 'string' ? JSON.parse(conversation.metadata) : conversation.metadata
+        metadata:
+          typeof conversation.metadata === 'string'
+            ? JSON.parse(conversation.metadata)
+            : conversation.metadata
       };
     } catch (error) {
       if (error instanceof AppError) throw error;
-      throw new AppError(`Failed to update conversation: ${error.message}`, 500);
+      throw new AppError(
+        `Failed to update conversation: ${error.message}`,
+        500
+      );
     }
   }
 
@@ -310,7 +331,10 @@ class ConversationService {
           AND (p.owner_id = $2 OR pm.user_id = $2)
       `;
 
-      const accessResult = await client.query(accessQuery, [conversationId, userId]);
+      const accessResult = await client.query(accessQuery, [
+        conversationId,
+        userId
+      ]);
 
       if (accessResult.rows.length === 0) {
         throw new AppError('Conversation not found or access denied', 404);
@@ -320,18 +344,21 @@ class ConversationService {
 
       // Only owner or creator can delete
       if (owner_id !== userId && creatorId !== userId) {
-        throw new AppError('Only conversation creator or project owner can delete', 403);
+        throw new AppError(
+          'Only conversation creator or project owner can delete',
+          403
+        );
       }
 
       // Soft delete conversation
       await client.query(
-        `UPDATE conversations SET deleted_at = CURRENT_TIMESTAMP WHERE id = $1`,
+        'UPDATE conversations SET deleted_at = CURRENT_TIMESTAMP WHERE id = $1',
         [conversationId]
       );
 
       // Soft delete associated messages
       await client.query(
-        `UPDATE messages SET deleted_at = CURRENT_TIMESTAMP WHERE conversation_id = $1`,
+        'UPDATE messages SET deleted_at = CURRENT_TIMESTAMP WHERE conversation_id = $1',
         [conversationId]
       );
 
@@ -339,7 +366,10 @@ class ConversationService {
     } catch (error) {
       await client.query('ROLLBACK');
       if (error instanceof AppError) throw error;
-      throw new AppError(`Failed to delete conversation: ${error.message}`, 500);
+      throw new AppError(
+        `Failed to delete conversation: ${error.message}`,
+        500
+      );
     } finally {
       client.release();
     }
@@ -373,7 +403,10 @@ class ConversationService {
           AND (p.owner_id = $2 OR pm.user_id = $2)
       `;
 
-      const accessResult = await client.query(accessQuery, [conversationId, userId]);
+      const accessResult = await client.query(accessQuery, [
+        conversationId,
+        userId
+      ]);
 
       if (accessResult.rows.length === 0) {
         throw new AppError('Conversation not found or access denied', 404);
@@ -402,7 +435,7 @@ class ConversationService {
 
       // Update conversation updated_at
       await client.query(
-        `UPDATE conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
+        'UPDATE conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = $1',
         [conversationId]
       );
 
@@ -411,7 +444,10 @@ class ConversationService {
       const message = messageResult.rows[0];
       const parsedMessage = {
         ...message,
-        metadata: typeof message.metadata === 'string' ? JSON.parse(message.metadata) : message.metadata
+        metadata:
+          typeof message.metadata === 'string'
+            ? JSON.parse(message.metadata)
+            : message.metadata
       };
 
       // Emit real-time event through WebSocket
@@ -428,7 +464,7 @@ class ConversationService {
         }
       } catch (wsError) {
         // Log but don't throw - WebSocket events are optional
-        console.error('Failed to broadcast message:', wsError);
+        logger.error('Failed to broadcast message:', wsError);
       }
 
       return parsedMessage;
@@ -479,9 +515,12 @@ class ConversationService {
       const total = parseInt(countResult.rows[0].total);
 
       return {
-        messages: result.rows.map(msg => ({
+        messages: result.rows.map((msg) => ({
           ...msg,
-          metadata: typeof msg.metadata === 'string' ? JSON.parse(msg.metadata) : msg.metadata
+          metadata:
+            typeof msg.metadata === 'string'
+              ? JSON.parse(msg.metadata)
+              : msg.metadata
         })),
         pagination: {
           total,
@@ -526,7 +565,7 @@ class ConversationService {
       if (owner_id !== userId) {
         // Check if user owns this specific message
         const ownerCheck = await db.query(
-          `SELECT id FROM messages WHERE id = $1 AND user_id = $2`,
+          'SELECT id FROM messages WHERE id = $1 AND user_id = $2',
           [messageId, userId]
         );
 
@@ -556,7 +595,7 @@ class ConversationService {
         throw new AppError('No valid fields to update', 400);
       }
 
-      updateFields.push(`updated_at = CURRENT_TIMESTAMP`);
+      updateFields.push('updated_at = CURRENT_TIMESTAMP');
 
       const query = `
         UPDATE messages
@@ -577,7 +616,10 @@ class ConversationService {
 
       return {
         ...message,
-        metadata: typeof message.metadata === 'string' ? JSON.parse(message.metadata) : message.metadata
+        metadata:
+          typeof message.metadata === 'string'
+            ? JSON.parse(message.metadata)
+            : message.metadata
       };
     } catch (error) {
       if (error instanceof AppError) throw error;
@@ -613,7 +655,7 @@ class ConversationService {
       if (owner_id !== userId) {
         // Check if user owns this specific message
         const ownerCheck = await db.query(
-          `SELECT id FROM messages WHERE id = $1 AND user_id = $2`,
+          'SELECT id FROM messages WHERE id = $1 AND user_id = $2',
           [messageId, userId]
         );
 
@@ -624,7 +666,7 @@ class ConversationService {
 
       // Soft delete message
       await db.query(
-        `UPDATE messages SET deleted_at = CURRENT_TIMESTAMP WHERE id = $1`,
+        'UPDATE messages SET deleted_at = CURRENT_TIMESTAMP WHERE id = $1',
         [messageId]
       );
     } catch (error) {

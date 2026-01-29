@@ -14,24 +14,24 @@ const MODEL_PRICING = {
   'claude-sonnet-4-5': {
     name: 'Claude Sonnet 4.5',
     provider: 'anthropic',
-    inputPrice: 3.00,      // $3 per 1M input tokens
-    outputPrice: 15.00,    // $15 per 1M output tokens
+    inputPrice: 3.0, // $3 per 1M input tokens
+    outputPrice: 15.0, // $15 per 1M output tokens
     contextWindow: 200000,
     description: 'Most powerful model for complex reasoning'
   },
   'claude-sonnet-3-5': {
     name: 'Claude Sonnet 3.5',
     provider: 'anthropic',
-    inputPrice: 3.00,
-    outputPrice: 15.00,
+    inputPrice: 3.0,
+    outputPrice: 15.0,
     contextWindow: 200000,
     description: 'Balanced performance and cost'
   },
   'claude-haiku-3-5': {
     name: 'Claude Haiku 3.5',
     provider: 'anthropic',
-    inputPrice: 0.80,
-    outputPrice: 4.00,
+    inputPrice: 0.8,
+    outputPrice: 4.0,
     contextWindow: 200000,
     description: 'Fast and cost-effective'
   },
@@ -40,24 +40,24 @@ const MODEL_PRICING = {
   'gpt-4': {
     name: 'GPT-4',
     provider: 'openai',
-    inputPrice: 30.00,
-    outputPrice: 60.00,
+    inputPrice: 30.0,
+    outputPrice: 60.0,
     contextWindow: 8192,
     description: 'OpenAI flagship model'
   },
   'gpt-4-turbo': {
     name: 'GPT-4 Turbo',
     provider: 'openai',
-    inputPrice: 10.00,
-    outputPrice: 30.00,
+    inputPrice: 10.0,
+    outputPrice: 30.0,
     contextWindow: 128000,
     description: 'Faster GPT-4 with larger context'
   },
   'gpt-3.5-turbo': {
     name: 'GPT-3.5 Turbo',
     provider: 'openai',
-    inputPrice: 0.50,
-    outputPrice: 1.50,
+    inputPrice: 0.5,
+    outputPrice: 1.5,
     contextWindow: 16385,
     description: 'Fast and economical'
   },
@@ -75,7 +75,7 @@ const MODEL_PRICING = {
     name: 'Gemini 1.5 Pro',
     provider: 'google',
     inputPrice: 1.25,
-    outputPrice: 5.00,
+    outputPrice: 5.0,
     contextWindow: 1000000,
     description: 'Long context model'
   },
@@ -94,32 +94,32 @@ const MODEL_PRICING = {
   'llama3.1:8b': {
     name: 'Llama 3.1 8B',
     provider: 'ollama',
-    inputPrice: 0.00,
-    outputPrice: 0.00,
+    inputPrice: 0.0,
+    outputPrice: 0.0,
     contextWindow: 128000,
     description: 'Local, zero-cost model'
   },
   'llama3.1:70b': {
     name: 'Llama 3.1 70B',
     provider: 'ollama',
-    inputPrice: 0.00,
-    outputPrice: 0.00,
+    inputPrice: 0.0,
+    outputPrice: 0.0,
     contextWindow: 128000,
     description: 'Larger local model'
   },
-  'mistral': {
+  mistral: {
     name: 'Mistral',
     provider: 'ollama',
-    inputPrice: 0.00,
-    outputPrice: 0.00,
+    inputPrice: 0.0,
+    outputPrice: 0.0,
     contextWindow: 32768,
     description: 'Local Mistral model'
   },
-  'codellama': {
+  codellama: {
     name: 'Code Llama',
     provider: 'ollama',
-    inputPrice: 0.00,
-    outputPrice: 0.00,
+    inputPrice: 0.0,
+    outputPrice: 0.0,
     contextWindow: 100000,
     description: 'Code-specialized local model'
   },
@@ -128,16 +128,16 @@ const MODEL_PRICING = {
   'kimi-k2': {
     name: 'Kimi K2',
     provider: 'moonshot',
-    inputPrice: 0.50,
-    outputPrice: 2.00,
+    inputPrice: 0.5,
+    outputPrice: 2.0,
     contextWindow: 1000000,
     description: 'Long context tasks'
   },
-  'grok': {
+  grok: {
     name: 'Grok',
     provider: 'xai',
-    inputPrice: 5.00,
-    outputPrice: 15.00,
+    inputPrice: 5.0,
+    outputPrice: 15.0,
     contextWindow: 32000,
     description: 'Real-time information model'
   }
@@ -258,9 +258,7 @@ function estimateCost(model, estimatedTokens, inputOutputRatio = 0.7) {
  * @returns {Array} Array of cost comparisons sorted by total cost
  */
 function compareCosts(inputTokens, outputTokens) {
-  const comparisons = Object.keys(MODEL_PRICING).map(model => {
-    return calculateCostBreakdown(model, inputTokens, outputTokens);
-  });
+  const comparisons = Object.keys(MODEL_PRICING).map((model) => calculateCostBreakdown(model, inputTokens, outputTokens));
 
   return comparisons.sort((a, b) => a.totalCost - b.totalCost);
 }

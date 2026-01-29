@@ -1,7 +1,7 @@
 /**
  * Session 2 Security Enhancement Routes
  * =====================================
- * 
+ *
  * API routes for:
  * - Multi-factor authentication (MFA)
  * - Audit logging and compliance
@@ -169,7 +169,12 @@ router.get('/audit/logs', async (req, res) => {
     const filters = {
       userId: req.query.userId,
       action: req.query.action,
-      success: req.query.success === 'true' ? true : req.query.success === 'false' ? false : undefined,
+      success:
+        req.query.success === 'true'
+          ? true
+          : req.query.success === 'false'
+            ? false
+            : undefined,
       startDate: req.query.startDate,
       endDate: req.query.endDate,
       ipAddress: req.query.ipAddress,
@@ -255,7 +260,10 @@ router.get('/audit/export', async (req, res) => {
 
     if (format === 'csv') {
       res.setHeader('Content-Type', 'text/csv');
-      res.setHeader('Content-Disposition', 'attachment; filename=audit-logs.csv');
+      res.setHeader(
+        'Content-Disposition',
+        'attachment; filename=audit-logs.csv'
+      );
       res.send(logs);
     } else {
       res.json({
@@ -408,7 +416,10 @@ router.post('/security/encryption/generate', async (req, res) => {
     }
 
     const { description } = req.body;
-    const result = await encryptionService.generateNewKey(description, req.user.id);
+    const result = await encryptionService.generateNewKey(
+      description,
+      req.user.id
+    );
 
     res.json({
       success: true,
@@ -449,7 +460,11 @@ router.post('/security/encryption/revoke', async (req, res) => {
       });
     }
 
-    const result = await encryptionService.revokeKey(version, reason, req.user.id);
+    const result = await encryptionService.revokeKey(
+      version,
+      reason,
+      req.user.id
+    );
 
     res.json({
       success: true,
@@ -594,7 +609,11 @@ router.post('/security/password/force-reset', async (req, res) => {
       });
     }
 
-    const result = await passwordService.forcePasswordReset(userId, reason, req.user.id);
+    const result = await passwordService.forcePasswordReset(
+      userId,
+      reason,
+      req.user.id
+    );
 
     res.json({
       success: true,
@@ -755,7 +774,11 @@ router.post('/security/alerts/:id/acknowledge', async (req, res) => {
     const alertId = req.params.id;
     const { notes } = req.body;
 
-    const result = await securityMonitor.acknowledgeAlert(alertId, req.user.id, notes);
+    const result = await securityMonitor.acknowledgeAlert(
+      alertId,
+      req.user.id,
+      notes
+    );
 
     res.json({
       success: true,
@@ -794,7 +817,11 @@ router.post('/security/alerts/:id/resolve', async (req, res) => {
       });
     }
 
-    const result = await securityMonitor.resolveAlert(alertId, req.user.id, resolution);
+    const result = await securityMonitor.resolveAlert(
+      alertId,
+      req.user.id,
+      resolution
+    );
 
     res.json({
       success: true,
@@ -869,7 +896,10 @@ router.get('/security/report', async (req, res) => {
 
     if (format === 'csv') {
       res.setHeader('Content-Type', 'text/csv');
-      res.setHeader('Content-Disposition', 'attachment; filename=security-report.csv');
+      res.setHeader(
+        'Content-Disposition',
+        'attachment; filename=security-report.csv'
+      );
       res.send(report);
     } else {
       res.json({

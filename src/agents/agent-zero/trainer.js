@@ -51,16 +51,16 @@ class TrainerAgent extends BaseAgentZero {
    */
   async executeTask(task) {
     switch (task.type) {
-      case 'train':
-        return await this.conductTraining(task.traineeId, task.skill);
-      case 'assess':
-        return await this.assessSkillLevel(task.traineeId, task.skill);
-      case 'certify':
-        return await this.certifyAgent(task.traineeId, task.skill);
-      case 'createProgram':
-        return await this.createTrainingProgram(task.program);
-      default:
-        throw new Error(`Unknown task type: ${task.type}`);
+    case 'train':
+      return await this.conductTraining(task.traineeId, task.skill);
+    case 'assess':
+      return await this.assessSkillLevel(task.traineeId, task.skill);
+    case 'certify':
+      return await this.certifyAgent(task.traineeId, task.skill);
+    case 'createProgram':
+      return await this.createTrainingProgram(task.program);
+    default:
+      throw new Error(`Unknown task type: ${task.type}`);
     }
   }
 
@@ -68,7 +68,9 @@ class TrainerAgent extends BaseAgentZero {
    * Conduct training session
    */
   async conductTraining(traineeId, skill) {
-    this.logger.info(`[Trainer] Conducting training for ${traineeId} on ${skill}`);
+    this.logger.info(
+      `[Trainer] Conducting training for ${traineeId} on ${skill}`
+    );
 
     if (!this.skillsDatabase[skill]) {
       throw new Error(`Unknown skill: ${skill}`);
@@ -99,7 +101,10 @@ class TrainerAgent extends BaseAgentZero {
     // Check prerequisites
     const skillInfo = this.skillsDatabase[skill];
     for (const prereq of skillInfo.prerequisites) {
-      if (!trainee.skills[prereq] || trainee.skills[prereq].level === 'beginner') {
+      if (
+        !trainee.skills[prereq]
+        || trainee.skills[prereq].level === 'beginner'
+      ) {
         throw new Error(`Prerequisite not met: ${prereq}`);
       }
     }
@@ -115,7 +120,7 @@ class TrainerAgent extends BaseAgentZero {
     this.trainingPrograms.set(sessionId, training);
 
     // Notify trainee
-    await this.contextBus.publish(`agent.trainer.session-started`, {
+    await this.contextBus.publish('agent.trainer.session-started', {
       sessionId,
       traineeId,
       skill,
@@ -167,15 +172,24 @@ class TrainerAgent extends BaseAgentZero {
 
     // Determine strengths and weaknesses
     if (assessment.score >= 80) {
-      assessment.strengths = ['Excellent understanding', 'Consistent performance'];
+      assessment.strengths = [
+        'Excellent understanding',
+        'Consistent performance'
+      ];
       assessment.recommendations = ['Consider advanced certification'];
     } else if (assessment.score >= 60) {
       assessment.strengths = ['Good foundation', 'Room for improvement'];
       assessment.weaknesses = ['Could improve consistency'];
       assessment.recommendations = ['Practice advanced scenarios'];
     } else if (assessment.score > 0) {
-      assessment.weaknesses = ['Needs more practice', 'Incomplete understanding'];
-      assessment.recommendations = ['Review fundamentals', 'Complete more exercises'];
+      assessment.weaknesses = [
+        'Needs more practice',
+        'Incomplete understanding'
+      ];
+      assessment.recommendations = [
+        'Review fundamentals',
+        'Complete more exercises'
+      ];
     } else {
       assessment.recommendations = ['Start with beginner training'];
     }
@@ -201,7 +215,9 @@ class TrainerAgent extends BaseAgentZero {
 
     const skillData = trainee.skills[skill];
     if (skillData.score < 70) {
-      throw new Error(`Trainee score (${skillData.score}) is below certification threshold (70)`);
+      throw new Error(
+        `Trainee score (${skillData.score}) is below certification threshold (70)`
+      );
     }
 
     // Create certification
@@ -217,7 +233,7 @@ class TrainerAgent extends BaseAgentZero {
     trainee.certifications.push(certification);
 
     // Notify context bus
-    await this.contextBus.publish(`agent.trainer.certified`, {
+    await this.contextBus.publish('agent.trainer.certified', {
       traineeId,
       certification,
       timestamp: new Date().toISOString()
@@ -264,21 +280,13 @@ class TrainerAgent extends BaseAgentZero {
         id: `${skill}-intro`,
         name: `Introduction to ${skill}`,
         duration: '30 min',
-        topics: [
-          'What is ' + skill,
-          'Why it matters',
-          'Key concepts'
-        ]
+        topics: [`What is ${skill}`, 'Why it matters', 'Key concepts']
       },
       {
         id: `${skill}-basics`,
         name: `${skill} Basics`,
         duration: '1 hour',
-        topics: [
-          'Core principles',
-          'Basic techniques',
-          'Common patterns'
-        ]
+        topics: ['Core principles', 'Basic techniques', 'Common patterns']
       },
       {
         id: `${skill}-advanced`,
@@ -346,9 +354,12 @@ class TrainerAgent extends BaseAgentZero {
     }
 
     const trainee = this.trainees.get(training.traineeId);
-    
+
     // Calculate score
-    const totalPoints = results.exerciseResults.reduce((sum, r) => sum + r.points, 0);
+    const totalPoints = results.exerciseResults.reduce(
+      (sum, r) => sum + r.points,
+      0
+    );
     const maxPoints = training.exercises.reduce((sum, e) => sum + e.points, 0);
     const score = Math.round((totalPoints / maxPoints) * 100);
 
@@ -370,7 +381,7 @@ class TrainerAgent extends BaseAgentZero {
     training.results = results;
     training.score = score;
 
-    await this.contextBus.publish(`agent.trainer.training-completed`, {
+    await this.contextBus.publish('agent.trainer.training-completed', {
       sessionId,
       traineeId: training.traineeId,
       skill: training.skill,

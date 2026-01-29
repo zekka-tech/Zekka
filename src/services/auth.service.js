@@ -1,7 +1,7 @@
 /**
  * Authentication Service
  * Handles authentication business logic with security best practices
- * 
+ *
  * Features:
  * - Secure user authentication
  * - Password management
@@ -34,7 +34,9 @@ class AuthService {
    */
   async register(userData) {
     try {
-      const { email, password, name, metadata = {} } = userData;
+      const {
+        email, password, name, metadata = {}
+      } = userData;
 
       // Validate required fields
       if (!email || !password || !name) {
@@ -111,7 +113,6 @@ class AuthService {
         user: this.sanitizeUser(user),
         token
       };
-
     } catch (error) {
       if (error instanceof AppError) {
         throw error;
@@ -200,7 +201,10 @@ class AuthService {
       }
 
       // Check password expiration
-      if (user.password_expires_at && new Date(user.password_expires_at) < new Date()) {
+      if (
+        user.password_expires_at
+        && new Date(user.password_expires_at) < new Date()
+      ) {
         await this.auditLogger.log({
           category: 'authentication',
           action: 'login_failed',
@@ -245,17 +249,13 @@ class AuthService {
         user: this.sanitizeUser(user),
         token
       };
-
     } catch (error) {
       if (error instanceof AppError) {
         throw error;
       }
-      throw new AppError(
-        'Login failed',
-        500,
-        ErrorCodes.INTERNAL_ERROR,
-        { originalError: error.message }
-      );
+      throw new AppError('Login failed', 500, ErrorCodes.INTERNAL_ERROR, {
+        originalError: error.message
+      });
     }
   }
 
@@ -278,14 +278,10 @@ class AuthService {
       });
 
       return { message: 'Logged out successfully' };
-
     } catch (error) {
-      throw new AppError(
-        'Logout failed',
-        500,
-        ErrorCodes.INTERNAL_ERROR,
-        { originalError: error.message }
-      );
+      throw new AppError('Logout failed', 500, ErrorCodes.INTERNAL_ERROR, {
+        originalError: error.message
+      });
     }
   }
 
@@ -304,7 +300,10 @@ class AuthService {
       }
 
       // Verify current password
-      const isValidPassword = await bcrypt.compare(currentPassword, user.password);
+      const isValidPassword = await bcrypt.compare(
+        currentPassword,
+        user.password
+      );
       if (!isValidPassword) {
         await this.auditLogger.log({
           category: 'authentication',
@@ -362,7 +361,6 @@ class AuthService {
       });
 
       return { message: 'Password changed successfully' };
-
     } catch (error) {
       if (error instanceof AppError) {
         throw error;
@@ -412,7 +410,6 @@ class AuthService {
         // In production, don't return token - send via email
         resetToken
       };
-
     } catch (error) {
       throw new AppError(
         'Password reset request failed',
@@ -431,9 +428,12 @@ class AuthService {
   async verifyToken(token) {
     try {
       const decoded = jwt.verify(token, this.config.jwtSecret);
-      
+
       // Check if session is valid
-      const isValid = await this.sessionManager.validateSession(decoded.userId, token);
+      const isValid = await this.sessionManager.validateSession(
+        decoded.userId,
+        token
+      );
       if (!isValid) {
         throw new AppError(
           'Invalid or expired session',
@@ -443,9 +443,11 @@ class AuthService {
       }
 
       return decoded;
-
     } catch (error) {
-      if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
+      if (
+        error.name === 'JsonWebTokenError'
+        || error.name === 'TokenExpiredError'
+      ) {
         throw new AppError(
           'Invalid or expired token',
           401,

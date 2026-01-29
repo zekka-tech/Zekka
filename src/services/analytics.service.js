@@ -8,6 +8,7 @@
 const { pool } = require('../config/database');
 const { calculateCost, getModelPricing } = require('../utils/pricing');
 const { cache, CACHE_KEYS, TTL } = require('../config/redis');
+const logger = require('../utils/logger');
 
 class AnalyticsService {
   /**
@@ -105,8 +106,8 @@ class AnalyticsService {
     };
 
     // Aggregate by model and agent
-    result.rows.forEach(row => {
-      const model = row.model;
+    result.rows.forEach((row) => {
+      const { model } = row;
       const agentId = row.agent_id || 'unknown';
       const cost = parseFloat(row.total_cost);
 
@@ -278,7 +279,9 @@ class AnalyticsService {
    */
   async getProjectAnalytics(projectId, period = 'all') {
     const timeFilter = this._getTimeFilter(period);
-    const cacheKey = CACHE_KEYS.CACHE(`project-analytics:${projectId}:${period}`);
+    const cacheKey = CACHE_KEYS.CACHE(
+      `project-analytics:${projectId}:${period}`
+    );
 
     const cached = await cache.get(cacheKey);
     if (cached) return cached;
@@ -329,7 +332,14 @@ class AnalyticsService {
    * @param {number} outputTokens - Output tokens used
    * @returns {Promise<object>} Tracking result
    */
-  async trackTokenUsage(projectId, conversationId, agentId, model, inputTokens, outputTokens) {
+  async trackTokenUsage(
+    projectId,
+    conversationId,
+    agentId,
+    model,
+    inputTokens,
+    outputTokens
+  ) {
     try {
       // Calculate cost
       const cost = calculateCost(model, inputTokens, outputTokens);
@@ -369,7 +379,7 @@ class AnalyticsService {
         tracking: result.rows[0]
       };
     } catch (error) {
-      console.error('❌ Failed to track token usage:', error);
+      logger.error('❌ Failed to track token usage:', error);
       throw error;
     }
   }
@@ -388,7 +398,7 @@ class AnalyticsService {
 
       return true;
     } catch (error) {
-      console.error('❌ Failed to refresh analytics views:', error);
+      logger.error('❌ Failed to refresh analytics views:', error);
       return false;
     }
   }
@@ -399,17 +409,17 @@ class AnalyticsService {
    */
   _getTimeFilter(period) {
     switch (period) {
-      case 'day':
-        return "NOW() - INTERVAL '1 day'";
-      case 'week':
-        return "NOW() - INTERVAL '7 days'";
-      case 'month':
-        return "NOW() - INTERVAL '30 days'";
-      case 'year':
-        return "NOW() - INTERVAL '365 days'";
-      case 'all':
-      default:
-        return null;
+    case 'day':
+      return 'NOW() - INTERVAL \'1 day\'';
+    case 'week':
+      return 'NOW() - INTERVAL \'7 days\'';
+    case 'month':
+      return 'NOW() - INTERVAL \'30 days\'';
+    case 'year':
+      return 'NOW() - INTERVAL \'365 days\'';
+    case 'all':
+    default:
+      return null;
     }
   }
 
@@ -419,8 +429,8 @@ class AnalyticsService {
    */
   async _invalidateCaches(projectId, agentId) {
     const patterns = [
-      `zekka:cache:metrics:*`,
-      `zekka:cache:costs:*`,
+      'zekka:cache:metrics:*',
+      'zekka:cache:costs:*',
       `zekka:cache:project-analytics:${projectId}:*`,
       agentId ? `zekka:cache:agent-metrics:${agentId}:*` : null
     ].filter(Boolean);

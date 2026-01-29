@@ -153,7 +153,7 @@ class AstronManager {
       };
 
       // Determine overall health
-      const statuses = Object.values(health.components).map(c => c.status);
+      const statuses = Object.values(health.components).map((c) => c.status);
       if (statuses.includes('critical')) {
         health.overall = 'critical';
       } else if (statuses.includes('warning')) {
@@ -179,7 +179,6 @@ class AstronManager {
       await this.contextBus.publish('astron.health-check', health);
 
       return health;
-
     } catch (error) {
       this.logger.error('[Astron] Health check failed:', error);
       return {
@@ -195,9 +194,9 @@ class AstronManager {
    */
   assessCostHealth(stats) {
     if (!stats.currentMetrics) return 'unknown';
-    
+
     const budgetUsage = (stats.currentMetrics.totalCost / 50) * 100; // Assuming daily budget of 50
-    
+
     if (budgetUsage >= 95) return 'critical';
     if (budgetUsage >= 80) return 'warning';
     if (budgetUsage >= 60) return 'degraded';
@@ -224,7 +223,10 @@ class AstronManager {
   generateAlerts(components) {
     const alerts = [];
 
-    if (components.cost.status === 'critical' || components.cost.status === 'warning') {
+    if (
+      components.cost.status === 'critical'
+      || components.cost.status === 'warning'
+    ) {
       alerts.push({
         component: 'cost',
         severity: components.cost.status,
@@ -242,7 +244,10 @@ class AstronManager {
       });
     }
 
-    if (components.scalability.status === 'critical' || components.scalability.status === 'warning') {
+    if (
+      components.scalability.status === 'critical'
+      || components.scalability.status === 'warning'
+    ) {
       alerts.push({
         component: 'scalability',
         severity: components.scalability.status,
@@ -281,7 +286,7 @@ class AstronManager {
     }
 
     // Scalability recommendations
-    const scalingEvents = components.scalability.metrics.scalingEvents;
+    const { scalingEvents } = components.scalability.metrics;
     if (scalingEvents && scalingEvents.scaleUp > scalingEvents.scaleDown * 2) {
       recommendations.push({
         component: 'scalability',
@@ -357,7 +362,6 @@ class AstronManager {
       });
 
       return results;
-
     } catch (error) {
       this.logger.error('[Astron] Comprehensive optimization failed:', error);
       throw error;

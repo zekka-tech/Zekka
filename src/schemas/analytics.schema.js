@@ -29,10 +29,9 @@ const analyticsSchemas = {
         )
       )
       .optional(),
-    groupBy: Joi.string()
-      .valid('date', 'project', 'agent', 'type')
-      .optional(),
-    limit: Joi.number().integer().min(1).max(1000).default(100),
+    groupBy: Joi.string().valid('date', 'project', 'agent', 'type').optional(),
+    limit: Joi.number().integer().min(1).max(1000)
+      .default(100),
     offset: Joi.number().integer().min(0).default(0)
   }),
 
@@ -56,12 +55,8 @@ const analyticsSchemas = {
     projectId: Joi.string().uuid().optional(),
     startDate: Joi.date().iso().optional(),
     endDate: Joi.date().iso().optional(),
-    period: Joi.string()
-      .valid('hour', 'day', 'week', 'month')
-      .default('day'),
-    models: Joi.array()
-      .items(Joi.string())
-      .optional(),
+    period: Joi.string().valid('hour', 'day', 'week', 'month').default('day'),
+    models: Joi.array().items(Joi.string()).optional(),
     breakdown: Joi.boolean().default(false)
   }),
 
@@ -82,9 +77,7 @@ const analyticsSchemas = {
     agentId: Joi.string().uuid().required(),
     startDate: Joi.date().iso().optional(),
     endDate: Joi.date().iso().optional(),
-    period: Joi.string()
-      .valid('hour', 'day', 'week', 'month')
-      .default('week'),
+    period: Joi.string().valid('hour', 'day', 'week', 'month').default('week'),
     metrics: Joi.array()
       .items(
         Joi.string().valid(
@@ -125,10 +118,7 @@ const analyticsSchemas = {
    */
   getRealtimeMetrics: Joi.object({
     projectId: Joi.string().uuid().optional(),
-    refresh: Joi.number()
-      .integer()
-      .min(1000)
-      .default(5000)
+    refresh: Joi.number().integer().min(1000).default(5000)
       .messages({
         'number.min': 'Refresh interval must be at least 1000ms'
       })
@@ -141,9 +131,7 @@ const analyticsSchemas = {
     projectId: Joi.string().uuid().optional(),
     startDate: Joi.date().iso().optional(),
     endDate: Joi.date().iso().optional(),
-    format: Joi.string()
-      .valid('csv', 'json', 'xlsx')
-      .default('csv'),
+    format: Joi.string().valid('csv', 'json', 'xlsx').default('csv'),
     includeDetails: Joi.boolean().default(false)
   }),
 
@@ -151,9 +139,7 @@ const analyticsSchemas = {
    * Get budget usage
    */
   getBudgetUsage: Joi.object({
-    period: Joi.string()
-      .valid('day', 'month', 'all')
-      .default('month'),
+    period: Joi.string().valid('day', 'month', 'all').default('month'),
     projectId: Joi.string().uuid().optional(),
     detailed: Joi.boolean().default(false)
   }),
@@ -162,10 +148,7 @@ const analyticsSchemas = {
    * Get cost forecast
    */
   getCostForecast: Joi.object({
-    days: Joi.number()
-      .integer()
-      .min(1)
-      .max(90)
+    days: Joi.number().integer().min(1).max(90)
       .default(7),
     projectId: Joi.string().uuid().optional(),
     confidenceLevel: Joi.string()

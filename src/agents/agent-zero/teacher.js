@@ -18,16 +18,16 @@ class TeacherAgent extends BaseAgentZero {
    */
   async executeTask(task) {
     switch (task.type) {
-      case 'guide':
-        return await this.guideWorkflow(task.workflow);
-      case 'explain':
-        return await this.explainConcept(task.concept);
-      case 'strategize':
-        return await this.createStrategy(task.goal);
-      case 'review':
-        return await this.reviewProgress(task.projectId);
-      default:
-        throw new Error(`Unknown task type: ${task.type}`);
+    case 'guide':
+      return await this.guideWorkflow(task.workflow);
+    case 'explain':
+      return await this.explainConcept(task.concept);
+    case 'strategize':
+      return await this.createStrategy(task.goal);
+    case 'review':
+      return await this.reviewProgress(task.projectId);
+    default:
+      throw new Error(`Unknown task type: ${task.type}`);
     }
   }
 
@@ -67,7 +67,10 @@ class TeacherAgent extends BaseAgentZero {
     }
 
     // Add high-level recommendations
-    guidance.recommendations = this.generateRecommendations(workflow, complexity);
+    guidance.recommendations = this.generateRecommendations(
+      workflow,
+      complexity
+    );
 
     // Store in knowledge base
     this.knowledgeBase.set(workflow.id, guidance);
@@ -132,22 +135,38 @@ class TeacherAgent extends BaseAgentZero {
       {
         name: 'Planning',
         duration: '1-2 weeks',
-        objectives: ['Define requirements', 'Analyze feasibility', 'Allocate resources']
+        objectives: [
+          'Define requirements',
+          'Analyze feasibility',
+          'Allocate resources'
+        ]
       },
       {
         name: 'Execution',
         duration: '4-8 weeks',
-        objectives: ['Implement features', 'Conduct testing', 'Iterate based on feedback']
+        objectives: [
+          'Implement features',
+          'Conduct testing',
+          'Iterate based on feedback'
+        ]
       },
       {
         name: 'Validation',
         duration: '1-2 weeks',
-        objectives: ['Quality assurance', 'Performance testing', 'Security audit']
+        objectives: [
+          'Quality assurance',
+          'Performance testing',
+          'Security audit'
+        ]
       },
       {
         name: 'Deployment',
         duration: '1 week',
-        objectives: ['Deploy to production', 'Monitor metrics', 'Gather user feedback']
+        objectives: [
+          'Deploy to production',
+          'Monitor metrics',
+          'Gather user feedback'
+        ]
       }
     ];
 
@@ -180,7 +199,9 @@ class TeacherAgent extends BaseAgentZero {
     this.logger.info('[Teacher] Reviewing progress for project:', projectId);
 
     // Get project context
-    const projectContext = await this.contextBus.get(`project:${projectId}:context`);
+    const projectContext = await this.contextBus.get(
+      `project:${projectId}:context`
+    );
     const project = projectContext ? JSON.parse(projectContext) : null;
 
     if (!project) {
@@ -229,8 +250,10 @@ class TeacherAgent extends BaseAgentZero {
    */
   analyzeComplexity(workflow) {
     const stageCount = workflow.stages?.length || 0;
-    const avgDependencies = workflow.stages?.reduce((sum, s) => 
-      sum + (s.dependencies?.length || 0), 0) / stageCount || 0;
+    const avgDependencies = workflow.stages?.reduce(
+      (sum, s) => sum + (s.dependencies?.length || 0),
+      0
+    ) / stageCount || 0;
 
     if (stageCount > 8 || avgDependencies > 3) return 'high';
     if (stageCount > 5 || avgDependencies > 2) return 'medium';
@@ -238,7 +261,9 @@ class TeacherAgent extends BaseAgentZero {
   }
 
   extractObjectives(stage) {
-    return stage.objectives || [`Complete ${stage.name}`, 'Meet quality criteria'];
+    return (
+      stage.objectives || [`Complete ${stage.name}`, 'Meet quality criteria']
+    );
   }
 
   identifyPrerequisites(stage) {
@@ -246,17 +271,27 @@ class TeacherAgent extends BaseAgentZero {
   }
 
   defineSuccessCriteria(stage) {
-    return stage.successCriteria || ['All sub-tasks completed', 'No critical errors'];
+    return (
+      stage.successCriteria || ['All sub-tasks completed', 'No critical errors']
+    );
   }
 
   identifyPitfalls(stage) {
     const commonPitfalls = {
-      'Trigger Authentication': ['Incomplete credentials', 'Authorization failures'],
+      'Trigger Authentication': [
+        'Incomplete credentials',
+        'Authorization failures'
+      ],
       'Prompt Engineering': ['Ambiguous prompts', 'Missing context'],
       'Context Engineering': ['Incomplete context', 'Context overflow'],
-      'Implementation': ['Technical debt', 'Insufficient testing']
+      Implementation: ['Technical debt', 'Insufficient testing']
     };
-    return commonPitfalls[stage.name] || ['Rushing without validation', 'Ignoring edge cases'];
+    return (
+      commonPitfalls[stage.name] || [
+        'Rushing without validation',
+        'Ignoring edge cases'
+      ]
+    );
   }
 
   estimateDuration(stage) {
@@ -268,40 +303,47 @@ class TeacherAgent extends BaseAgentZero {
       'Project Documentation': 25,
       'Pre-DevOps Plugins': 30,
       'Zekka Tooling': 20,
-      'Implementation': 60,
+      Implementation: 60,
       'Project Admin': 15,
-      'Validation': 30,
-      'Deployment': 20
+      Validation: 30,
+      Deployment: 20
     };
     return baseDurations[stage.name] || 30;
   }
 
   generateRecommendations(workflow, complexity) {
     const recommendations = [];
-    
+
     if (complexity === 'high') {
       recommendations.push('Consider breaking down into smaller sub-workflows');
       recommendations.push('Increase monitoring and checkpoints');
       recommendations.push('Allocate additional resources');
     }
-    
+
     recommendations.push('Maintain clear communication between agents');
     recommendations.push('Document decisions and rationale');
     recommendations.push('Implement continuous validation');
-    
+
     return recommendations;
   }
 
   extractPrinciples(concept) {
-    return concept.principles || [
-      'Understand the fundamentals',
-      'Apply best practices',
-      'Iterate and improve'
-    ];
+    return (
+      concept.principles || [
+        'Understand the fundamentals',
+        'Apply best practices',
+        'Iterate and improve'
+      ]
+    );
   }
 
   generateExamples(concept) {
-    return concept.examples || ['Example 1: Basic usage', 'Example 2: Advanced scenario'];
+    return (
+      concept.examples || [
+        'Example 1: Basic usage',
+        'Example 2: Advanced scenario'
+      ]
+    );
   }
 
   findRelatedConcepts(concept) {
@@ -316,24 +358,36 @@ class TeacherAgent extends BaseAgentZero {
 
   identifyStrategicRisks(goal) {
     return [
-      { risk: 'Scope creep', mitigation: 'Clear requirements and change control' },
-      { risk: 'Resource constraints', mitigation: 'Proper planning and allocation' },
-      { risk: 'Technical challenges', mitigation: 'Early prototyping and testing' }
+      {
+        risk: 'Scope creep',
+        mitigation: 'Clear requirements and change control'
+      },
+      {
+        risk: 'Resource constraints',
+        mitigation: 'Proper planning and allocation'
+      },
+      {
+        risk: 'Technical challenges',
+        mitigation: 'Early prototyping and testing'
+      }
     ];
   }
 
   calculateProgress(project) {
     const stages = project.stages || [];
     if (stages.length === 0) return 0;
-    
-    const totalCompletion = stages.reduce((sum, s) => sum + (s.completion || 0), 0);
+
+    const totalCompletion = stages.reduce(
+      (sum, s) => sum + (s.completion || 0),
+      0
+    );
     return Math.round(totalCompletion / stages.length);
   }
 
   assessQuality(stage) {
     const errors = stage.errors?.length || 0;
     const warnings = stage.warnings?.length || 0;
-    
+
     if (errors > 0) return 'poor';
     if (warnings > 2) return 'fair';
     return 'good';

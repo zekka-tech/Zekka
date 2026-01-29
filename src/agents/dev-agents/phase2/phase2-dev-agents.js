@@ -42,12 +42,19 @@ class Phase2DevAgents extends EventEmitter {
   }
 
   async initialize() {
-    this.logger.info('[Phase2DevAgents] Initializing Phase 2 development agents');
+    this.logger.info(
+      '[Phase2DevAgents] Initializing Phase 2 development agents'
+    );
 
     this.augment = {
       name: 'AugmentCode',
       version: '2.5',
-      capabilities: ['AI pair programming', 'Code completion', 'Refactoring', 'Bug detection'],
+      capabilities: [
+        'AI pair programming',
+        'Code completion',
+        'Refactoring',
+        'Bug detection'
+      ],
       features: { realtime: true, contextAware: true, multiFile: true },
       status: 'active'
     };
@@ -55,7 +62,11 @@ class Phase2DevAgents extends EventEmitter {
     this.warp = {
       name: 'Warp.dev',
       version: '1.0',
-      capabilities: ['Terminal AI', 'Command suggestions', 'Workflow automation'],
+      capabilities: [
+        'Terminal AI',
+        'Command suggestions',
+        'Workflow automation'
+      ],
       features: { terminal: true, commands: true, git: true },
       status: 'active'
     };
@@ -63,7 +74,11 @@ class Phase2DevAgents extends EventEmitter {
     this.windsurf = {
       name: 'Windsurf',
       version: '1.2',
-      capabilities: ['AI code editor', 'Multi-file editing', 'Context-aware completion'],
+      capabilities: [
+        'AI code editor',
+        'Multi-file editing',
+        'Context-aware completion'
+      ],
       features: { editor: true, collaboration: true, ai: true },
       status: 'active'
     };
@@ -71,13 +86,19 @@ class Phase2DevAgents extends EventEmitter {
     this.qoder = {
       name: 'Qoder.com',
       version: '3.0',
-      capabilities: ['Enterprise code generation', 'Security-first', 'Team collaboration'],
+      capabilities: [
+        'Enterprise code generation',
+        'Security-first',
+        'Team collaboration'
+      ],
       features: { enterprise: true, security: true, compliance: true },
       status: 'active'
     };
 
     await this.contextBus.publish('dev-agents-phase2.initialized', {
-      agents: Object.keys(this.config.agents).filter(a => this.config.agents[a].enabled),
+      agents: Object.keys(this.config.agents).filter(
+        (a) => this.config.agents[a].enabled
+      ),
       timestamp: new Date().toISOString()
     });
 
@@ -86,7 +107,9 @@ class Phase2DevAgents extends EventEmitter {
   }
 
   async generateCompletion(agentName, context) {
-    this.logger.info(`[Phase2DevAgents] Generating completion with ${agentName}`);
+    this.logger.info(
+      `[Phase2DevAgents] Generating completion with ${agentName}`
+    );
 
     const completionId = `comp-${Date.now()}-${Math.random().toString(36).substring(7)}`;
 
@@ -115,7 +138,9 @@ class Phase2DevAgents extends EventEmitter {
   getStatistics() {
     return {
       agents: {
-        enabled: Object.keys(this.config.agents).filter(a => this.config.agents[a].enabled),
+        enabled: Object.keys(this.config.agents).filter(
+          (a) => this.config.agents[a].enabled
+        ),
         total: 4
       },
       sessions: this.sessions.size,

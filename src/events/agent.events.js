@@ -8,7 +8,12 @@
  */
 
 const Joi = require('joi');
-const { wrapHandler, validateEventData, createSuccessResponse, createErrorResponse } = require('../middleware/socket-error-handler');
+const {
+  wrapHandler,
+  validateEventData,
+  createSuccessResponse,
+  createErrorResponse
+} = require('../middleware/socket-error-handler');
 const { trackRoom, untrackRoom } = require('../middleware/websocket');
 const { getUserId } = require('../utils/socket-auth');
 
@@ -27,82 +32,102 @@ const agentSubscribeSchema = Joi.object({
  */
 function setupAgentEvents(io, socket, logger) {
   // Subscribe to agent updates
-  socket.on('agent:subscribe', wrapHandler(async (data, callback) => {
-    const validation = validateEventData(data, agentSubscribeSchema);
-    if (!validation.valid) {
-      if (callback) callback(createErrorResponse(validation.error, 'VALIDATION_ERROR'));
-      return;
-    }
+  socket.on(
+    'agent:subscribe',
+    wrapHandler(
+      async (data, callback) => {
+        const validation = validateEventData(data, agentSubscribeSchema);
+        if (!validation.valid) {
+          if (callback) callback(createErrorResponse(validation.error, 'VALIDATION_ERROR'));
+          return;
+        }
 
-    const { agentId, projectId } = validation.value;
-    const userId = getUserId(socket);
-    const rooms = [];
+        const { agentId, projectId } = validation.value;
+        const userId = getUserId(socket);
+        const rooms = [];
 
-    if (agentId) {
-      const room = `agent:${agentId}`;
-      socket.join(room);
-      trackRoom(socket.id, room);
-      rooms.push(room);
-    }
+        if (agentId) {
+          const room = `agent:${agentId}`;
+          socket.join(room);
+          trackRoom(socket.id, room);
+          rooms.push(room);
+        }
 
-    if (projectId) {
-      const room = `project:${projectId}:agents`;
-      socket.join(room);
-      trackRoom(socket.id, room);
-      rooms.push(room);
-    }
+        if (projectId) {
+          const room = `project:${projectId}:agents`;
+          socket.join(room);
+          trackRoom(socket.id, room);
+          rooms.push(room);
+        }
 
-    logger.info(`User subscribed to agent updates`, {
-      socketId: socket.id,
-      userId,
-      agentId,
-      projectId
-    });
+        logger.info('User subscribed to agent updates', {
+          socketId: socket.id,
+          userId,
+          agentId,
+          projectId
+        });
 
-    if (callback) {
-      callback(createSuccessResponse({
-        subscribed: true,
-        rooms
-      }));
-    }
-  }, socket, logger, 'agent:subscribe'));
+        if (callback) {
+          callback(
+            createSuccessResponse({
+              subscribed: true,
+              rooms
+            })
+          );
+        }
+      },
+      socket,
+      logger,
+      'agent:subscribe'
+    )
+  );
 
   // Unsubscribe from agent updates
-  socket.on('agent:unsubscribe', wrapHandler(async (data, callback) => {
-    const validation = validateEventData(data, agentSubscribeSchema);
-    if (!validation.valid) {
-      if (callback) callback(createErrorResponse(validation.error, 'VALIDATION_ERROR'));
-      return;
-    }
+  socket.on(
+    'agent:unsubscribe',
+    wrapHandler(
+      async (data, callback) => {
+        const validation = validateEventData(data, agentSubscribeSchema);
+        if (!validation.valid) {
+          if (callback) callback(createErrorResponse(validation.error, 'VALIDATION_ERROR'));
+          return;
+        }
 
-    const { agentId, projectId } = validation.value;
-    const userId = getUserId(socket);
+        const { agentId, projectId } = validation.value;
+        const userId = getUserId(socket);
 
-    if (agentId) {
-      const room = `agent:${agentId}`;
-      socket.leave(room);
-      untrackRoom(socket.id, room);
-    }
+        if (agentId) {
+          const room = `agent:${agentId}`;
+          socket.leave(room);
+          untrackRoom(socket.id, room);
+        }
 
-    if (projectId) {
-      const room = `project:${projectId}:agents`;
-      socket.leave(room);
-      untrackRoom(socket.id, room);
-    }
+        if (projectId) {
+          const room = `project:${projectId}:agents`;
+          socket.leave(room);
+          untrackRoom(socket.id, room);
+        }
 
-    logger.info(`User unsubscribed from agent updates`, {
-      socketId: socket.id,
-      userId,
-      agentId,
-      projectId
-    });
+        logger.info('User unsubscribed from agent updates', {
+          socketId: socket.id,
+          userId,
+          agentId,
+          projectId
+        });
 
-    if (callback) {
-      callback(createSuccessResponse({
-        unsubscribed: true
-      }));
-    }
-  }, socket, logger, 'agent:unsubscribe'));
+        if (callback) {
+          callback(
+            createSuccessResponse({
+              unsubscribed: true
+            })
+          );
+        }
+      },
+      socket,
+      logger,
+      'agent:unsubscribe'
+    )
+  );
 }
 
 /**
@@ -261,7 +286,14 @@ function broadcastAgentMetrics(io, agentId, metrics) {
  * @param {string} log - Log message
  * @param {string} level - Log level (info, warn, error)
  */
-function broadcastAgentLog(io, agentId, taskId, projectId, log, level = 'info') {
+function broadcastAgentLog(
+  io,
+  agentId,
+  taskId,
+  projectId,
+  log,
+  level = 'info'
+) {
   const event = {
     agentId,
     taskId,
@@ -290,7 +322,14 @@ function broadcastAgentLog(io, agentId, taskId, projectId, log, level = 'info') 
  * @param {number} progress - Progress percentage (0-100)
  * @param {string} message - Progress message
  */
-function broadcastAgentProgress(io, agentId, taskId, projectId, progress, message) {
+function broadcastAgentProgress(
+  io,
+  agentId,
+  taskId,
+  projectId,
+  progress,
+  message
+) {
   const event = {
     agentId,
     taskId,

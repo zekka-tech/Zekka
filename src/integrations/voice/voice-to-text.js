@@ -51,7 +51,15 @@ class VoiceToText extends EventEmitter {
         limits: {
           maxFileSize: 25 * 1024 * 1024, // 25 MB
           maxDuration: 3600, // 1 hour
-          supportedFormats: ['mp3', 'mp4', 'mpeg', 'mpga', 'm4a', 'wav', 'webm']
+          supportedFormats: [
+            'mp3',
+            'mp4',
+            'mpeg',
+            'mpga',
+            'm4a',
+            'wav',
+            'webm'
+          ]
         },
         pricing: {
           perMinute: 0.006 // $0.006 per minute
@@ -112,7 +120,8 @@ class VoiceToText extends EventEmitter {
         config: {
           subscriptionKey: process.env.AZURE_SPEECH_KEY,
           region: process.env.AZURE_SPEECH_REGION || 'eastus',
-          endpoint: 'https://{region}.stt.speech.microsoft.com/speech/recognition'
+          endpoint:
+            'https://{region}.stt.speech.microsoft.com/speech/recognition'
         },
         features: {
           languages: 100, // Supports 100+ languages
@@ -138,8 +147,10 @@ class VoiceToText extends EventEmitter {
    */
   async transcribe(audioInput, options = {}) {
     const transcriptionId = `trans-${Date.now()}-${Math.random().toString(36).substring(7)}`;
-    
-    this.logger.info(`[VoiceToText] Starting transcription: ${transcriptionId}`);
+
+    this.logger.info(
+      `[VoiceToText] Starting transcription: ${transcriptionId}`
+    );
 
     const transcription = {
       id: transcriptionId,
@@ -148,9 +159,13 @@ class VoiceToText extends EventEmitter {
       provider: options.provider || this.config.defaultProvider,
       language: options.language || this.config.defaultLanguage,
       options: {
-        enablePunctuation: options.enablePunctuation ?? this.config.enablePunctuation,
-        enableTimestamps: options.enableTimestamps ?? this.config.enableTimestamps,
-        enableSpeakerDiarization: options.enableSpeakerDiarization ?? this.config.enableSpeakerDiarization
+        enablePunctuation:
+          options.enablePunctuation ?? this.config.enablePunctuation,
+        enableTimestamps:
+          options.enableTimestamps ?? this.config.enableTimestamps,
+        enableSpeakerDiarization:
+          options.enableSpeakerDiarization
+          ?? this.config.enableSpeakerDiarization
       }
     };
 
@@ -192,17 +207,18 @@ class VoiceToText extends EventEmitter {
         timestamp: new Date().toISOString()
       });
 
-      this.logger.info(`[VoiceToText] Transcription completed: ${transcriptionId}`);
+      this.logger.info(
+        `[VoiceToText] Transcription completed: ${transcriptionId}`
+      );
 
       return transcription;
-
     } catch (error) {
       transcription.status = 'failed';
       transcription.error = error.message;
       transcription.endTime = Date.now();
 
       this.activeTranscriptions.delete(transcriptionId);
-      this.logger.error(`[VoiceToText] Transcription failed:`, error);
+      this.logger.error('[VoiceToText] Transcription failed:', error);
 
       throw error;
     }
@@ -231,7 +247,7 @@ class VoiceToText extends EventEmitter {
    * OpenAI Whisper transcription
    */
   async transcribeWithWhisper(audioInput, options) {
-    const config = this.providers.whisper.config;
+    const { config } = this.providers.whisper;
 
     this.logger.info('[VoiceToText] Transcribing with OpenAI Whisper');
 
@@ -259,21 +275,25 @@ class VoiceToText extends EventEmitter {
       text: 'This is a sample transcription from OpenAI Whisper. The system can recognize speech from multiple languages with high accuracy.',
       language: options.language || 'en',
       duration: 5.2,
-      words: options.enableTimestamps ? [
-        { word: 'This', start: 0.0, end: 0.2 },
-        { word: 'is', start: 0.2, end: 0.3 },
-        { word: 'a', start: 0.3, end: 0.4 },
-        { word: 'sample', start: 0.4, end: 0.8 },
-        { word: 'transcription', start: 0.8, end: 1.5 }
-      ] : undefined,
-      segments: options.enableTimestamps ? [
-        {
-          id: 0,
-          start: 0.0,
-          end: 5.2,
-          text: 'This is a sample transcription from OpenAI Whisper. The system can recognize speech from multiple languages with high accuracy.'
-        }
-      ] : undefined,
+      words: options.enableTimestamps
+        ? [
+          { word: 'This', start: 0.0, end: 0.2 },
+          { word: 'is', start: 0.2, end: 0.3 },
+          { word: 'a', start: 0.3, end: 0.4 },
+          { word: 'sample', start: 0.4, end: 0.8 },
+          { word: 'transcription', start: 0.8, end: 1.5 }
+        ]
+        : undefined,
+      segments: options.enableTimestamps
+        ? [
+          {
+            id: 0,
+            start: 0.0,
+            end: 5.2,
+            text: 'This is a sample transcription from OpenAI Whisper. The system can recognize speech from multiple languages with high accuracy.'
+          }
+        ]
+        : undefined,
       confidence: 0.95
     };
   }
@@ -282,7 +302,7 @@ class VoiceToText extends EventEmitter {
    * Google Speech-to-Text transcription
    */
   async transcribeWithGoogle(audioInput, options) {
-    const config = this.providers.google.config;
+    const { config } = this.providers.google;
 
     this.logger.info('[VoiceToText] Transcribing with Google Speech-to-Text');
 
@@ -315,13 +335,25 @@ class VoiceToText extends EventEmitter {
       text: 'Google Speech-to-Text provides high-quality transcription with support for speaker diarization and multiple languages.',
       language: options.language || 'en-US',
       duration: 4.8,
-      words: options.enableTimestamps ? [
-        { word: 'Google', startTime: 0.0, endTime: 0.3, confidence: 0.98 },
-        { word: 'Speech-to-Text', startTime: 0.3, endTime: 1.0, confidence: 0.97 }
-      ] : undefined,
-      speakers: options.enableSpeakerDiarization ? [
-        { speaker: 1, words: ['Google', 'Speech-to-Text'] }
-      ] : undefined,
+      words: options.enableTimestamps
+        ? [
+          {
+            word: 'Google',
+            startTime: 0.0,
+            endTime: 0.3,
+            confidence: 0.98
+          },
+          {
+            word: 'Speech-to-Text',
+            startTime: 0.3,
+            endTime: 1.0,
+            confidence: 0.97
+          }
+        ]
+        : undefined,
+      speakers: options.enableSpeakerDiarization
+        ? [{ speaker: 1, words: ['Google', 'Speech-to-Text'] }]
+        : undefined,
       confidence: 0.96
     };
   }
@@ -330,7 +362,7 @@ class VoiceToText extends EventEmitter {
    * AWS Transcribe transcription
    */
   async transcribeWithAWS(audioInput, options) {
-    const config = this.providers.aws.config;
+    const { config } = this.providers.aws;
 
     this.logger.info('[VoiceToText] Transcribing with AWS Transcribe');
 
@@ -359,13 +391,25 @@ class VoiceToText extends EventEmitter {
       text: 'AWS Transcribe offers reliable transcription services with speaker identification and supports numerous audio formats.',
       language: options.language || 'en-US',
       duration: 5.0,
-      items: options.enableTimestamps ? [
-        { type: 'pronunciation', content: 'AWS', startTime: 0.0, endTime: 0.4 },
-        { type: 'pronunciation', content: 'Transcribe', startTime: 0.4, endTime: 1.1 }
-      ] : undefined,
-      speakers: options.enableSpeakerDiarization ? [
-        { speaker: 'spk_0', segments: [{ start: 0.0, end: 5.0 }] }
-      ] : undefined,
+      items: options.enableTimestamps
+        ? [
+          {
+            type: 'pronunciation',
+            content: 'AWS',
+            startTime: 0.0,
+            endTime: 0.4
+          },
+          {
+            type: 'pronunciation',
+            content: 'Transcribe',
+            startTime: 0.4,
+            endTime: 1.1
+          }
+        ]
+        : undefined,
+      speakers: options.enableSpeakerDiarization
+        ? [{ speaker: 'spk_0', segments: [{ start: 0.0, end: 5.0 }] }]
+        : undefined,
       confidence: 0.94
     };
   }
@@ -374,7 +418,7 @@ class VoiceToText extends EventEmitter {
    * Azure Speech Service transcription
    */
   async transcribeWithAzure(audioInput, options) {
-    const config = this.providers.azure.config;
+    const { config } = this.providers.azure;
 
     this.logger.info('[VoiceToText] Transcribing with Azure Speech Service');
 
@@ -397,10 +441,12 @@ class VoiceToText extends EventEmitter {
       text: 'Azure Speech Service delivers accurate transcription with real-time capabilities and translation features.',
       language: options.language || 'en-US',
       duration: 4.9,
-      words: options.enableTimestamps ? [
-        { word: 'Azure', offset: 0, duration: 300000000 }, // 100-nanosecond units
-        { word: 'Speech', offset: 300000000, duration: 400000000 }
-      ] : undefined,
+      words: options.enableTimestamps
+        ? [
+          { word: 'Azure', offset: 0, duration: 300000000 }, // 100-nanosecond units
+          { word: 'Speech', offset: 300000000, duration: 400000000 }
+        ]
+        : undefined,
       confidence: 0.97
     };
   }
@@ -410,19 +456,23 @@ class VoiceToText extends EventEmitter {
    */
   async validateAudioInput(audioInput, provider) {
     // Validate file format
-    const ext = typeof audioInput === 'string' 
+    const ext = typeof audioInput === 'string'
       ? path.extname(audioInput).substring(1).toLowerCase()
       : 'unknown';
 
     if (!provider.limits.supportedFormats.includes(ext)) {
-      throw new Error(`Unsupported audio format: ${ext}. Supported: ${provider.limits.supportedFormats.join(', ')}`);
+      throw new Error(
+        `Unsupported audio format: ${ext}. Supported: ${provider.limits.supportedFormats.join(', ')}`
+      );
     }
 
     // Validate file size (if file path provided)
     if (typeof audioInput === 'string' && fs.existsSync(audioInput)) {
       const stats = fs.statSync(audioInput);
       if (stats.size > provider.limits.maxFileSize) {
-        throw new Error(`File too large: ${(stats.size / 1024 / 1024).toFixed(2)}MB. Max: ${(provider.limits.maxFileSize / 1024 / 1024).toFixed(2)}MB`);
+        throw new Error(
+          `File too large: ${(stats.size / 1024 / 1024).toFixed(2)}MB. Max: ${(provider.limits.maxFileSize / 1024 / 1024).toFixed(2)}MB`
+        );
       }
     }
 
@@ -438,7 +488,9 @@ class VoiceToText extends EventEmitter {
       throw new Error(`Transcription not found: ${transcriptionId}`);
     }
 
-    this.logger.info(`[VoiceToText] Translating ${transcriptionId} to ${targetLanguage}`);
+    this.logger.info(
+      `[VoiceToText] Translating ${transcriptionId} to ${targetLanguage}`
+    );
 
     // In production, use translation APIs (OpenAI, Google Translate, DeepL)
     const translation = {
@@ -484,28 +536,39 @@ class VoiceToText extends EventEmitter {
    */
   getStatistics() {
     const transcriptions = Array.from(this.transcriptionHistory.values());
-    
+
     return {
       totalTranscriptions: transcriptions.length,
       activeTranscriptions: this.activeTranscriptions.size,
-      successfulTranscriptions: transcriptions.filter(t => t.status === 'completed').length,
-      failedTranscriptions: transcriptions.filter(t => t.status === 'failed').length,
+      successfulTranscriptions: transcriptions.filter(
+        (t) => t.status === 'completed'
+      ).length,
+      failedTranscriptions: transcriptions.filter((t) => t.status === 'failed')
+        .length,
       byProvider: this.getProviderStatistics(transcriptions),
-      totalDuration: transcriptions.reduce((sum, t) => sum + (t.result?.duration || 0), 0),
+      totalDuration: transcriptions.reduce(
+        (sum, t) => sum + (t.result?.duration || 0),
+        0
+      ),
       providers: Object.keys(this.providers).length,
-      supportedLanguages: Math.max(...Object.values(this.providers).map(p => p.features.languages))
+      supportedLanguages: Math.max(
+        ...Object.values(this.providers).map((p) => p.features.languages)
+      )
     };
   }
 
   getProviderStatistics(transcriptions) {
     const stats = {};
     for (const provider of Object.keys(this.providers)) {
-      const providerTranscriptions = transcriptions.filter(t => t.provider === provider);
+      const providerTranscriptions = transcriptions.filter(
+        (t) => t.provider === provider
+      );
       stats[provider] = {
         count: providerTranscriptions.length,
-        successRate: providerTranscriptions.length > 0
-          ? (providerTranscriptions.filter(t => t.status === 'completed').length / providerTranscriptions.length * 100).toFixed(2) + '%'
-          : 'N/A'
+        successRate:
+          providerTranscriptions.length > 0
+            ? `${((providerTranscriptions.filter((t) => t.status === 'completed').length / providerTranscriptions.length) * 100).toFixed(2)}%`
+            : 'N/A'
       };
     }
     return stats;

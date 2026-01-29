@@ -252,9 +252,7 @@ class PreferencesController {
         throw new ValidationError('User ID is required');
       }
 
-      const notificationPrefs = await preferenceService.getNotificationPreferences(
-        userId
-      );
+      const notificationPrefs = await preferenceService.getNotificationPreferences(userId);
 
       res.status(200).json({
         success: true,

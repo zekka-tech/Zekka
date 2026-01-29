@@ -75,21 +75,19 @@ register.registerMetric(conflictsResolved);
  */
 function metricsMiddleware(req, res, next) {
   const start = Date.now();
-  
+
   // Track response
   res.on('finish', () => {
     const duration = (Date.now() - start) / 1000;
     const route = req.route ? req.route.path : req.path;
-    
+
     httpRequestDuration
       .labels(req.method, route, res.statusCode.toString())
       .observe(duration);
-    
-    httpRequestTotal
-      .labels(req.method, route, res.statusCode.toString())
-      .inc();
+
+    httpRequestTotal.labels(req.method, route, res.statusCode.toString()).inc();
   });
-  
+
   next();
 }
 
@@ -105,13 +103,13 @@ async function getMetrics() {
  */
 function trackProject(action, status) {
   switch (action) {
-    case 'started':
-      activeProjects.inc();
-      break;
-    case 'completed':
-      activeProjects.dec();
-      projectsCompleted.labels(status).inc();
-      break;
+  case 'started':
+    activeProjects.inc();
+    break;
+  case 'completed':
+    activeProjects.dec();
+    projectsCompleted.labels(status).inc();
+    break;
   }
 }
 
@@ -120,15 +118,15 @@ function trackProject(action, status) {
  */
 function trackAgent(action, agentType, stage, duration) {
   switch (action) {
-    case 'started':
-      activeAgents.inc();
-      break;
-    case 'completed':
-      activeAgents.dec();
-      if (duration) {
-        agentExecutionTime.labels(agentType, stage).observe(duration);
-      }
-      break;
+  case 'started':
+    activeAgents.inc();
+    break;
+  case 'completed':
+    activeAgents.dec();
+    if (duration) {
+      agentExecutionTime.labels(agentType, stage).observe(duration);
+    }
+    break;
   }
 }
 

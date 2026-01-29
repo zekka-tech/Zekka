@@ -149,7 +149,9 @@ export function validatePasswordStrength(password) {
 
   // Special character check
   if (!/[@$!%*?&]/.test(password)) {
-    errors.push('Password must contain at least one special character (@$!%*?&)');
+    errors.push(
+      'Password must contain at least one special character (@$!%*?&)'
+    );
   } else {
     score += 1;
   }
@@ -184,12 +186,15 @@ export function validatePasswordStrength(password) {
     score: Math.max(0, score),
     strength,
     errors,
-    suggestions: errors.length === 0 ? [] : [
-      'Use a mix of uppercase and lowercase letters',
-      'Include numbers and special characters',
-      'Make it at least 12-16 characters long',
-      'Avoid common words and patterns'
-    ]
+    suggestions:
+      errors.length === 0
+        ? []
+        : [
+          'Use a mix of uppercase and lowercase letters',
+          'Include numbers and special characters',
+          'Make it at least 12-16 characters long',
+          'Avoid common words and patterns'
+        ]
   };
 }
 
@@ -206,9 +211,21 @@ export function validatePasswordStrength(password) {
 export async function isPasswordCompromised(password) {
   // Common weak passwords list (subset)
   const weakPasswords = [
-    'password', 'password123', '12345678', '123456789', '12345678910',
-    'qwerty', 'abc123', 'password1', 'admin', 'letmein',
-    'welcome', 'monkey', '1234567890', 'password!', 'pass123'
+    'password',
+    'password123',
+    '12345678',
+    '123456789',
+    '12345678910',
+    'qwerty',
+    'abc123',
+    'password1',
+    'admin',
+    'letmein',
+    'welcome',
+    'monkey',
+    '1234567890',
+    'password!',
+    'pass123'
   ];
 
   const lowercasePassword = password.toLowerCase();
@@ -305,7 +322,7 @@ export function calculateEntropy(password) {
   if (charSets.other.test(password)) poolSize += 20; // Approximate
 
   // Entropy = log2(poolSize^length)
-  const entropy = Math.log2(Math.pow(poolSize, password.length));
+  const entropy = Math.log2(poolSize ** password.length);
 
   return Math.round(entropy);
 }

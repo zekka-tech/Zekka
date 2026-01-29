@@ -1,6 +1,6 @@
 /**
  * Validation Schemas
- * 
+ *
  * SECURITY FIX: Phase 1 - Input validation
  */
 
@@ -13,7 +13,7 @@ const registerSchema = [
     .isEmail()
     .normalizeEmail()
     .withMessage('Valid email is required'),
-  
+
   body('password')
     .isLength({ min: 12 })
     .withMessage('Password must be at least 12 characters')
@@ -23,13 +23,15 @@ const registerSchema = [
     .withMessage('Password must contain at least one number')
     .matches(/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/)
     .withMessage('Password must contain at least one special character'),
-  
+
   body('name')
     .trim()
     .isLength({ min: 2, max: 100 })
     .withMessage('Name must be between 2 and 100 characters')
     .matches(/^[a-zA-Z\s'-]+$/)
-    .withMessage('Name can only contain letters, spaces, hyphens, and apostrophes')
+    .withMessage(
+      'Name can only contain letters, spaces, hyphens, and apostrophes'
+    )
 ];
 
 const loginSchema = [
@@ -38,10 +40,8 @@ const loginSchema = [
     .isEmail()
     .normalizeEmail()
     .withMessage('Valid email is required'),
-  
-  body('password')
-    .notEmpty()
-    .withMessage('Password is required')
+
+  body('password').notEmpty().withMessage('Password is required')
 ];
 
 // Project validation schemas
@@ -52,26 +52,26 @@ const createProjectSchema = [
     .withMessage('Project name must be between 1 and 200 characters')
     .matches(/^[a-zA-Z0-9\s\-_.,!?]+$/)
     .withMessage('Project name contains invalid characters'),
-  
+
   body('requirements')
     .isArray({ min: 1 })
     .withMessage('At least one requirement is required'),
-  
+
   body('requirements.*')
     .trim()
     .isLength({ min: 1, max: 1000 })
     .withMessage('Each requirement must be between 1 and 1000 characters'),
-  
+
   body('storyPoints')
     .optional()
     .isInt({ min: 1, max: 100 })
     .withMessage('Story points must be between 1 and 100'),
-  
+
   body('budget.daily')
     .optional()
     .isFloat({ min: 0 })
     .withMessage('Daily budget must be positive'),
-  
+
   body('budget.monthly')
     .optional()
     .isFloat({ min: 0 })
@@ -92,7 +92,7 @@ const costQuerySchema = [
     .trim()
     .matches(/^proj_[a-zA-Z0-9]+$/)
     .withMessage('Invalid project ID format'),
-  
+
   query('period')
     .optional()
     .isIn(['daily', 'weekly', 'monthly'])

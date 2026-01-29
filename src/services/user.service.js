@@ -1,19 +1,24 @@
 /**
  * User Service Layer
- * 
+ *
  * Separates business logic from routes and repositories
  * Provides reusable user-related operations
  */
 
-const { getEnhancedUserRepository } = require('../repositories/user.repository.enhanced');
+const crypto = require('crypto');
+const {
+  getEnhancedUserRepository
+} = require('../repositories/user.repository.enhanced');
 const { getPasswordPolicyManager } = require('../utils/password-policy');
 const { generateToken } = require('../middleware/auth.secure');
 const { getAuditLogger } = require('../utils/audit-logger');
-const { 
-  ValidationError, 
+const emailService = require('./email.service');
+const pool = require('../config/database');
+const {
+  ValidationError,
   AuthenticationError,
   BusinessError,
-  ErrorCodes 
+  ErrorCodes
 } = require('../utils/error-handler-enhanced');
 
 class UserService {
@@ -22,13 +27,15 @@ class UserService {
     this.passwordPolicy = getPasswordPolicyManager();
     this.auditLogger = getAuditLogger();
   }
-  
+
   /**
    * Register a new user
    */
   async registerUser(userData, context = {}) {
-    const { email, password, name, metadata } = userData;
-    
+    const {
+      email, password, name, metadata
+    } = userData;
+
     // Validate required fields
     if (!email || !password || !name) {
       throw new ValidationError(
@@ -40,7 +47,7 @@ class UserService {
         }
       );
     }
-    
+
     // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
@@ -54,7 +61,7 @@ class UserService {
         }
       );
     }
-    
+
     // Check if user already exists
     const existingUser = await this.userRepository.findByEmail(email);
     if (existingUser) {
@@ -63,13 +70,17 @@ class UserService {
         'User with this email already exists',
         {
           field: 'email',
-          recoverySuggestion: 'Please use a different email or login with existing account'
+          recoverySuggestion:
+            'Please use a different email or login with existing account'
         }
       );
     }
-    
+
     // Validate password
-    const passwordValidation = this.passwordPolicy.validatePassword(password, { email, name });
+    const passwordValidation = this.passwordPolicy.validatePassword(password, {
+      email,
+      name
+    });
     if (!passwordValidation.isValid) {
       throw new ValidationError(
         ErrorCodes.WEAK_PASSWORD,
@@ -83,11 +94,16 @@ class UserService {
         }
       );
     }
-    
+
     // Create user
     try {
-      const user = await this.userRepository.createUser(email, password, name, metadata);
-      
+      const user = await this.userRepository.createUser(
+        email,
+        password,
+        name,
+        metadata
+      );
+
       // Audit log
       this.auditLogger.logAuthentication(
         'user_registered',
@@ -99,10 +115,10 @@ class UserService {
           requestId: context.requestId
         }
       );
-      
+
       // Generate JWT token
       const token = generateToken(user.id, user.email);
-      
+
       return {
         user: {
           id: user.id,
@@ -126,13 +142,13 @@ class UserService {
       throw error;
     }
   }
-  
+
   /**
    * Authenticate user
    */
   async authenticateUser(credentials, context = {}) {
     const { email, password } = credentials;
-    
+
     // Validate required fields
     if (!email || !password) {
       throw new ValidationError(
@@ -144,11 +160,11 @@ class UserService {
         }
       );
     }
-    
+
     try {
       // Authenticate
       const user = await this.userRepository.authenticate(email, password);
-      
+
       if (!user) {
         // Audit failed login
         this.auditLogger.logAuthentication(
@@ -161,7 +177,7 @@ class UserService {
             requestId: context.requestId
           }
         );
-        
+
         throw new AuthenticationError(
           ErrorCodes.INVALID_CREDENTIALS,
           'Invalid email or password',
@@ -170,9 +186,12 @@ class UserService {
           }
         );
       }
-      
+
       // Check password expiration
-      if (user.passwordExpiresAt && new Date() > new Date(user.passwordExpiresAt)) {
+      if (
+        user.passwordExpiresAt
+        && new Date() > new Date(user.passwordExpiresAt)
+      ) {
         this.auditLogger.logAuthentication(
           'login_blocked_password_expired',
           'failure',
@@ -182,7 +201,7 @@ class UserService {
             requestId: context.requestId
           }
         );
-        
+
         throw new AuthenticationError(
           ErrorCodes.PASSWORD_EXPIRED,
           'Your password has expired',
@@ -192,7 +211,7 @@ class UserService {
           }
         );
       }
-      
+
       // Audit successful login
       this.auditLogger.logAuthentication(
         'login_success',
@@ -204,16 +223,18 @@ class UserService {
           requestId: context.requestId
         }
       );
-      
+
       // Generate JWT token
       const token = generateToken(user.id, user.email);
-      
+
       // Check if password expiration warning needed
       const policy = this.passwordPolicy.getPolicy();
-      const daysUntilExpiration = this.passwordPolicy.getDaysUntilExpiration(user.passwordChangedAt);
-      const shouldWarn = daysUntilExpiration !== null && 
-                        daysUntilExpiration <= policy.warnDaysBefore;
-      
+      const daysUntilExpiration = this.passwordPolicy.getDaysUntilExpiration(
+        user.passwordChangedAt
+      );
+      const shouldWarn = daysUntilExpiration !== null
+        && daysUntilExpiration <= policy.warnDaysBefore;
+
       return {
         user: {
           id: user.id,
@@ -235,7 +256,7 @@ class UserService {
       if (error.isOperational) {
         throw error;
       }
-      
+
       // Wrap unexpected errors
       this.auditLogger.logAuthentication(
         'login_error',
@@ -247,7 +268,7 @@ class UserService {
           requestId: context.requestId
         }
       );
-      
+
       throw new AuthenticationError(
         ErrorCodes.INTERNAL_SERVER_ERROR,
         'Authentication failed',
@@ -258,24 +279,20 @@ class UserService {
       );
     }
   }
-  
+
   /**
    * Get user by ID
    */
   async getUserById(userId, context = {}) {
     const user = await this.userRepository.findById(userId);
-    
+
     if (!user) {
-      throw new ResourceError(
-        ErrorCodes.NOT_FOUND,
-        'User not found',
-        {
-          resource: 'user',
-          resourceId: userId
-        }
-      );
+      throw new ResourceError(ErrorCodes.NOT_FOUND, 'User not found', {
+        resource: 'user',
+        resourceId: userId
+      });
     }
-    
+
     // Audit data access
     this.auditLogger.logDataAccess(
       'get_user',
@@ -285,7 +302,7 @@ class UserService {
         requestId: context.requestId
       }
     );
-    
+
     return {
       id: user.id,
       email: user.email,
@@ -297,7 +314,7 @@ class UserService {
       mustChangePassword: user.must_change_password
     };
   }
-  
+
   /**
    * Change user password
    */
@@ -305,14 +322,14 @@ class UserService {
     // Get user
     const user = await this.userRepository.findById(userId);
     if (!user) {
-      throw new ResourceError(
-        ErrorCodes.NOT_FOUND,
-        'User not found'
-      );
+      throw new ResourceError(ErrorCodes.NOT_FOUND, 'User not found');
     }
-    
+
     // Verify old password
-    const isValid = await this.passwordPolicy.verifyPassword(oldPassword, user.password_hash);
+    const isValid = await this.passwordPolicy.verifyPassword(
+      oldPassword,
+      user.password_hash
+    );
     if (!isValid) {
       this.auditLogger.logSecurityEvent(
         'password_change_failed',
@@ -324,7 +341,7 @@ class UserService {
           requestId: context.requestId
         }
       );
-      
+
       throw new AuthenticationError(
         ErrorCodes.INVALID_CREDENTIALS,
         'Current password is incorrect',
@@ -334,15 +351,14 @@ class UserService {
         }
       );
     }
-    
+
     // Change password
     try {
-      await this.userRepository.changePassword(
-        userId,
-        newPassword,
-        { email: user.email, name: user.name }
-      );
-      
+      await this.userRepository.changePassword(userId, newPassword, {
+        email: user.email,
+        name: user.name
+      });
+
       this.auditLogger.logSecurityEvent(
         'password_changed',
         'info',
@@ -353,7 +369,7 @@ class UserService {
           ipAddress: context.ipAddress
         }
       );
-      
+
       return {
         success: true,
         message: 'Password changed successfully'
@@ -372,31 +388,78 @@ class UserService {
       throw error;
     }
   }
-  
+
   /**
    * Request password reset
    */
   async requestPasswordReset(email, context = {}) {
     const user = await this.userRepository.findByEmail(email);
-    
+
     // Always return success to prevent email enumeration
     const response = {
       success: true,
-      message: 'If an account exists with this email, a password reset link has been sent'
+      message:
+        'If an account exists with this email, a password reset link has been sent'
     };
-    
+
     if (user) {
-      // TODO: Generate reset token and send email
-      this.auditLogger.logSecurityEvent(
-        'password_reset_requested',
-        'info',
-        'success',
-        { userId: user.id, email },
-        {
-          requestId: context.requestId,
-          ipAddress: context.ipAddress
+      try {
+        // Generate secure reset token using crypto.randomBytes (32 bytes = 256 bits)
+        const resetToken = crypto.randomBytes(32).toString('hex');
+
+        // Set expiration time (1 hour from now)
+        const expiresAt = new Date();
+        expiresAt.setHours(expiresAt.getHours() + 1);
+
+        // Store reset token in database
+        await pool.query(
+          `INSERT INTO password_reset_tokens (user_id, token, expires_at, ip_address)
+           VALUES ($1, $2, $3, $4)
+           ON CONFLICT (user_id)
+           DO UPDATE SET token = $2, expires_at = $3, ip_address = $4, created_at = NOW(), used = false`,
+          [user.id, resetToken, expiresAt, context.ipAddress || null]
+        );
+
+        // Send password reset email
+        try {
+          await emailService.sendPasswordResetEmail(user.email, resetToken);
+        } catch (emailError) {
+          this.auditLogger.logSecurityEvent(
+            'password_reset_email_failed',
+            'error',
+            'failure',
+            { userId: user.id, email, error: emailError.message },
+            {
+              requestId: context.requestId,
+              ipAddress: context.ipAddress
+            }
+          );
+          // Don't throw - token is saved, continue
         }
-      );
+
+        this.auditLogger.logSecurityEvent(
+          'password_reset_requested',
+          'info',
+          'success',
+          { userId: user.id, email },
+          {
+            requestId: context.requestId,
+            ipAddress: context.ipAddress
+          }
+        );
+      } catch (error) {
+        this.auditLogger.logSecurityEvent(
+          'password_reset_request_failed',
+          'error',
+          'failure',
+          { email, error: error.message },
+          {
+            requestId: context.requestId,
+            ipAddress: context.ipAddress
+          }
+        );
+        // Don't throw - maintain security by not revealing if user exists
+      }
     } else {
       this.auditLogger.logSecurityEvent(
         'password_reset_requested_invalid_email',
@@ -409,7 +472,7 @@ class UserService {
         }
       );
     }
-    
+
     return response;
   }
 }

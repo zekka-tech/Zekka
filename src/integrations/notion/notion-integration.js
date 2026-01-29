@@ -49,9 +49,10 @@ class NotionIntegration extends EventEmitter {
         timestamp: new Date().toISOString()
       });
 
-      this.logger.info('[NotionIntegration] Notion integration initialized successfully');
+      this.logger.info(
+        '[NotionIntegration] Notion integration initialized successfully'
+      );
       return true;
-
     } catch (error) {
       this.logger.error('[NotionIntegration] Initialization failed:', error);
       throw error;
@@ -79,7 +80,9 @@ class NotionIntegration extends EventEmitter {
    * Create Notion page
    */
   async createPage(databaseId, properties, content = []) {
-    this.logger.info(`[NotionIntegration] Creating page in database: ${databaseId}`);
+    this.logger.info(
+      `[NotionIntegration] Creating page in database: ${databaseId}`
+    );
 
     const pageId = `page-${Date.now()}-${Math.random().toString(36).substring(7)}`;
 
@@ -87,7 +90,7 @@ class NotionIntegration extends EventEmitter {
       // In production, use Notion API:
       // const { Client } = require('@notionhq/client');
       // const notion = new Client({ auth: this.config.apiKey });
-      // 
+      //
       // const response = await notion.pages.create({
       //   parent: { database_id: databaseId },
       //   properties: this.formatProperties(properties),
@@ -114,7 +117,6 @@ class NotionIntegration extends EventEmitter {
 
       this.logger.info(`[NotionIntegration] Page created: ${pageId}`);
       return page;
-
     } catch (error) {
       this.logger.error('[NotionIntegration] Failed to create page:', error);
       throw error;
@@ -166,7 +168,6 @@ class NotionIntegration extends EventEmitter {
 
       this.logger.info(`[NotionIntegration] Page updated: ${pageId}`);
       return page;
-
     } catch (error) {
       this.logger.error('[NotionIntegration] Failed to update page:', error);
       throw error;
@@ -190,8 +191,9 @@ class NotionIntegration extends EventEmitter {
       //   sorts: this.formatSorts(sorts)
       // });
 
-      const results = Array.from(this.pages.values())
-        .filter(page => page.databaseId === databaseId);
+      const results = Array.from(this.pages.values()).filter(
+        (page) => page.databaseId === databaseId
+      );
 
       await this.contextBus.publish('notion.database-queried', {
         databaseId,
@@ -204,7 +206,6 @@ class NotionIntegration extends EventEmitter {
         hasMore: false,
         nextCursor: null
       };
-
     } catch (error) {
       this.logger.error('[NotionIntegration] Failed to query database:', error);
       throw error;
@@ -250,9 +251,11 @@ class NotionIntegration extends EventEmitter {
 
       this.logger.info(`[NotionIntegration] Database created: ${databaseId}`);
       return database;
-
     } catch (error) {
-      this.logger.error('[NotionIntegration] Failed to create database:', error);
+      this.logger.error(
+        '[NotionIntegration] Failed to create database:',
+        error
+      );
       throw error;
     }
   }
@@ -274,7 +277,7 @@ class NotionIntegration extends EventEmitter {
       //   sort: options.sort
       // });
 
-      const results = Array.from(this.pages.values()).filter(page => {
+      const results = Array.from(this.pages.values()).filter((page) => {
         const searchText = JSON.stringify(page).toLowerCase();
         return searchText.includes(query.toLowerCase());
       });
@@ -284,7 +287,6 @@ class NotionIntegration extends EventEmitter {
         hasMore: false,
         nextCursor: null
       };
-
     } catch (error) {
       this.logger.error('[NotionIntegration] Search failed:', error);
       throw error;
@@ -295,7 +297,9 @@ class NotionIntegration extends EventEmitter {
    * Sync project documentation to Notion
    */
   async syncProjectToNotion(projectId, databaseId) {
-    this.logger.info(`[NotionIntegration] Syncing project ${projectId} to Notion database ${databaseId}`);
+    this.logger.info(
+      `[NotionIntegration] Syncing project ${projectId} to Notion database ${databaseId}`
+    );
 
     try {
       // Get project context
@@ -320,7 +324,9 @@ class NotionIntegration extends EventEmitter {
         },
         {
           type: 'paragraph',
-          paragraph: { rich_text: [{ text: { content: `Project ID: ${projectId}` } }] }
+          paragraph: {
+            rich_text: [{ text: { content: `Project ID: ${projectId}` } }]
+          }
         }
       ];
 
@@ -333,7 +339,6 @@ class NotionIntegration extends EventEmitter {
       });
 
       return page;
-
     } catch (error) {
       this.logger.error('[NotionIntegration] Project sync failed:', error);
       throw error;
@@ -344,7 +349,9 @@ class NotionIntegration extends EventEmitter {
    * Export documentation to Notion
    */
   async exportDocumentation(databaseId, documentation) {
-    this.logger.info(`[NotionIntegration] Exporting documentation to database: ${databaseId}`);
+    this.logger.info(
+      `[NotionIntegration] Exporting documentation to database: ${databaseId}`
+    );
 
     const pages = [];
 
@@ -359,9 +366,11 @@ class NotionIntegration extends EventEmitter {
         const content = this.convertMarkdownToBlocks(doc.content);
         const page = await this.createPage(databaseId, properties, content);
         pages.push(page);
-
       } catch (error) {
-        this.logger.error(`[NotionIntegration] Failed to export doc: ${doc.title}`, error);
+        this.logger.error(
+          `[NotionIntegration] Failed to export doc: ${doc.title}`,
+          error
+        );
       }
     }
 
@@ -395,7 +404,9 @@ class NotionIntegration extends EventEmitter {
       } else if (line.startsWith('- ')) {
         blocks.push({
           type: 'bulleted_list_item',
-          bulleted_list_item: { rich_text: [{ text: { content: line.substring(2) } }] }
+          bulleted_list_item: {
+            rich_text: [{ text: { content: line.substring(2) } }]
+          }
         });
       } else if (line.trim()) {
         blocks.push({
@@ -418,7 +429,9 @@ class NotionIntegration extends EventEmitter {
 
     this.syncTimer = setInterval(async () => {
       if (this.syncQueue.length > 0) {
-        this.logger.info(`[NotionIntegration] Processing sync queue: ${this.syncQueue.length} items`);
+        this.logger.info(
+          `[NotionIntegration] Processing sync queue: ${this.syncQueue.length} items`
+        );
         await this.processSyncQueue();
       }
     }, this.config.syncInterval);
@@ -476,7 +489,7 @@ class NotionIntegration extends EventEmitter {
       pages: this.pages.size,
       syncQueueSize: this.syncQueue.length,
       autoSyncEnabled: this.config.autoSync,
-      syncInterval: this.config.syncInterval / 1000 + 's'
+      syncInterval: `${this.config.syncInterval / 1000}s`
     };
   }
 

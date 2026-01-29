@@ -1,8 +1,8 @@
 /**
  * Phase 6B: MEDIUM Priority Tool Integrations
- * 
+ *
  * This module provides integrations for 25 medium-priority tools:
- * 
+ *
  * DEVELOPMENT AGENTS (7):
  * - TempoLabs: First phase MVP development agent
  * - Softgen AI: First phase MVP development agent
@@ -11,26 +11,26 @@
  * - Warp.dev: Second phase full stack development agent
  * - Windsurf: Second phase full stack development agent
  * - Qoder.com: Second phase full stack development agent
- * 
+ *
  * AI PLATFORMS (3):
  * - Cassidy AI: Internal employee implementation management
  * - OpenCode: System context retention and recall
  * - Emergent: System context and state management
- * 
+ *
  * CONTENT TOOLS (3):
  * - Gamma AI: Graphics and multimedia development
  * - Napkin: Content and media management
  * - Opal: Content, IP, and media management
- * 
+ *
  * SEO & MARKETING (3):
  * - Harpa AI: SEO and AEO optimization
  * - Clay: Social media and marketing automation
  * - Opus: Social media content creation
- * 
+ *
  * KNOWLEDGE GRAPHS (2):
  * - Neo4j: Graph database for knowledge representation
  * - Graphiti: Knowledge graph construction and querying
- * 
+ *
  * ADDITIONAL TOOLS (7):
  * - LangChain: LLM application framework
  * - LangGraph: Agent workflow orchestration
@@ -39,7 +39,7 @@
  * - Apify: Web scraping and automation
  * - n8n: Workflow automation
  * - Zapier: Integration platform
- * 
+ *
  * All integrations include:
  * - Circuit breaker protection
  * - Request/response caching
@@ -73,43 +73,135 @@ class Phase6BIntegrations {
     // Create circuit breakers for each service
     this.breakers = {
       // Development Agents
-      tempolabs: new CircuitBreaker({ name: 'tempolabs-api', failureThreshold: 3, resetTimeout: 60000 }),
-      softgen: new CircuitBreaker({ name: 'softgen-api', failureThreshold: 3, resetTimeout: 60000 }),
-      bolt: new CircuitBreaker({ name: 'bolt-api', failureThreshold: 3, resetTimeout: 60000 }),
-      augmentcode: new CircuitBreaker({ name: 'augmentcode-api', failureThreshold: 3, resetTimeout: 60000 }),
-      warp: new CircuitBreaker({ name: 'warp-api', failureThreshold: 3, resetTimeout: 60000 }),
-      windsurf: new CircuitBreaker({ name: 'windsurf-api', failureThreshold: 3, resetTimeout: 60000 }),
-      qoder: new CircuitBreaker({ name: 'qoder-api', failureThreshold: 3, resetTimeout: 60000 }),
-      
+      tempolabs: new CircuitBreaker({
+        name: 'tempolabs-api',
+        failureThreshold: 3,
+        resetTimeout: 60000
+      }),
+      softgen: new CircuitBreaker({
+        name: 'softgen-api',
+        failureThreshold: 3,
+        resetTimeout: 60000
+      }),
+      bolt: new CircuitBreaker({
+        name: 'bolt-api',
+        failureThreshold: 3,
+        resetTimeout: 60000
+      }),
+      augmentcode: new CircuitBreaker({
+        name: 'augmentcode-api',
+        failureThreshold: 3,
+        resetTimeout: 60000
+      }),
+      warp: new CircuitBreaker({
+        name: 'warp-api',
+        failureThreshold: 3,
+        resetTimeout: 60000
+      }),
+      windsurf: new CircuitBreaker({
+        name: 'windsurf-api',
+        failureThreshold: 3,
+        resetTimeout: 60000
+      }),
+      qoder: new CircuitBreaker({
+        name: 'qoder-api',
+        failureThreshold: 3,
+        resetTimeout: 60000
+      }),
+
       // AI Platforms
-      cassidy: new CircuitBreaker({ name: 'cassidy-api', failureThreshold: 3, resetTimeout: 30000 }),
-      opencode: new CircuitBreaker({ name: 'opencode-api', failureThreshold: 3, resetTimeout: 30000 }),
-      emergent: new CircuitBreaker({ name: 'emergent-api', failureThreshold: 3, resetTimeout: 30000 }),
-      
+      cassidy: new CircuitBreaker({
+        name: 'cassidy-api',
+        failureThreshold: 3,
+        resetTimeout: 30000
+      }),
+      opencode: new CircuitBreaker({
+        name: 'opencode-api',
+        failureThreshold: 3,
+        resetTimeout: 30000
+      }),
+      emergent: new CircuitBreaker({
+        name: 'emergent-api',
+        failureThreshold: 3,
+        resetTimeout: 30000
+      }),
+
       // Content Tools
-      gamma: new CircuitBreaker({ name: 'gamma-api', failureThreshold: 3, resetTimeout: 60000 }),
-      napkin: new CircuitBreaker({ name: 'napkin-api', failureThreshold: 3, resetTimeout: 30000 }),
-      opal: new CircuitBreaker({ name: 'opal-api', failureThreshold: 3, resetTimeout: 30000 }),
-      
+      gamma: new CircuitBreaker({
+        name: 'gamma-api',
+        failureThreshold: 3,
+        resetTimeout: 60000
+      }),
+      napkin: new CircuitBreaker({
+        name: 'napkin-api',
+        failureThreshold: 3,
+        resetTimeout: 30000
+      }),
+      opal: new CircuitBreaker({
+        name: 'opal-api',
+        failureThreshold: 3,
+        resetTimeout: 30000
+      }),
+
       // SEO & Marketing
-      harpa: new CircuitBreaker({ name: 'harpa-api', failureThreshold: 3, resetTimeout: 30000 }),
-      clay: new CircuitBreaker({ name: 'clay-api', failureThreshold: 5, resetTimeout: 60000 }),
-      opus: new CircuitBreaker({ name: 'opus-api', failureThreshold: 3, resetTimeout: 30000 }),
-      
+      harpa: new CircuitBreaker({
+        name: 'harpa-api',
+        failureThreshold: 3,
+        resetTimeout: 30000
+      }),
+      clay: new CircuitBreaker({
+        name: 'clay-api',
+        failureThreshold: 5,
+        resetTimeout: 60000
+      }),
+      opus: new CircuitBreaker({
+        name: 'opus-api',
+        failureThreshold: 3,
+        resetTimeout: 30000
+      }),
+
       // Knowledge Graphs
-      neo4j: new CircuitBreaker({ name: 'neo4j-api', failureThreshold: 5, resetTimeout: 60000 }),
-      graphiti: new CircuitBreaker({ name: 'graphiti-api', failureThreshold: 5, resetTimeout: 60000 }),
-      
+      neo4j: new CircuitBreaker({
+        name: 'neo4j-api',
+        failureThreshold: 5,
+        resetTimeout: 60000
+      }),
+      graphiti: new CircuitBreaker({
+        name: 'graphiti-api',
+        failureThreshold: 5,
+        resetTimeout: 60000
+      }),
+
       // Additional Tools
-      langchain: new CircuitBreaker({ name: 'langchain-api', failureThreshold: 3, resetTimeout: 30000 }),
-      playwright: new CircuitBreaker({ name: 'playwright-api', failureThreshold: 5, resetTimeout: 60000 }),
-      apify: new CircuitBreaker({ name: 'apify-api', failureThreshold: 5, resetTimeout: 60000 }),
-      n8n: new CircuitBreaker({ name: 'n8n-api', failureThreshold: 5, resetTimeout: 60000 }),
-      zapier: new CircuitBreaker({ name: 'zapier-api', failureThreshold: 5, resetTimeout: 60000 })
+      langchain: new CircuitBreaker({
+        name: 'langchain-api',
+        failureThreshold: 3,
+        resetTimeout: 30000
+      }),
+      playwright: new CircuitBreaker({
+        name: 'playwright-api',
+        failureThreshold: 5,
+        resetTimeout: 60000
+      }),
+      apify: new CircuitBreaker({
+        name: 'apify-api',
+        failureThreshold: 5,
+        resetTimeout: 60000
+      }),
+      n8n: new CircuitBreaker({
+        name: 'n8n-api',
+        failureThreshold: 5,
+        resetTimeout: 60000
+      }),
+      zapier: new CircuitBreaker({
+        name: 'zapier-api',
+        failureThreshold: 5,
+        resetTimeout: 60000
+      })
     };
 
     this.requestCount = {};
-    Object.keys(this.breakers).forEach(key => {
+    Object.keys(this.breakers).forEach((key) => {
       this.requestCount[key] = 0;
     });
   }
@@ -121,7 +213,7 @@ class Phase6BIntegrations {
   /**
    * TempoLabs Integration - First Phase MVP Development Agent
    * AI-powered development agent for rapid MVP creation
-   * 
+   *
    * @param {Object} request - Development request
    * @returns {Promise<Object>} Development response
    */
@@ -137,7 +229,7 @@ class Phase6BIntegrations {
           url: 'https://api.tempolabs.ai/v1/generate',
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${apiKey}`,
+            Authorization: `Bearer ${apiKey}`,
             'Content-Type': 'application/json'
           },
           data: {
@@ -151,14 +243,15 @@ class Phase6BIntegrations {
         });
 
         this.requestCount.tempolabs++;
-        await this._logAPICall('tempolabs', 'generate', 'success', { duration: Date.now() - startTime });
-        
-        return response.data;
+        await this._logAPICall('tempolabs', 'generate', 'success', {
+          duration: Date.now() - startTime
+        });
 
+        return response.data;
       } catch (error) {
-        await this._logAPICall('tempolabs', 'generate', 'error', { 
+        await this._logAPICall('tempolabs', 'generate', 'error', {
           duration: Date.now() - startTime,
-          error: error.message 
+          error: error.message
         });
         throw error;
       }
@@ -168,7 +261,7 @@ class Phase6BIntegrations {
   /**
    * Softgen AI Integration - First Phase MVP Development Agent
    * AI-powered code generation for MVPs
-   * 
+   *
    * @param {Object} spec - Project specification
    * @returns {Promise<Object>} Generated code and structure
    */
@@ -184,7 +277,7 @@ class Phase6BIntegrations {
           url: 'https://api.softgen.ai/v1/projects',
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${apiKey}`,
+            Authorization: `Bearer ${apiKey}`,
             'Content-Type': 'application/json'
           },
           data: {
@@ -198,14 +291,15 @@ class Phase6BIntegrations {
         });
 
         this.requestCount.softgen++;
-        await this._logAPICall('softgen', 'generate', 'success', { duration: Date.now() - startTime });
-        
-        return response.data;
+        await this._logAPICall('softgen', 'generate', 'success', {
+          duration: Date.now() - startTime
+        });
 
+        return response.data;
       } catch (error) {
-        await this._logAPICall('softgen', 'generate', 'error', { 
+        await this._logAPICall('softgen', 'generate', 'error', {
           duration: Date.now() - startTime,
-          error: error.message 
+          error: error.message
         });
         throw error;
       }
@@ -215,13 +309,13 @@ class Phase6BIntegrations {
   /**
    * Bolt.diy Integration - First Phase MVP Development Agent
    * Open-source AI development assistant
-   * 
+   *
    * @param {Object} task - Development task
    * @returns {Promise<Object>} Task execution result
    */
   async callBolt(task) {
     const apiHost = process.env.BOLT_API_HOST || 'http://localhost:3000';
-    
+
     return await this.breakers.bolt.execute(async () => {
       const startTime = Date.now();
 
@@ -242,14 +336,15 @@ class Phase6BIntegrations {
         });
 
         this.requestCount.bolt++;
-        await this._logAPICall('bolt', 'execute', 'success', { duration: Date.now() - startTime });
-        
-        return response.data;
+        await this._logAPICall('bolt', 'execute', 'success', {
+          duration: Date.now() - startTime
+        });
 
+        return response.data;
       } catch (error) {
-        await this._logAPICall('bolt', 'execute', 'error', { 
+        await this._logAPICall('bolt', 'execute', 'error', {
           duration: Date.now() - startTime,
-          error: error.message 
+          error: error.message
         });
         throw error;
       }
@@ -259,7 +354,7 @@ class Phase6BIntegrations {
   /**
    * AugmentCode Integration - Second Phase Full Stack Agent
    * Advanced AI coding assistant for full stack development
-   * 
+   *
    * @param {Object} request - Code generation/modification request
    * @returns {Promise<Object>} Code response
    */
@@ -275,7 +370,7 @@ class Phase6BIntegrations {
           url: 'https://api.augmentcode.com/v1/completions',
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${apiKey}`,
+            Authorization: `Bearer ${apiKey}`,
             'Content-Type': 'application/json'
           },
           data: {
@@ -289,14 +384,15 @@ class Phase6BIntegrations {
         });
 
         this.requestCount.augmentcode++;
-        await this._logAPICall('augmentcode', 'complete', 'success', { duration: Date.now() - startTime });
-        
-        return response.data;
+        await this._logAPICall('augmentcode', 'complete', 'success', {
+          duration: Date.now() - startTime
+        });
 
+        return response.data;
       } catch (error) {
-        await this._logAPICall('augmentcode', 'complete', 'error', { 
+        await this._logAPICall('augmentcode', 'complete', 'error', {
           duration: Date.now() - startTime,
-          error: error.message 
+          error: error.message
         });
         throw error;
       }
@@ -306,7 +402,7 @@ class Phase6BIntegrations {
   /**
    * Warp.dev Integration - Second Phase Full Stack Agent
    * Terminal-based AI development environment
-   * 
+   *
    * @param {Object} command - Command execution request
    * @returns {Promise<Object>} Command result
    */
@@ -322,7 +418,7 @@ class Phase6BIntegrations {
           url: 'https://api.warp.dev/v1/execute',
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${apiKey}`,
+            Authorization: `Bearer ${apiKey}`,
             'Content-Type': 'application/json'
           },
           data: {
@@ -335,14 +431,15 @@ class Phase6BIntegrations {
         });
 
         this.requestCount.warp++;
-        await this._logAPICall('warp', 'execute', 'success', { duration: Date.now() - startTime });
-        
-        return response.data;
+        await this._logAPICall('warp', 'execute', 'success', {
+          duration: Date.now() - startTime
+        });
 
+        return response.data;
       } catch (error) {
-        await this._logAPICall('warp', 'execute', 'error', { 
+        await this._logAPICall('warp', 'execute', 'error', {
           duration: Date.now() - startTime,
-          error: error.message 
+          error: error.message
         });
         throw error;
       }
@@ -352,7 +449,7 @@ class Phase6BIntegrations {
   /**
    * Windsurf Integration - Second Phase Full Stack Agent
    * AI pair programming assistant
-   * 
+   *
    * @param {Object} session - Programming session
    * @returns {Promise<Object>} Session response
    */
@@ -368,7 +465,7 @@ class Phase6BIntegrations {
           url: 'https://api.windsurf.ai/v1/sessions',
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${apiKey}`,
+            Authorization: `Bearer ${apiKey}`,
             'Content-Type': 'application/json'
           },
           data: {
@@ -382,14 +479,15 @@ class Phase6BIntegrations {
         });
 
         this.requestCount.windsurf++;
-        await this._logAPICall('windsurf', 'session', 'success', { duration: Date.now() - startTime });
-        
-        return response.data;
+        await this._logAPICall('windsurf', 'session', 'success', {
+          duration: Date.now() - startTime
+        });
 
+        return response.data;
       } catch (error) {
-        await this._logAPICall('windsurf', 'session', 'error', { 
+        await this._logAPICall('windsurf', 'session', 'error', {
           duration: Date.now() - startTime,
-          error: error.message 
+          error: error.message
         });
         throw error;
       }
@@ -399,7 +497,7 @@ class Phase6BIntegrations {
   /**
    * Qoder.com Integration - Second Phase Full Stack Agent
    * AI-powered full stack development platform
-   * 
+   *
    * @param {Object} project - Project request
    * @returns {Promise<Object>} Project response
    */
@@ -415,7 +513,7 @@ class Phase6BIntegrations {
           url: 'https://api.qoder.com/v1/projects',
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${apiKey}`,
+            Authorization: `Bearer ${apiKey}`,
             'Content-Type': 'application/json'
           },
           data: {
@@ -429,14 +527,15 @@ class Phase6BIntegrations {
         });
 
         this.requestCount.qoder++;
-        await this._logAPICall('qoder', 'create', 'success', { duration: Date.now() - startTime });
-        
-        return response.data;
+        await this._logAPICall('qoder', 'create', 'success', {
+          duration: Date.now() - startTime
+        });
 
+        return response.data;
       } catch (error) {
-        await this._logAPICall('qoder', 'create', 'error', { 
+        await this._logAPICall('qoder', 'create', 'error', {
           duration: Date.now() - startTime,
-          error: error.message 
+          error: error.message
         });
         throw error;
       }
@@ -450,7 +549,7 @@ class Phase6BIntegrations {
   /**
    * Cassidy AI Integration - Implementation Management
    * AI assistant for internal employee and implementation management
-   * 
+   *
    * @param {Object} task - Management task
    * @returns {Promise<Object>} Task result
    */
@@ -466,7 +565,7 @@ class Phase6BIntegrations {
           url: 'https://api.cassidy.ai/v1/tasks',
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${apiKey}`,
+            Authorization: `Bearer ${apiKey}`,
             'Content-Type': 'application/json'
           },
           data: {
@@ -479,14 +578,15 @@ class Phase6BIntegrations {
         });
 
         this.requestCount.cassidy++;
-        await this._logAPICall('cassidy', 'task', 'success', { duration: Date.now() - startTime });
-        
-        return response.data;
+        await this._logAPICall('cassidy', 'task', 'success', {
+          duration: Date.now() - startTime
+        });
 
+        return response.data;
       } catch (error) {
-        await this._logAPICall('cassidy', 'task', 'error', { 
+        await this._logAPICall('cassidy', 'task', 'error', {
           duration: Date.now() - startTime,
-          error: error.message 
+          error: error.message
         });
         throw error;
       }
@@ -496,7 +596,7 @@ class Phase6BIntegrations {
   /**
    * OpenCode Integration - Context Retention and Recall
    * System context retention for injecting code changes and summaries
-   * 
+   *
    * @param {Object} operation - Context operation
    * @returns {Promise<Object>} Operation result
    */
@@ -512,7 +612,7 @@ class Phase6BIntegrations {
           url: 'https://api.opencode.dev/v1/context',
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${apiKey}`,
+            Authorization: `Bearer ${apiKey}`,
             'Content-Type': 'application/json'
           },
           data: {
@@ -526,14 +626,15 @@ class Phase6BIntegrations {
         });
 
         this.requestCount.opencode++;
-        await this._logAPICall('opencode', 'context', 'success', { duration: Date.now() - startTime });
-        
-        return response.data;
+        await this._logAPICall('opencode', 'context', 'success', {
+          duration: Date.now() - startTime
+        });
 
+        return response.data;
       } catch (error) {
-        await this._logAPICall('opencode', 'context', 'error', { 
+        await this._logAPICall('opencode', 'context', 'error', {
           duration: Date.now() - startTime,
-          error: error.message 
+          error: error.message
         });
         throw error;
       }
@@ -543,7 +644,7 @@ class Phase6BIntegrations {
   /**
    * Emergent Integration - System Context and State Management
    * Advanced context and state management for AI systems
-   * 
+   *
    * @param {Object} state - State management request
    * @returns {Promise<Object>} State response
    */
@@ -559,7 +660,7 @@ class Phase6BIntegrations {
           url: 'https://api.emergent.ai/v1/state',
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${apiKey}`,
+            Authorization: `Bearer ${apiKey}`,
             'Content-Type': 'application/json'
           },
           data: {
@@ -573,14 +674,15 @@ class Phase6BIntegrations {
         });
 
         this.requestCount.emergent++;
-        await this._logAPICall('emergent', 'state', 'success', { duration: Date.now() - startTime });
-        
-        return response.data;
+        await this._logAPICall('emergent', 'state', 'success', {
+          duration: Date.now() - startTime
+        });
 
+        return response.data;
       } catch (error) {
-        await this._logAPICall('emergent', 'state', 'error', { 
+        await this._logAPICall('emergent', 'state', 'error', {
           duration: Date.now() - startTime,
-          error: error.message 
+          error: error.message
         });
         throw error;
       }
@@ -594,7 +696,7 @@ class Phase6BIntegrations {
   /**
    * Gamma AI Integration - Graphics and Multimedia
    * AI-powered presentation and graphics creation
-   * 
+   *
    * @param {Object} request - Content creation request
    * @returns {Promise<Object>} Generated content
    */
@@ -610,7 +712,7 @@ class Phase6BIntegrations {
           url: 'https://api.gamma.app/v1/generate',
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${apiKey}`,
+            Authorization: `Bearer ${apiKey}`,
             'Content-Type': 'application/json'
           },
           data: {
@@ -624,14 +726,15 @@ class Phase6BIntegrations {
         });
 
         this.requestCount.gamma++;
-        await this._logAPICall('gamma', 'generate', 'success', { duration: Date.now() - startTime });
-        
-        return response.data;
+        await this._logAPICall('gamma', 'generate', 'success', {
+          duration: Date.now() - startTime
+        });
 
+        return response.data;
       } catch (error) {
-        await this._logAPICall('gamma', 'generate', 'error', { 
+        await this._logAPICall('gamma', 'generate', 'error', {
           duration: Date.now() - startTime,
-          error: error.message 
+          error: error.message
         });
         throw error;
       }
@@ -641,7 +744,7 @@ class Phase6BIntegrations {
   /**
    * Napkin Integration - Content and Media Management
    * Visual content creation and management
-   * 
+   *
    * @param {Object} content - Content request
    * @returns {Promise<Object>} Content response
    */
@@ -657,7 +760,7 @@ class Phase6BIntegrations {
           url: 'https://api.napkin.ai/v1/content',
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${apiKey}`,
+            Authorization: `Bearer ${apiKey}`,
             'Content-Type': 'application/json'
           },
           data: {
@@ -670,14 +773,15 @@ class Phase6BIntegrations {
         });
 
         this.requestCount.napkin++;
-        await this._logAPICall('napkin', 'content', 'success', { duration: Date.now() - startTime });
-        
-        return response.data;
+        await this._logAPICall('napkin', 'content', 'success', {
+          duration: Date.now() - startTime
+        });
 
+        return response.data;
       } catch (error) {
-        await this._logAPICall('napkin', 'content', 'error', { 
+        await this._logAPICall('napkin', 'content', 'error', {
           duration: Date.now() - startTime,
-          error: error.message 
+          error: error.message
         });
         throw error;
       }
@@ -687,7 +791,7 @@ class Phase6BIntegrations {
   /**
    * Opal Integration - Content, IP, and Media Management
    * Comprehensive content and intellectual property management
-   * 
+   *
    * @param {Object} request - Management request
    * @returns {Promise<Object>} Management response
    */
@@ -703,7 +807,7 @@ class Phase6BIntegrations {
           url: 'https://api.opal.so/v1/assets',
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${apiKey}`,
+            Authorization: `Bearer ${apiKey}`,
             'Content-Type': 'application/json'
           },
           data: {
@@ -716,14 +820,15 @@ class Phase6BIntegrations {
         });
 
         this.requestCount.opal++;
-        await this._logAPICall('opal', 'manage', 'success', { duration: Date.now() - startTime });
-        
-        return response.data;
+        await this._logAPICall('opal', 'manage', 'success', {
+          duration: Date.now() - startTime
+        });
 
+        return response.data;
       } catch (error) {
-        await this._logAPICall('opal', 'manage', 'error', { 
+        await this._logAPICall('opal', 'manage', 'error', {
           duration: Date.now() - startTime,
-          error: error.message 
+          error: error.message
         });
         throw error;
       }
@@ -737,7 +842,7 @@ class Phase6BIntegrations {
   /**
    * Harpa AI Integration - SEO and AEO Optimization
    * AI-powered SEO and Answer Engine Optimization
-   * 
+   *
    * @param {Object} analysis - SEO analysis request
    * @returns {Promise<Object>} Analysis results
    */
@@ -753,7 +858,7 @@ class Phase6BIntegrations {
           url: 'https://api.harpa.ai/v1/analyze',
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${apiKey}`,
+            Authorization: `Bearer ${apiKey}`,
             'Content-Type': 'application/json'
           },
           data: {
@@ -766,14 +871,15 @@ class Phase6BIntegrations {
         });
 
         this.requestCount.harpa++;
-        await this._logAPICall('harpa', 'analyze', 'success', { duration: Date.now() - startTime });
-        
-        return response.data;
+        await this._logAPICall('harpa', 'analyze', 'success', {
+          duration: Date.now() - startTime
+        });
 
+        return response.data;
       } catch (error) {
-        await this._logAPICall('harpa', 'analyze', 'error', { 
+        await this._logAPICall('harpa', 'analyze', 'error', {
           duration: Date.now() - startTime,
-          error: error.message 
+          error: error.message
         });
         throw error;
       }
@@ -783,7 +889,7 @@ class Phase6BIntegrations {
   /**
    * Clay Integration - Social Media and Marketing Automation
    * CRM and marketing automation platform
-   * 
+   *
    * @param {Object} campaign - Marketing campaign
    * @returns {Promise<Object>} Campaign response
    */
@@ -799,7 +905,7 @@ class Phase6BIntegrations {
           url: 'https://api.clay.com/v1/campaigns',
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${apiKey}`,
+            Authorization: `Bearer ${apiKey}`,
             'Content-Type': 'application/json'
           },
           data: {
@@ -813,14 +919,15 @@ class Phase6BIntegrations {
         });
 
         this.requestCount.clay++;
-        await this._logAPICall('clay', 'campaign', 'success', { duration: Date.now() - startTime });
-        
-        return response.data;
+        await this._logAPICall('clay', 'campaign', 'success', {
+          duration: Date.now() - startTime
+        });
 
+        return response.data;
       } catch (error) {
-        await this._logAPICall('clay', 'campaign', 'error', { 
+        await this._logAPICall('clay', 'campaign', 'error', {
           duration: Date.now() - startTime,
-          error: error.message 
+          error: error.message
         });
         throw error;
       }
@@ -830,7 +937,7 @@ class Phase6BIntegrations {
   /**
    * Opus Integration - Social Media Content Creation
    * AI-powered social media content generation
-   * 
+   *
    * @param {Object} request - Content creation request
    * @returns {Promise<Object>} Generated content
    */
@@ -846,7 +953,7 @@ class Phase6BIntegrations {
           url: 'https://api.opus.pro/v1/generate',
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${apiKey}`,
+            Authorization: `Bearer ${apiKey}`,
             'Content-Type': 'application/json'
           },
           data: {
@@ -860,14 +967,15 @@ class Phase6BIntegrations {
         });
 
         this.requestCount.opus++;
-        await this._logAPICall('opus', 'generate', 'success', { duration: Date.now() - startTime });
-        
-        return response.data;
+        await this._logAPICall('opus', 'generate', 'success', {
+          duration: Date.now() - startTime
+        });
 
+        return response.data;
       } catch (error) {
-        await this._logAPICall('opus', 'generate', 'error', { 
+        await this._logAPICall('opus', 'generate', 'error', {
           duration: Date.now() - startTime,
-          error: error.message 
+          error: error.message
         });
         throw error;
       }
@@ -881,7 +989,7 @@ class Phase6BIntegrations {
   /**
    * Neo4j Integration - Graph Database
    * Graph database for knowledge representation and querying
-   * 
+   *
    * @param {string} query - Cypher query
    * @param {Object} params - Query parameters
    * @returns {Promise<Object>} Query results
@@ -898,7 +1006,7 @@ class Phase6BIntegrations {
 
       try {
         const response = await axios({
-          url: uri.replace('bolt://', 'http://').replace(':7687', ':7474') + '/db/neo4j/tx/commit',
+          url: `${uri.replace('bolt://', 'http://').replace(':7687', ':7474')}/db/neo4j/tx/commit`,
           method: 'POST',
           auth: {
             username,
@@ -908,23 +1016,26 @@ class Phase6BIntegrations {
             'Content-Type': 'application/json'
           },
           data: {
-            statements: [{
-              statement: query,
-              parameters: params
-            }]
+            statements: [
+              {
+                statement: query,
+                parameters: params
+              }
+            ]
           },
           timeout: 30000
         });
 
         this.requestCount.neo4j++;
-        await this._logAPICall('neo4j', 'query', 'success', { duration: Date.now() - startTime });
-        
-        return response.data.results[0];
+        await this._logAPICall('neo4j', 'query', 'success', {
+          duration: Date.now() - startTime
+        });
 
+        return response.data.results[0];
       } catch (error) {
-        await this._logAPICall('neo4j', 'query', 'error', { 
+        await this._logAPICall('neo4j', 'query', 'error', {
           duration: Date.now() - startTime,
-          error: error.message 
+          error: error.message
         });
         throw error;
       }
@@ -934,7 +1045,7 @@ class Phase6BIntegrations {
   /**
    * Graphiti Integration - Knowledge Graph Construction
    * Automated knowledge graph construction and querying
-   * 
+   *
    * @param {Object} operation - Graph operation
    * @returns {Promise<Object>} Operation result
    */
@@ -950,7 +1061,7 @@ class Phase6BIntegrations {
           url: 'https://api.graphiti.ai/v1/graphs',
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${apiKey}`,
+            Authorization: `Bearer ${apiKey}`,
             'Content-Type': 'application/json'
           },
           data: {
@@ -963,14 +1074,15 @@ class Phase6BIntegrations {
         });
 
         this.requestCount.graphiti++;
-        await this._logAPICall('graphiti', 'graph', 'success', { duration: Date.now() - startTime });
-        
-        return response.data;
+        await this._logAPICall('graphiti', 'graph', 'success', {
+          duration: Date.now() - startTime
+        });
 
+        return response.data;
       } catch (error) {
-        await this._logAPICall('graphiti', 'graph', 'error', { 
+        await this._logAPICall('graphiti', 'graph', 'error', {
           duration: Date.now() - startTime,
-          error: error.message 
+          error: error.message
         });
         throw error;
       }
@@ -984,14 +1096,14 @@ class Phase6BIntegrations {
   /**
    * Playwright Integration - Browser Automation
    * Browser automation and testing
-   * 
+   *
    * @param {Object} script - Automation script
    * @returns {Promise<Object>} Execution result
    */
   async callPlaywright(script) {
     // Playwright typically runs locally, but can use cloud services
     const apiKey = process.env.PLAYWRIGHT_API_KEY;
-    
+
     return await this.breakers.playwright.execute(async () => {
       const startTime = Date.now();
 
@@ -1002,7 +1114,7 @@ class Phase6BIntegrations {
             url: 'https://api.playwright.dev/v1/execute',
             method: 'POST',
             headers: {
-              'Authorization': `Bearer ${apiKey}`,
+              Authorization: `Bearer ${apiKey}`,
               'Content-Type': 'application/json'
             },
             data: {
@@ -1014,18 +1126,19 @@ class Phase6BIntegrations {
           });
 
           this.requestCount.playwright++;
-          await this._logAPICall('playwright', 'execute', 'success', { duration: Date.now() - startTime });
-          
+          await this._logAPICall('playwright', 'execute', 'success', {
+            duration: Date.now() - startTime
+          });
+
           return response.data;
         }
 
         // Local Playwright execution would go here
         throw new Error('Local Playwright execution not yet implemented');
-
       } catch (error) {
-        await this._logAPICall('playwright', 'execute', 'error', { 
+        await this._logAPICall('playwright', 'execute', 'error', {
           duration: Date.now() - startTime,
-          error: error.message 
+          error: error.message
         });
         throw error;
       }
@@ -1035,7 +1148,7 @@ class Phase6BIntegrations {
   /**
    * Apify Integration - Web Scraping and Automation
    * Cloud-based web scraping and automation platform
-   * 
+   *
    * @param {Object} task - Scraping task
    * @returns {Promise<Object>} Scraped data
    */
@@ -1059,14 +1172,15 @@ class Phase6BIntegrations {
         });
 
         this.requestCount.apify++;
-        await this._logAPICall('apify', 'run', 'success', { duration: Date.now() - startTime });
-        
-        return response.data;
+        await this._logAPICall('apify', 'run', 'success', {
+          duration: Date.now() - startTime
+        });
 
+        return response.data;
       } catch (error) {
-        await this._logAPICall('apify', 'run', 'error', { 
+        await this._logAPICall('apify', 'run', 'error', {
           duration: Date.now() - startTime,
-          error: error.message 
+          error: error.message
         });
         throw error;
       }
@@ -1076,7 +1190,7 @@ class Phase6BIntegrations {
   /**
    * n8n Integration - Workflow Automation
    * Self-hosted workflow automation platform
-   * 
+   *
    * @param {Object} workflow - Workflow execution request
    * @returns {Promise<Object>} Execution result
    */
@@ -1100,14 +1214,15 @@ class Phase6BIntegrations {
         });
 
         this.requestCount.n8n++;
-        await this._logAPICall('n8n', 'execute', 'success', { duration: Date.now() - startTime });
-        
-        return response.data;
+        await this._logAPICall('n8n', 'execute', 'success', {
+          duration: Date.now() - startTime
+        });
 
+        return response.data;
       } catch (error) {
-        await this._logAPICall('n8n', 'execute', 'error', { 
+        await this._logAPICall('n8n', 'execute', 'error', {
           duration: Date.now() - startTime,
-          error: error.message 
+          error: error.message
         });
         throw error;
       }
@@ -1117,7 +1232,7 @@ class Phase6BIntegrations {
   /**
    * Zapier Integration - Integration Platform
    * Cloud-based integration and automation platform
-   * 
+   *
    * @param {Object} zap - Zapier webhook or action
    * @returns {Promise<Object>} Result
    */
@@ -1140,14 +1255,15 @@ class Phase6BIntegrations {
         });
 
         this.requestCount.zapier++;
-        await this._logAPICall('zapier', 'trigger', 'success', { duration: Date.now() - startTime });
-        
-        return response.data;
+        await this._logAPICall('zapier', 'trigger', 'success', {
+          duration: Date.now() - startTime
+        });
 
+        return response.data;
       } catch (error) {
-        await this._logAPICall('zapier', 'trigger', 'error', { 
+        await this._logAPICall('zapier', 'trigger', 'error', {
           duration: Date.now() - startTime,
-          error: error.message 
+          error: error.message
         });
         throw error;
       }
@@ -1168,12 +1284,13 @@ class Phase6BIntegrations {
 
     for (const service of services) {
       const envVars = this._getRequiredEnvVars(service);
-      const configured = envVars.length === 0 || envVars.every(varName => process.env[varName]);
+      const configured = envVars.length === 0
+        || envVars.every((varName) => process.env[varName]);
 
       checks[service] = {
         status: configured ? 'configured' : 'not_configured',
         requiredEnvVars: envVars,
-        missingEnvVars: envVars.filter(v => !process.env[v]),
+        missingEnvVars: envVars.filter((v) => !process.env[v]),
         circuitBreaker: {
           state: this.breakers[service].state,
           stats: this.breakers[service].getStats()
@@ -1199,26 +1316,26 @@ class Phase6BIntegrations {
       warp: ['WARP_API_KEY'],
       windsurf: ['WINDSURF_API_KEY'],
       qoder: ['QODER_API_KEY'],
-      
+
       // AI Platforms
       cassidy: ['CASSIDY_API_KEY'],
       opencode: ['OPENCODE_API_KEY'],
       emergent: ['EMERGENT_API_KEY'],
-      
+
       // Content Tools
       gamma: ['GAMMA_API_KEY'],
       napkin: ['NAPKIN_API_KEY'],
       opal: ['OPAL_API_KEY'],
-      
+
       // SEO & Marketing
       harpa: ['HARPA_API_KEY'],
       clay: ['CLAY_API_KEY'],
       opus: ['OPUS_API_KEY'],
-      
+
       // Knowledge Graphs
       neo4j: ['NEO4J_PASSWORD'],
       graphiti: ['GRAPHITI_API_KEY'],
-      
+
       // Additional Tools
       langchain: [],
       playwright: [], // Can be local or cloud
@@ -1236,7 +1353,7 @@ class Phase6BIntegrations {
    */
   getStats() {
     const circuitBreakers = {};
-    Object.keys(this.breakers).forEach(key => {
+    Object.keys(this.breakers).forEach((key) => {
       circuitBreakers[key] = this.breakers[key].getStats();
     });
 

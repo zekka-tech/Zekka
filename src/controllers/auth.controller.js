@@ -26,6 +26,7 @@ import {
   verifyEmailSchema,
   resendVerificationSchema
 } from '../schemas/auth.schema.js';
+import logger from '../utils/logger.js';
 
 /**
  * Register a new user
@@ -39,11 +40,13 @@ export async function register(req, res) {
       return res.status(400).json({
         success: false,
         error: 'Validation failed',
-        details: error.details.map(d => d.message)
+        details: error.details.map((d) => d.message)
       });
     }
 
-    const { email, password, name, role } = value;
+    const {
+      email, password, name, role
+    } = value;
 
     // Register user
     const result = await authService.register({
@@ -59,7 +62,7 @@ export async function register(req, res) {
       user: result.user
     });
   } catch (error) {
-    console.error('Registration error:', error);
+    logger.error('Registration error:', error);
 
     if (error.message.includes('already exists')) {
       return res.status(409).json({
@@ -89,7 +92,7 @@ export async function login(req, res) {
       return res.status(400).json({
         success: false,
         error: 'Validation failed',
-        details: error.details.map(d => d.message)
+        details: error.details.map((d) => d.message)
       });
     }
 
@@ -98,7 +101,12 @@ export async function login(req, res) {
     const userAgent = req.get('user-agent');
 
     // Attempt login
-    const result = await authService.login(email, password, ipAddress, userAgent);
+    const result = await authService.login(
+      email,
+      password,
+      ipAddress,
+      userAgent
+    );
 
     // If MFA is required
     if (result.requiresMFA) {
@@ -120,7 +128,7 @@ export async function login(req, res) {
       expiresIn: result.expiresIn
     });
   } catch (error) {
-    console.error('Login error:', error);
+    logger.error('Login error:', error);
 
     if (error.message.includes('locked')) {
       return res.status(423).json({
@@ -158,7 +166,7 @@ export async function verifyMFA(req, res) {
       return res.status(400).json({
         success: false,
         error: 'Validation failed',
-        details: error.details.map(d => d.message)
+        details: error.details.map((d) => d.message)
       });
     }
 
@@ -166,7 +174,12 @@ export async function verifyMFA(req, res) {
     const ipAddress = req.ip;
     const userAgent = req.get('user-agent');
 
-    const result = await authService.verifyMFA(tempToken, code, ipAddress, userAgent);
+    const result = await authService.verifyMFA(
+      tempToken,
+      code,
+      ipAddress,
+      userAgent
+    );
 
     res.status(200).json({
       success: true,
@@ -177,7 +190,7 @@ export async function verifyMFA(req, res) {
       expiresIn: result.expiresIn
     });
   } catch (error) {
-    console.error('MFA verification error:', error);
+    logger.error('MFA verification error:', error);
 
     res.status(401).json({
       success: false,
@@ -210,7 +223,7 @@ export async function setupMFA(req, res) {
       manualEntry: result.manual_entry
     });
   } catch (error) {
-    console.error('MFA setup error:', error);
+    logger.error('MFA setup error:', error);
 
     res.status(500).json({
       success: false,
@@ -239,7 +252,7 @@ export async function enableMFA(req, res) {
       return res.status(400).json({
         success: false,
         error: 'Validation failed',
-        details: error.details.map(d => d.message)
+        details: error.details.map((d) => d.message)
       });
     }
 
@@ -253,7 +266,7 @@ export async function enableMFA(req, res) {
       backupCodes: result.backupCodes
     });
   } catch (error) {
-    console.error('MFA enable error:', error);
+    logger.error('MFA enable error:', error);
 
     res.status(400).json({
       success: false,
@@ -282,7 +295,7 @@ export async function disableMFA(req, res) {
       return res.status(400).json({
         success: false,
         error: 'Validation failed',
-        details: error.details.map(d => d.message)
+        details: error.details.map((d) => d.message)
       });
     }
 
@@ -295,7 +308,7 @@ export async function disableMFA(req, res) {
       message: result.message
     });
   } catch (error) {
-    console.error('MFA disable error:', error);
+    logger.error('MFA disable error:', error);
 
     res.status(400).json({
       success: false,
@@ -317,7 +330,7 @@ export async function refreshToken(req, res) {
       return res.status(400).json({
         success: false,
         error: 'Validation failed',
-        details: error.details.map(d => d.message)
+        details: error.details.map((d) => d.message)
       });
     }
 
@@ -325,7 +338,11 @@ export async function refreshToken(req, res) {
     const ipAddress = req.ip;
     const userAgent = req.get('user-agent');
 
-    const tokens = await authService.refreshToken(refreshToken, ipAddress, userAgent);
+    const tokens = await authService.refreshToken(
+      refreshToken,
+      ipAddress,
+      userAgent
+    );
 
     res.status(200).json({
       success: true,
@@ -335,7 +352,7 @@ export async function refreshToken(req, res) {
       expiresIn: tokens.expiresIn
     });
   } catch (error) {
-    console.error('Token refresh error:', error);
+    logger.error('Token refresh error:', error);
 
     res.status(401).json({
       success: false,
@@ -364,7 +381,7 @@ export async function logout(req, res) {
       return res.status(400).json({
         success: false,
         error: 'Validation failed',
-        details: error.details.map(d => d.message)
+        details: error.details.map((d) => d.message)
       });
     }
 
@@ -377,7 +394,7 @@ export async function logout(req, res) {
       message: 'Logged out successfully'
     });
   } catch (error) {
-    console.error('Logout error:', error);
+    logger.error('Logout error:', error);
 
     res.status(500).json({
       success: false,
@@ -407,7 +424,7 @@ export async function logoutAll(req, res) {
       message: 'Logged out from all devices'
     });
   } catch (error) {
-    console.error('Logout all error:', error);
+    logger.error('Logout all error:', error);
 
     res.status(500).json({
       success: false,
@@ -429,7 +446,7 @@ export async function forgotPassword(req, res) {
       return res.status(400).json({
         success: false,
         error: 'Validation failed',
-        details: error.details.map(d => d.message)
+        details: error.details.map((d) => d.message)
       });
     }
 
@@ -444,7 +461,7 @@ export async function forgotPassword(req, res) {
       message: result.message
     });
   } catch (error) {
-    console.error('Forgot password error:', error);
+    logger.error('Forgot password error:', error);
 
     // Still return success to prevent user enumeration
     res.status(200).json({
@@ -466,7 +483,7 @@ export async function resetPassword(req, res) {
       return res.status(400).json({
         success: false,
         error: 'Validation failed',
-        details: error.details.map(d => d.message)
+        details: error.details.map((d) => d.message)
       });
     }
 
@@ -480,7 +497,7 @@ export async function resetPassword(req, res) {
       message: 'Password reset successfully'
     });
   } catch (error) {
-    console.error('Reset password error:', error);
+    logger.error('Reset password error:', error);
 
     res.status(400).json({
       success: false,
@@ -509,21 +526,26 @@ export async function changePassword(req, res) {
       return res.status(400).json({
         success: false,
         error: 'Validation failed',
-        details: error.details.map(d => d.message)
+        details: error.details.map((d) => d.message)
       });
     }
 
     const { currentPassword, newPassword } = value;
     const ipAddress = req.ip;
 
-    await authService.changePassword(req.user.id, currentPassword, newPassword, ipAddress);
+    await authService.changePassword(
+      req.user.id,
+      currentPassword,
+      newPassword,
+      ipAddress
+    );
 
     res.status(200).json({
       success: true,
       message: 'Password changed successfully'
     });
   } catch (error) {
-    console.error('Change password error:', error);
+    logger.error('Change password error:', error);
 
     if (error.message.includes('incorrect')) {
       return res.status(400).json({
@@ -565,7 +587,7 @@ export async function getCurrentUser(req, res) {
       }
     });
   } catch (error) {
-    console.error('Get current user error:', error);
+    logger.error('Get current user error:', error);
 
     res.status(500).json({
       success: false,
@@ -586,21 +608,21 @@ export async function verifyEmail(req, res) {
       return res.status(400).json({
         success: false,
         error: 'Validation failed',
-        details: error.details.map(d => d.message)
+        details: error.details.map((d) => d.message)
       });
     }
 
     const { token } = value;
 
-    // TODO: Implement email verification in auth service
-    // await authService.verifyEmail(token);
+    const result = await authService.verifyEmail(token);
 
     res.status(200).json({
       success: true,
-      message: 'Email verified successfully'
+      message: result.message,
+      email: result.email
     });
   } catch (error) {
-    console.error('Email verification error:', error);
+    logger.error('Email verification error:', error);
 
     res.status(400).json({
       success: false,
@@ -622,21 +644,20 @@ export async function resendVerification(req, res) {
       return res.status(400).json({
         success: false,
         error: 'Validation failed',
-        details: error.details.map(d => d.message)
+        details: error.details.map((d) => d.message)
       });
     }
 
     const { email } = value;
 
-    // TODO: Implement resend verification in auth service
-    // await authService.resendVerification(email);
+    const result = await authService.resendVerification(email);
 
     res.status(200).json({
       success: true,
-      message: 'Verification email sent'
+      message: result.message
     });
   } catch (error) {
-    console.error('Resend verification error:', error);
+    logger.error('Resend verification error:', error);
 
     res.status(500).json({
       success: false,

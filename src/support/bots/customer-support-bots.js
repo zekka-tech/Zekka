@@ -21,14 +21,18 @@ class CustomerSupportBots extends EventEmitter {
         },
         twilio: {
           enabled: config.twilio?.enabled !== false,
-          accountSid: config.twilio?.accountSid || process.env.TWILIO_ACCOUNT_SID,
+          accountSid:
+            config.twilio?.accountSid || process.env.TWILIO_ACCOUNT_SID,
           authToken: config.twilio?.authToken || process.env.TWILIO_AUTH_TOKEN,
-          phoneNumber: config.twilio?.phoneNumber || process.env.TWILIO_PHONE_NUMBER
+          phoneNumber:
+            config.twilio?.phoneNumber || process.env.TWILIO_PHONE_NUMBER
         },
         whatsapp: {
           enabled: config.whatsapp?.enabled !== false,
           apiKey: config.whatsapp?.apiKey || process.env.WHATSAPP_API_KEY,
-          phoneNumberId: config.whatsapp?.phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID
+          phoneNumberId:
+            config.whatsapp?.phoneNumberId
+            || process.env.WHATSAPP_PHONE_NUMBER_ID
         },
         wechat: {
           enabled: config.wechat?.enabled !== false,
@@ -46,11 +50,17 @@ class CustomerSupportBots extends EventEmitter {
   }
 
   async initialize() {
-    this.logger.info('[CustomerSupportBots] Initializing customer support bots');
+    this.logger.info(
+      '[CustomerSupportBots] Initializing customer support bots'
+    );
 
     this.mistral = {
       name: 'Mistral AI Bot',
-      capabilities: ['Multilingual support', 'Context-aware responses', 'Sentiment analysis'],
+      capabilities: [
+        'Multilingual support',
+        'Context-aware responses',
+        'Sentiment analysis'
+      ],
       languages: ['English', 'French', 'Spanish', 'German', 'Italian'],
       status: 'active'
     };
@@ -77,7 +87,9 @@ class CustomerSupportBots extends EventEmitter {
     };
 
     await this.contextBus.publish('support-bots.initialized', {
-      bots: Object.keys(this.config.bots).filter(b => this.config.bots[b].enabled),
+      bots: Object.keys(this.config.bots).filter(
+        (b) => this.config.bots[b].enabled
+      ),
       timestamp: new Date().toISOString()
     });
 
@@ -113,7 +125,7 @@ class CustomerSupportBots extends EventEmitter {
 
   async generateResponse(platform, message) {
     // Simulate AI response generation
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await new Promise((resolve) => setTimeout(resolve, 500));
 
     return {
       text: `Thank you for contacting us! We've received your message: "${message.substring(0, 50)}..." and our team will assist you shortly.`,
@@ -128,8 +140,8 @@ class CustomerSupportBots extends EventEmitter {
     const positiveWords = ['great', 'good', 'excellent', 'thanks', 'love'];
 
     const text = message.toLowerCase();
-    const hasNegative = negativeWords.some(word => text.includes(word));
-    const hasPositive = positiveWords.some(word => text.includes(word));
+    const hasNegative = negativeWords.some((word) => text.includes(word));
+    const hasPositive = positiveWords.some((word) => text.includes(word));
 
     if (hasNegative && !hasPositive) return 'negative';
     if (hasPositive && !hasNegative) return 'positive';
@@ -139,16 +151,24 @@ class CustomerSupportBots extends EventEmitter {
   getStatistics() {
     return {
       bots: {
-        enabled: Object.keys(this.config.bots).filter(b => this.config.bots[b].enabled),
+        enabled: Object.keys(this.config.bots).filter(
+          (b) => this.config.bots[b].enabled
+        ),
         total: 4
       },
       conversations: this.conversations.size,
       messages: {
         total: this.messages.size,
         bySentiment: {
-          positive: Array.from(this.messages.values()).filter(m => m.sentiment === 'positive').length,
-          neutral: Array.from(this.messages.values()).filter(m => m.sentiment === 'neutral').length,
-          negative: Array.from(this.messages.values()).filter(m => m.sentiment === 'negative').length
+          positive: Array.from(this.messages.values()).filter(
+            (m) => m.sentiment === 'positive'
+          ).length,
+          neutral: Array.from(this.messages.values()).filter(
+            (m) => m.sentiment === 'neutral'
+          ).length,
+          negative: Array.from(this.messages.values()).filter(
+            (m) => m.sentiment === 'negative'
+          ).length
         }
       }
     };

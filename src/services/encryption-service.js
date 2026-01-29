@@ -1,10 +1,10 @@
 /**
  * Encryption Service with Key Rotation
  * ====================================
- * 
+ *
  * Comprehensive encryption service with automatic key rotation,
  * secure key storage, and encryption key management.
- * 
+ *
  * Features:
  * - Data encryption/decryption (AES-256-GCM)
  * - Encryption key rotation
@@ -17,6 +17,7 @@
 import crypto from 'crypto';
 import pool from '../config/database.js';
 import auditService from './audit-service.js';
+import logger from '../utils/logger.js';
 
 const ALGORITHM = 'aes-256-gcm';
 const KEY_LENGTH = 32; // 256 bits
@@ -40,9 +41,9 @@ class EncryptionService {
       if (!key) {
         await this.generateNewKey('Initial encryption key');
       }
-      console.log('Encryption service initialized');
+      logger.info('Encryption service initialized');
     } catch (error) {
-      console.error('Failed to initialize encryption service:', error);
+      logger.error('Failed to initialize encryption service:', error);
     }
   }
 
@@ -100,7 +101,7 @@ class EncryptionService {
 
       return JSON.stringify(result);
     } catch (error) {
-      console.error('Encryption error:', error);
+      logger.error('Encryption error:', error);
       throw new Error('Failed to encrypt data');
     }
   }
@@ -112,7 +113,9 @@ class EncryptionService {
     try {
       // Parse encrypted data
       const parsed = JSON.parse(encryptedData);
-      const { version, iv, authTag, data } = parsed;
+      const {
+        version, iv, authTag, data
+      } = parsed;
 
       // Get key by version
       const keyData = await this.getKeyByVersion(version);
@@ -152,7 +155,7 @@ class EncryptionService {
 
       return decrypted;
     } catch (error) {
-      console.error('Decryption error:', error);
+      logger.error('Decryption error:', error);
       throw new Error('Failed to decrypt data');
     }
   }
@@ -177,11 +180,11 @@ class EncryptionService {
 
       if (result.rows.length > 0) {
         const key = result.rows[0];
-        
+
         // Cache the key for 5 minutes
         this.currentKey = {
           data: key,
-          expiresAt: Date.now() + (5 * 60 * 1000)
+          expiresAt: Date.now() + 5 * 60 * 1000
         };
 
         // Also cache by version
@@ -192,7 +195,7 @@ class EncryptionService {
 
       return null;
     } catch (error) {
-      console.error('Error getting current key:', error);
+      logger.error('Error getting current key:', error);
       throw error;
     }
   }
@@ -216,7 +219,7 @@ class EncryptionService {
 
       if (result.rows.length > 0) {
         const key = result.rows[0];
-        
+
         // Cache the key
         this.keyCache.set(version, key);
 
@@ -225,7 +228,7 @@ class EncryptionService {
 
       return null;
     } catch (error) {
-      console.error('Error getting key by version:', error);
+      logger.error('Error getting key by version:', error);
       throw error;
     }
   }
@@ -281,7 +284,7 @@ class EncryptionService {
         riskLevel: 'high'
       });
 
-      console.log(`Generated new encryption key v${version}`);
+      logger.info(`Generated new encryption key v${version}`);
 
       return {
         id: newKey.id,
@@ -290,14 +293,14 @@ class EncryptionService {
         message: `New encryption key v${version} generated successfully`
       };
     } catch (error) {
-      console.error('Error generating new key:', error);
+      logger.error('Error generating new key:', error);
       throw error;
     }
   }
 
   /**
    * Rotate encryption key
-   * 
+   *
    * This will:
    * 1. Generate a new key
    * 2. Mark old key as retired
@@ -305,7 +308,7 @@ class EncryptionService {
    */
   async rotateKey(userId = null, reEncrypt = false) {
     try {
-      console.log('Starting key rotation...');
+      logger.info('Starting key rotation...');
 
       // Generate new key
       const newKey = await this.generateNewKey('Key rotation', userId);
@@ -317,9 +320,9 @@ class EncryptionService {
         resourceType: 'encryption_key',
         resourceId: newKey.id,
         success: true,
-        requestBody: { 
+        requestBody: {
           newVersion: newKey.version,
-          reEncrypt 
+          reEncrypt
         },
         riskLevel: 'high'
       });
@@ -327,7 +330,7 @@ class EncryptionService {
       // If re-encryption is requested, trigger background job
       if (reEncrypt) {
         // TODO: Implement background job for re-encryption
-        console.log('Re-encryption requested - would trigger background job');
+        logger.info('Re-encryption requested - would trigger background job');
       }
 
       return {
@@ -335,7 +338,7 @@ class EncryptionService {
         message: `Key rotated successfully to v${newKey.version}`
       };
     } catch (error) {
-      console.error('Key rotation error:', error);
+      logger.error('Key rotation error:', error);
       throw error;
     }
   }
@@ -385,7 +388,7 @@ class EncryptionService {
         expiresAt
       };
     } catch (error) {
-      console.error('Error checking key rotation:', error);
+      logger.error('Error checking key rotation:', error);
       throw error;
     }
   }
@@ -416,7 +419,7 @@ class EncryptionService {
         rotationNeeded: await this.checkKeyRotation()
       };
     } catch (error) {
-      console.error('Error getting key status:', error);
+      logger.error('Error getting key status:', error);
       throw error;
     }
   }
@@ -464,7 +467,7 @@ class EncryptionService {
         message: `Key v${version} has been revoked`
       };
     } catch (error) {
-      console.error('Key revocation error:', error);
+      logger.error('Key revocation error:', error);
       throw error;
     }
   }
@@ -473,10 +476,7 @@ class EncryptionService {
    * Hash data (one-way, for passwords, etc.)
    */
   hash(data) {
-    return crypto
-      .createHash('sha256')
-      .update(data)
-      .digest('hex');
+    return crypto.createHash('sha256').update(data).digest('hex');
   }
 
   /**
@@ -491,10 +491,7 @@ class EncryptionService {
    */
   compareHash(data, hash) {
     const dataHash = this.hash(data);
-    return crypto.timingSafeEqual(
-      Buffer.from(dataHash),
-      Buffer.from(hash)
-    );
+    return crypto.timingSafeEqual(Buffer.from(dataHash), Buffer.from(hash));
   }
 }
 

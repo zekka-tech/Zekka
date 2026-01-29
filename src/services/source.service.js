@@ -5,9 +5,15 @@
  * Includes upload, download, search, and organization capabilities
  */
 
-const { pool } = require('../config/database');
-const { uploadFile, deleteFile, getFileStream, fileExists } = require('../utils/file-storage');
 const Fuse = require('fuse.js');
+const { pool } = require('../config/database');
+const {
+  uploadFile,
+  deleteFile,
+  getFileStream,
+  fileExists
+} = require('../utils/file-storage');
+const logger = require('../utils/logger');
 
 class SourceService {
   /**
@@ -18,10 +24,20 @@ class SourceService {
    * @returns {Promise<object>} Files and folders
    */
   async listSources(projectId, folderId = null, options = {}) {
-    const { includeDeleted = false, sortBy = 'name', sortOrder = 'ASC' } = options;
+    const {
+      includeDeleted = false,
+      sortBy = 'name',
+      sortOrder = 'ASC'
+    } = options;
 
     // Validate sort parameters
-    const validSortFields = ['name', 'created_at', 'updated_at', 'size', 'type'];
+    const validSortFields = [
+      'name',
+      'created_at',
+      'updated_at',
+      'size',
+      'type'
+    ];
     const sortField = validSortFields.includes(sortBy) ? sortBy : 'name';
     const order = sortOrder.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
 
@@ -54,8 +70,8 @@ class SourceService {
     const result = await pool.query(query, params);
 
     // Separate folders and files
-    const folders = result.rows.filter(item => item.type === 'folder');
-    const files = result.rows.filter(item => item.type === 'file');
+    const folders = result.rows.filter((item) => item.type === 'folder');
+    const files = result.rows.filter((item) => item.type === 'file');
 
     return {
       folders,
@@ -103,11 +119,10 @@ class SourceService {
       }
 
       // Upload file to storage
-      const uploadResult = await uploadFile(
-        file.buffer,
-        file.originalname,
-        { subfolder: `project_${projectId}`, validate: true }
-      );
+      const uploadResult = await uploadFile(file.buffer, file.originalname, {
+        subfolder: `project_${projectId}`,
+        validate: true
+      });
 
       // Insert file record into database
       const query = `
@@ -149,7 +164,7 @@ class SourceService {
       return result.rows[0];
     } catch (error) {
       await client.query('ROLLBACK');
-      console.error('❌ File upload failed:', error);
+      logger.error('❌ File upload failed:', error);
       throw error;
     } finally {
       client.release();
@@ -196,7 +211,10 @@ class SourceService {
         WHERE id = $1 AND project_id = $2 AND deleted_at IS NULL
       `;
 
-      const sourceResult = await client.query(sourceQuery, [sourceId, projectId]);
+      const sourceResult = await client.query(sourceQuery, [
+        sourceId,
+        projectId
+      ]);
 
       if (sourceResult.rows.length === 0) {
         throw new Error('Source not found');
@@ -224,7 +242,7 @@ class SourceService {
       return true;
     } catch (error) {
       await client.query('ROLLBACK');
-      console.error('❌ Failed to delete source:', error);
+      logger.error('❌ Failed to delete source:', error);
       throw error;
     } finally {
       client.release();
@@ -278,7 +296,7 @@ class SourceService {
     });
 
     const searchResults = fuse.search(query);
-    return searchResults.slice(0, limit).map(result => result.item);
+    return searchResults.slice(0, limit).map((searchResult) => searchResult.item);
   }
 
   /**
@@ -305,7 +323,12 @@ class SourceService {
     // Check if folder with same name exists
     const existsCheck = await pool.query(
       'SELECT id FROM sources WHERE project_id = $1 AND folder_id $2 AND name = $3 AND type = $4 AND deleted_at IS NULL',
-      [projectId, parentFolderId ? `= ${parentFolderId}` : 'IS NULL', name, 'folder']
+      [
+        projectId,
+        parentFolderId ? `= ${parentFolderId}` : 'IS NULL',
+        name,
+        'folder'
+      ]
     );
 
     if (existsCheck.rows.length > 0) {
@@ -358,7 +381,11 @@ class SourceService {
       }
 
       // Delete all contents recursively
-      const deletedCount = await this._deleteFolderContents(client, folderId, projectId);
+      const deletedCount = await this._deleteFolderContents(
+        client,
+        folderId,
+        projectId
+      );
 
       // Delete the folder itself
       await client.query(
@@ -374,7 +401,7 @@ class SourceService {
       };
     } catch (error) {
       await client.query('ROLLBACK');
-      console.error('❌ Failed to delete folder:', error);
+      logger.error('❌ Failed to delete folder:', error);
       throw error;
     } finally {
       client.release();
@@ -482,13 +509,20 @@ class SourceService {
       WHERE folder_id = $1 AND project_id = $2 AND deleted_at IS NULL
     `;
 
-    const childrenResult = await client.query(childrenQuery, [folderId, projectId]);
+    const childrenResult = await client.query(childrenQuery, [
+      folderId,
+      projectId
+    ]);
     let deletedCount = 0;
 
     for (const child of childrenResult.rows) {
       // If child is a folder, recursively delete its contents
       if (child.type === 'folder') {
-        deletedCount += await this._deleteFolderContents(client, child.id, projectId);
+        deletedCount += await this._deleteFolderContents(
+          client,
+          child.id,
+          projectId
+        );
       }
 
       // Soft delete the child
@@ -530,7 +564,28 @@ class SourceService {
     `;
 
     const result = await pool.query(query, [folderId]);
-    return result.rows.map(row => row.id);
+    return result.rows.map((row) => row.id);
+  }
+
+  /**
+   * Get source statistics for a project
+   * @param {number} projectId - Project ID
+   * @param {number} _userId - User ID (for access control, currently unused)
+   * @returns {Promise<object>} Source statistics
+   */
+  async getSourceStats(projectId, _userId) {
+    const query = `
+      SELECT
+        COUNT(*) FILTER (WHERE type = 'file') as file_count,
+        COUNT(*) FILTER (WHERE type = 'folder') as folder_count,
+        COALESCE(SUM(file_size) FILTER (WHERE type = 'file'), 0) as total_size,
+        MAX(created_at) as last_upload_at
+      FROM sources
+      WHERE project_id = $1 AND deleted_at IS NULL
+    `;
+
+    const result = await pool.query(query, [projectId]);
+    return result.rows[0];
   }
 }
 

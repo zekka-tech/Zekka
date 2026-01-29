@@ -14,7 +14,8 @@ const preferencesSchemas = {
       .valid('ui', 'notifications', 'privacy', 'performance')
       .required()
       .messages({
-        'any.only': 'Category must be one of: ui, notifications, privacy, performance',
+        'any.only':
+          'Category must be one of: ui, notifications, privacy, performance',
         'any.required': 'Category is required'
       })
   }),
@@ -26,10 +27,7 @@ const preferencesSchemas = {
     category: Joi.string()
       .valid('ui', 'notifications', 'privacy', 'performance')
       .required(),
-    key: Joi.string()
-      .min(1)
-      .max(255)
-      .required()
+    key: Joi.string().min(1).max(255).required()
       .messages({
         'string.min': 'Preference key must not be empty',
         'string.max': 'Preference key must not exceed 255 characters',
@@ -69,9 +67,11 @@ const preferencesSchemas = {
       enableOfflineMode: Joi.boolean().optional(),
       cachingEnabled: Joi.boolean().optional()
     }).optional()
-  }).min(1).messages({
-    'object.min': 'At least one preference category must be provided'
-  }),
+  })
+    .min(1)
+    .messages({
+      'object.min': 'At least one preference category must be provided'
+    }),
 
   /**
    * Import preferences validation
@@ -124,7 +124,8 @@ const preferencesSchemas = {
       .valid('realtime', 'daily', 'weekly', 'never')
       .optional()
       .messages({
-        'any.only': 'Digest frequency must be one of: realtime, daily, weekly, never'
+        'any.only':
+          'Digest frequency must be one of: realtime, daily, weekly, never'
       }),
     quietHoursEnabled: Joi.boolean().optional(),
     quietHoursStart: Joi.string()
@@ -139,9 +140,11 @@ const preferencesSchemas = {
       .messages({
         'string.pattern.base': 'End time must be in HH:MM format'
       })
-  }).min(1).messages({
-    'object.min': 'At least one notification preference must be provided'
-  }),
+  })
+    .min(1)
+    .messages({
+      'object.min': 'At least one notification preference must be provided'
+    }),
 
   /**
    * Notification channel parameter validation

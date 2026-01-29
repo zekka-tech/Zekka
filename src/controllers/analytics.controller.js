@@ -16,10 +16,13 @@ class AnalyticsController {
   async getProjectAnalytics(req, res, next) {
     try {
       const { projectId } = req.params;
-      const userId = req.user.userId;
+      const { userId } = req.user;
       const { period = 'month' } = req.query;
 
-      const analytics = await analyticsService.getProjectAnalytics(projectId, period);
+      const analytics = await analyticsService.getProjectAnalytics(
+        projectId,
+        period
+      );
 
       res.status(200).json({
         success: true,
@@ -37,7 +40,7 @@ class AnalyticsController {
   async getTokenUsage(req, res, next) {
     try {
       const { projectId } = req.params;
-      const userId = req.user.userId;
+      const { userId } = req.user;
       const { period = 'month' } = req.query;
 
       const usage = await analyticsService.getTokenUsage(projectId, period);
@@ -58,7 +61,7 @@ class AnalyticsController {
   async getCostBreakdown(req, res, next) {
     try {
       const { projectId } = req.params;
-      const userId = req.user.userId;
+      const { userId } = req.user;
 
       const costs = await analyticsService.getCostsBreakdown(projectId);
 
@@ -77,7 +80,7 @@ class AnalyticsController {
    */
   async getMetrics(req, res, next) {
     try {
-      const userId = req.user.userId;
+      const { userId } = req.user;
       const { period = 'month' } = req.query;
 
       const metrics = await analyticsService.getMetrics(userId, period);

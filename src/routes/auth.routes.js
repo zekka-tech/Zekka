@@ -42,7 +42,11 @@ router.post('/reset-password', authLimiter, authController.resetPassword);
 router.post('/verify-email', authController.verifyEmail);
 
 // Resend verification email
-router.post('/resend-verification', authLimiter, authController.resendVerification);
+router.post(
+  '/resend-verification',
+  authLimiter,
+  authController.resendVerification
+);
 
 /**
  * Protected Routes (Authentication Required)

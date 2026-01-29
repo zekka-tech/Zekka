@@ -9,7 +9,14 @@ const fs = require('fs').promises;
 const path = require('path');
 const crypto = require('crypto');
 const { createReadStream, createWriteStream } = require('fs');
-const config = require('../config');
+const {
+  S3Client,
+  PutObjectCommand,
+  DeleteObjectCommand,
+  GetObjectCommand,
+  HeadObjectCommand,
+  ListObjectsV2Command
+} = require('@aws-sdk/client-s3');
 
 /**
  * Storage configuration
@@ -18,7 +25,7 @@ const STORAGE_CONFIG = {
   type: process.env.STORAGE_TYPE || 'local', // 'local' or 's3'
   local: {
     uploadDir: process.env.UPLOAD_DIR || path.join(process.cwd(), 'uploads'),
-    maxFileSize: parseInt(process.env.MAX_FILE_SIZE) || 10 * 1024 * 1024, // 10MB default
+    maxFileSize: parseInt(process.env.MAX_FILE_SIZE, 10) || 10 * 1024 * 1024, // 10MB default
     allowedExtensions: process.env.ALLOWED_EXTENSIONS
       ? process.env.ALLOWED_EXTENSIONS.split(',')
       : ['.pdf', '.txt', '.md', '.doc', '.docx', '.json', '.csv', '.xlsx']
@@ -33,20 +40,61 @@ const STORAGE_CONFIG = {
 };
 
 /**
+ * S3 Client instance (lazy initialization)
+ */
+let s3Client = null;
+
+/**
+ * Get or create S3 client
+ * @returns {S3Client} S3 client instance
+ */
+function getS3Client() {
+  if (!s3Client) {
+    const clientConfig = {
+      region: STORAGE_CONFIG.s3.region,
+      credentials: {
+        accessKeyId: STORAGE_CONFIG.s3.accessKeyId,
+        secretAccessKey: STORAGE_CONFIG.s3.secretAccessKey
+      }
+    };
+
+    // Add custom endpoint if provided (for S3-compatible services)
+    if (STORAGE_CONFIG.s3.endpoint) {
+      clientConfig.endpoint = STORAGE_CONFIG.s3.endpoint;
+      clientConfig.forcePathStyle = true; // Required for MinIO and other S3-compatible services
+    }
+
+    s3Client = new S3Client(clientConfig);
+  }
+  return s3Client;
+}
+
+/**
  * Initialize storage (create directories if needed)
  */
 async function initializeStorage() {
   if (STORAGE_CONFIG.type === 'local') {
     try {
       await fs.mkdir(STORAGE_CONFIG.local.uploadDir, { recursive: true });
-      console.log('✅ Local file storage initialized:', STORAGE_CONFIG.local.uploadDir);
+      console.log(
+        '✅ Local file storage initialized:',
+        STORAGE_CONFIG.local.uploadDir
+      );
     } catch (error) {
       console.error('❌ Failed to initialize local storage:', error);
       throw error;
     }
   } else if (STORAGE_CONFIG.type === 's3') {
-    // TODO: Initialize S3 client when needed
-    console.log('✅ S3 storage configuration loaded');
+    try {
+      // Initialize S3 client
+      getS3Client();
+      console.log('✅ S3 storage configuration loaded');
+      console.log(`   Bucket: ${STORAGE_CONFIG.s3.bucket}`);
+      console.log(`   Region: ${STORAGE_CONFIG.s3.region}`);
+    } catch (error) {
+      console.error('❌ Failed to initialize S3 storage:', error);
+      throw error;
+    }
   }
 }
 
@@ -138,7 +186,9 @@ async function uploadToLocal(fileData, filename, subfolder = '') {
       filename: uniqueFilename,
       originalName: filename,
       path: filePath,
-      relativePath: subfolder ? `${subfolder}/${uniqueFilename}` : uniqueFilename,
+      relativePath: subfolder
+        ? `${subfolder}/${uniqueFilename}`
+        : uniqueFilename,
       size: stats.size,
       storageType: 'local',
       uploadedAt: new Date().toISOString()
@@ -157,9 +207,72 @@ async function uploadToLocal(fileData, filename, subfolder = '') {
  * @returns {Promise<object>} Upload result
  */
 async function uploadToS3(fileData, filename, subfolder = '') {
-  // TODO: Implement S3 upload using AWS SDK
-  // This is a placeholder for S3 implementation
-  throw new Error('S3 storage not yet implemented. Please use local storage.');
+  try {
+    const client = getS3Client();
+
+    // Generate unique filename
+    const uniqueFilename = generateUniqueFilename(filename);
+    const key = subfolder ? `${subfolder}/${uniqueFilename}` : uniqueFilename;
+
+    // Convert stream to buffer if needed
+    let body = fileData;
+    if (fileData && typeof fileData.pipe === 'function') {
+      // Convert stream to buffer
+      const chunks = [];
+      // eslint-disable-next-line no-restricted-syntax
+      for await (const chunk of fileData) {
+        chunks.push(chunk);
+      }
+      body = Buffer.concat(chunks);
+    }
+
+    // Determine content type based on file extension
+    const ext = path.extname(filename).toLowerCase();
+    const contentTypeMap = {
+      '.pdf': 'application/pdf',
+      '.txt': 'text/plain',
+      '.md': 'text/markdown',
+      '.doc': 'application/msword',
+      '.docx':
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      '.json': 'application/json',
+      '.csv': 'text/csv',
+      '.xlsx':
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    };
+    const contentType = contentTypeMap[ext] || 'application/octet-stream';
+
+    // Upload to S3
+    const command = new PutObjectCommand({
+      Bucket: STORAGE_CONFIG.s3.bucket,
+      Key: key,
+      Body: body,
+      ContentType: contentType,
+      Metadata: {
+        originalName: filename,
+        uploadedAt: new Date().toISOString()
+      }
+    });
+
+    await client.send(command);
+
+    return {
+      success: true,
+      filename: uniqueFilename,
+      originalName: filename,
+      key,
+      bucket: STORAGE_CONFIG.s3.bucket,
+      size: Buffer.byteLength(body),
+      storageType: 's3',
+      uploadedAt: new Date().toISOString(),
+      url: STORAGE_CONFIG.s3.endpoint
+        ? `${STORAGE_CONFIG.s3.endpoint}/${STORAGE_CONFIG.s3.bucket}/${key}`
+        : `https://${STORAGE_CONFIG.s3.bucket}.s3.${STORAGE_CONFIG.s3.region}.amazonaws.com/${key}`
+    };
+  } catch (error) {
+    console.error('❌ S3 upload failed:', error);
+    throw new Error(`Failed to upload file to S3: ${error.message}`);
+  }
 }
 
 /**
@@ -183,11 +296,11 @@ async function uploadFile(fileData, filename, options = {}) {
   // Upload based on storage type
   if (STORAGE_CONFIG.type === 'local') {
     return uploadToLocal(fileData, filename, subfolder);
-  } else if (STORAGE_CONFIG.type === 's3') {
-    return uploadToS3(fileData, filename, subfolder);
-  } else {
-    throw new Error(`Unknown storage type: ${STORAGE_CONFIG.type}`);
   }
+  if (STORAGE_CONFIG.type === 's3') {
+    return uploadToS3(fileData, filename, subfolder);
+  }
+  throw new Error(`Unknown storage type: ${STORAGE_CONFIG.type}`);
 }
 
 /**
@@ -216,8 +329,20 @@ async function deleteFromLocal(filePath) {
  * @returns {Promise<boolean>} Success status
  */
 async function deleteFromS3(fileKey) {
-  // TODO: Implement S3 delete
-  throw new Error('S3 storage not yet implemented');
+  try {
+    const client = getS3Client();
+
+    const command = new DeleteObjectCommand({
+      Bucket: STORAGE_CONFIG.s3.bucket,
+      Key: fileKey
+    });
+
+    await client.send(command);
+    return true;
+  } catch (error) {
+    console.error('❌ Failed to delete file from S3:', error);
+    return false;
+  }
 }
 
 /**
@@ -228,11 +353,11 @@ async function deleteFromS3(fileKey) {
 async function deleteFile(filePath) {
   if (STORAGE_CONFIG.type === 'local') {
     return deleteFromLocal(filePath);
-  } else if (STORAGE_CONFIG.type === 's3') {
-    return deleteFromS3(filePath);
-  } else {
-    throw new Error(`Unknown storage type: ${STORAGE_CONFIG.type}`);
   }
+  if (STORAGE_CONFIG.type === 's3') {
+    return deleteFromS3(filePath);
+  }
+  throw new Error(`Unknown storage type: ${STORAGE_CONFIG.type}`);
 }
 
 /**
@@ -251,26 +376,40 @@ function getFileStreamLocal(filePath) {
 /**
  * Get file stream from S3
  * @param {string} fileKey - S3 object key
- * @returns {ReadStream} File read stream
+ * @returns {Promise<Readable>} File read stream
  */
-function getFileStreamS3(fileKey) {
-  // TODO: Implement S3 stream
-  throw new Error('S3 storage not yet implemented');
+async function getFileStreamS3(fileKey) {
+  try {
+    const client = getS3Client();
+
+    const command = new GetObjectCommand({
+      Bucket: STORAGE_CONFIG.s3.bucket,
+      Key: fileKey
+    });
+
+    const response = await client.send(command);
+
+    // Return the body stream
+    return response.Body;
+  } catch (error) {
+    console.error('❌ Failed to get file stream from S3:', error);
+    throw new Error(`Failed to get file stream from S3: ${error.message}`);
+  }
 }
 
 /**
  * Get file stream (auto-detect storage type)
  * @param {string} filePath - File path or key
- * @returns {ReadStream} File read stream
+ * @returns {ReadStream|Promise<Readable>} File read stream
  */
 function getFileStream(filePath) {
   if (STORAGE_CONFIG.type === 'local') {
     return getFileStreamLocal(filePath);
-  } else if (STORAGE_CONFIG.type === 's3') {
-    return getFileStreamS3(filePath);
-  } else {
-    throw new Error(`Unknown storage type: ${STORAGE_CONFIG.type}`);
   }
+  if (STORAGE_CONFIG.type === 's3') {
+    return getFileStreamS3(filePath);
+  }
+  throw new Error(`Unknown storage type: ${STORAGE_CONFIG.type}`);
 }
 
 /**
@@ -291,8 +430,24 @@ async function fileExists(filePath) {
       return false;
     }
   } else if (STORAGE_CONFIG.type === 's3') {
-    // TODO: Implement S3 exists check
-    throw new Error('S3 storage not yet implemented');
+    try {
+      const client = getS3Client();
+
+      const command = new HeadObjectCommand({
+        Bucket: STORAGE_CONFIG.s3.bucket,
+        Key: filePath
+      });
+
+      await client.send(command);
+      return true;
+    } catch (error) {
+      // If error code is NotFound, file doesn't exist
+      if (error.name === 'NotFound' || error.$metadata?.httpStatusCode === 404) {
+        return false;
+      }
+      // For other errors, throw
+      throw error;
+    }
   }
 
   return false;
@@ -318,10 +473,33 @@ async function getFileMetadata(filePath) {
       isFile: stats.isFile(),
       isDirectory: stats.isDirectory()
     };
-  } else if (STORAGE_CONFIG.type === 's3') {
-    // TODO: Implement S3 metadata
-    throw new Error('S3 storage not yet implemented');
   }
+  if (STORAGE_CONFIG.type === 's3') {
+    try {
+      const client = getS3Client();
+
+      const command = new HeadObjectCommand({
+        Bucket: STORAGE_CONFIG.s3.bucket,
+        Key: filePath
+      });
+
+      const response = await client.send(command);
+
+      return {
+        size: response.ContentLength,
+        createdAt: response.LastModified,
+        modifiedAt: response.LastModified,
+        contentType: response.ContentType,
+        etag: response.ETag,
+        metadata: response.Metadata || {}
+      };
+    } catch (error) {
+      console.error('❌ Failed to get S3 file metadata:', error);
+      throw new Error(`Failed to get file metadata from S3: ${error.message}`);
+    }
+  }
+
+  return null;
 }
 
 /**
@@ -334,7 +512,7 @@ async function calculateFileHash(filePath) {
     const hash = crypto.createHash('sha256');
     const stream = getFileStream(filePath);
 
-    stream.on('data', data => hash.update(data));
+    stream.on('data', (data) => hash.update(data));
     stream.on('end', () => resolve(hash.digest('hex')));
     stream.on('error', reject);
   });
@@ -348,17 +526,21 @@ async function getStorageStats() {
   if (STORAGE_CONFIG.type === 'local') {
     try {
       // Count files and calculate total size
-      const files = await fs.readdir(STORAGE_CONFIG.local.uploadDir, { recursive: true });
+      const files = await fs.readdir(STORAGE_CONFIG.local.uploadDir, {
+        recursive: true
+      });
       let totalSize = 0;
       let fileCount = 0;
 
+      // eslint-disable-next-line no-restricted-syntax
       for (const file of files) {
         const filePath = path.join(STORAGE_CONFIG.local.uploadDir, file);
         try {
+          // eslint-disable-next-line no-await-in-loop
           const stats = await fs.stat(filePath);
           if (stats.isFile()) {
             totalSize += stats.size;
-            fileCount++;
+            fileCount += 1;
           }
         } catch {
           // Skip inaccessible files
@@ -379,12 +561,51 @@ async function getStorageStats() {
       };
     }
   } else if (STORAGE_CONFIG.type === 's3') {
-    // TODO: Implement S3 stats
-    return {
-      type: 's3',
-      message: 'S3 storage stats not yet implemented'
-    };
+    try {
+      const client = getS3Client();
+
+      let totalSize = 0;
+      let fileCount = 0;
+      let continuationToken;
+
+      // List all objects in the bucket
+      do {
+        const command = new ListObjectsV2Command({
+          Bucket: STORAGE_CONFIG.s3.bucket,
+          ContinuationToken: continuationToken
+        });
+
+        // eslint-disable-next-line no-await-in-loop
+        const response = await client.send(command);
+
+        if (response.Contents) {
+          // eslint-disable-next-line no-restricted-syntax
+          for (const object of response.Contents) {
+            totalSize += object.Size || 0;
+            fileCount += 1;
+          }
+        }
+
+        continuationToken = response.NextContinuationToken;
+      } while (continuationToken);
+
+      return {
+        type: 's3',
+        bucket: STORAGE_CONFIG.s3.bucket,
+        fileCount,
+        totalSize,
+        totalSizeMB: (totalSize / 1024 / 1024).toFixed(2),
+        region: STORAGE_CONFIG.s3.region
+      };
+    } catch (error) {
+      return {
+        type: 's3',
+        error: error.message
+      };
+    }
   }
+
+  return null;
 }
 
 module.exports = {

@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiService } from '@/services/api'
+import type { Project } from '@/types/project.types'
 
 export const useProjects = () => {
   const queryClient = useQueryClient()
@@ -16,7 +17,7 @@ export const useProjects = () => {
     mutationFn: (data: { name: string; description?: string; type?: string }) =>
       apiService.createProject(data),
     onSuccess: (newProject) => {
-      queryClient.setQueryData(['projects'], (old: any[] | undefined) => [
+      queryClient.setQueryData(['projects'], (old: Project[] | undefined) => [
         ...(old || []),
         newProject
       ])
@@ -47,7 +48,7 @@ export const useProject = (projectId: string | null) => {
 
   // Update project mutation
   const updateMutation = useMutation({
-    mutationFn: (data: any) =>
+    mutationFn: (data: Partial<Project>) =>
       projectId ? apiService.updateProject(projectId, data) : Promise.reject('No project ID'),
     onSuccess: (updatedProject) => {
       queryClient.setQueryData(['projects', projectId], updatedProject)
@@ -91,13 +92,7 @@ export const useProjectStats = (projectId: string) => {
   return useQuery({
     queryKey: ['projects', projectId, 'stats'],
     queryFn: async () => {
-      // TODO: Implement project stats API endpoint
-      return {
-        totalConversations: 0,
-        totalMessages: 0,
-        totalTokensUsed: 0,
-        lastActivityAt: undefined
-      }
+      return await apiService.getProjectStats(projectId)
     },
     enabled: !!projectId
   })

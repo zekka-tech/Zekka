@@ -8,7 +8,12 @@
  */
 
 const Joi = require('joi');
-const { wrapHandler, validateEventData, createSuccessResponse, createErrorResponse } = require('../middleware/socket-error-handler');
+const {
+  wrapHandler,
+  validateEventData,
+  createSuccessResponse,
+  createErrorResponse
+} = require('../middleware/socket-error-handler');
 const { trackRoom, untrackRoom } = require('../middleware/websocket');
 const { getUserId } = require('../utils/socket-auth');
 
@@ -26,142 +31,188 @@ const projectSubscribeSchema = Joi.object({
  */
 function setupProjectEvents(io, socket, logger) {
   // Subscribe to project updates
-  socket.on('project:subscribe', wrapHandler(async (data, callback) => {
-    const validation = validateEventData(data, projectSubscribeSchema);
-    if (!validation.valid) {
-      if (callback) callback(createErrorResponse(validation.error, 'VALIDATION_ERROR'));
-      return;
-    }
+  socket.on(
+    'project:subscribe',
+    wrapHandler(
+      async (data, callback) => {
+        const validation = validateEventData(data, projectSubscribeSchema);
+        if (!validation.valid) {
+          if (callback) callback(createErrorResponse(validation.error, 'VALIDATION_ERROR'));
+          return;
+        }
 
-    const { projectId } = validation.value;
-    const userId = getUserId(socket);
-    const room = `project:${projectId}`;
+        const { projectId } = validation.value;
+        const userId = getUserId(socket);
+        const room = `project:${projectId}`;
 
-    // Join the project room
-    socket.join(room);
-    trackRoom(socket.id, room);
+        // Join the project room
+        socket.join(room);
+        trackRoom(socket.id, room);
 
-    logger.info(`User subscribed to project: ${projectId}`, {
-      socketId: socket.id,
-      userId
-    });
+        logger.info(`User subscribed to project: ${projectId}`, {
+          socketId: socket.id,
+          userId
+        });
 
-    // Notify other project members
-    socket.to(room).emit('project:userJoined', {
-      projectId,
-      userId,
-      username: socket.user?.username,
-      timestamp: Date.now()
-    });
+        // Notify other project members
+        socket.to(room).emit('project:userJoined', {
+          projectId,
+          userId,
+          username: socket.user?.username,
+          timestamp: Date.now()
+        });
 
-    if (callback) {
-      callback(createSuccessResponse({
-        projectId,
-        subscribed: true
-      }));
-    }
-  }, socket, logger, 'project:subscribe'));
+        if (callback) {
+          callback(
+            createSuccessResponse({
+              projectId,
+              subscribed: true
+            })
+          );
+        }
+      },
+      socket,
+      logger,
+      'project:subscribe'
+    )
+  );
 
   // Unsubscribe from project updates
-  socket.on('project:unsubscribe', wrapHandler(async (data, callback) => {
-    const validation = validateEventData(data, projectSubscribeSchema);
-    if (!validation.valid) {
-      if (callback) callback(createErrorResponse(validation.error, 'VALIDATION_ERROR'));
-      return;
-    }
+  socket.on(
+    'project:unsubscribe',
+    wrapHandler(
+      async (data, callback) => {
+        const validation = validateEventData(data, projectSubscribeSchema);
+        if (!validation.valid) {
+          if (callback) callback(createErrorResponse(validation.error, 'VALIDATION_ERROR'));
+          return;
+        }
 
-    const { projectId } = validation.value;
-    const userId = getUserId(socket);
-    const room = `project:${projectId}`;
+        const { projectId } = validation.value;
+        const userId = getUserId(socket);
+        const room = `project:${projectId}`;
 
-    socket.leave(room);
-    untrackRoom(socket.id, room);
+        socket.leave(room);
+        untrackRoom(socket.id, room);
 
-    logger.info(`User unsubscribed from project: ${projectId}`, {
-      socketId: socket.id,
-      userId
-    });
+        logger.info(`User unsubscribed from project: ${projectId}`, {
+          socketId: socket.id,
+          userId
+        });
 
-    // Notify other project members
-    socket.to(room).emit('project:userLeft', {
-      projectId,
-      userId,
-      username: socket.user?.username,
-      timestamp: Date.now()
-    });
+        // Notify other project members
+        socket.to(room).emit('project:userLeft', {
+          projectId,
+          userId,
+          username: socket.user?.username,
+          timestamp: Date.now()
+        });
 
-    if (callback) {
-      callback(createSuccessResponse({
-        projectId,
-        unsubscribed: true
-      }));
-    }
-  }, socket, logger, 'project:unsubscribe'));
+        if (callback) {
+          callback(
+            createSuccessResponse({
+              projectId,
+              unsubscribed: true
+            })
+          );
+        }
+      },
+      socket,
+      logger,
+      'project:unsubscribe'
+    )
+  );
 
   // Legacy subscription support (for backward compatibility)
-  socket.on('subscribe:project', wrapHandler(async (projectId, callback) => {
-    if (typeof projectId === 'string') {
-      const userId = getUserId(socket);
-      const room = `project:${projectId}`;
+  socket.on(
+    'subscribe:project',
+    wrapHandler(
+      async (projectId, callback) => {
+        if (typeof projectId === 'string') {
+          const userId = getUserId(socket);
+          const room = `project:${projectId}`;
 
-      socket.join(room);
-      trackRoom(socket.id, room);
+          socket.join(room);
+          trackRoom(socket.id, room);
 
-      logger.info(`User subscribed to project (legacy): ${projectId}`, {
-        socketId: socket.id,
-        userId
-      });
+          logger.info(`User subscribed to project (legacy): ${projectId}`, {
+            socketId: socket.id,
+            userId
+          });
 
-      socket.emit('subscribed', { projectId });
+          socket.emit('subscribed', { projectId });
 
-      if (callback) {
-        callback(createSuccessResponse({ projectId, subscribed: true }));
-      }
-    }
-  }, socket, logger, 'subscribe:project'));
+          if (callback) {
+            callback(createSuccessResponse({ projectId, subscribed: true }));
+          }
+        }
+      },
+      socket,
+      logger,
+      'subscribe:project'
+    )
+  );
 
   // Legacy unsubscription support
-  socket.on('unsubscribe:project', wrapHandler(async (projectId, callback) => {
-    if (typeof projectId === 'string') {
-      const userId = getUserId(socket);
-      const room = `project:${projectId}`;
+  socket.on(
+    'unsubscribe:project',
+    wrapHandler(
+      async (projectId, callback) => {
+        if (typeof projectId === 'string') {
+          const userId = getUserId(socket);
+          const room = `project:${projectId}`;
 
-      socket.leave(room);
-      untrackRoom(socket.id, room);
+          socket.leave(room);
+          untrackRoom(socket.id, room);
 
-      logger.info(`User unsubscribed from project (legacy): ${projectId}`, {
-        socketId: socket.id,
-        userId
-      });
+          logger.info(`User unsubscribed from project (legacy): ${projectId}`, {
+            socketId: socket.id,
+            userId
+          });
 
-      socket.emit('unsubscribed', { projectId });
+          socket.emit('unsubscribed', { projectId });
 
-      if (callback) {
-        callback(createSuccessResponse({ projectId, unsubscribed: true }));
-      }
-    }
-  }, socket, logger, 'unsubscribe:project'));
+          if (callback) {
+            callback(createSuccessResponse({ projectId, unsubscribed: true }));
+          }
+        }
+      },
+      socket,
+      logger,
+      'unsubscribe:project'
+    )
+  );
 
   // Subscribe to all projects (admin only)
-  socket.on('projects:subscribeAll', wrapHandler(async (data, callback) => {
-    const userId = getUserId(socket);
-    const room = 'projects:all';
+  socket.on(
+    'projects:subscribeAll',
+    wrapHandler(
+      async (data, callback) => {
+        const userId = getUserId(socket);
+        const room = 'projects:all';
 
-    // TODO: Add role check for admin
-    socket.join(room);
-    trackRoom(socket.id, room);
+        // TODO: Add role check for admin
+        socket.join(room);
+        trackRoom(socket.id, room);
 
-    logger.info(`User subscribed to all projects`, {
-      socketId: socket.id,
-      userId
-    });
+        logger.info('User subscribed to all projects', {
+          socketId: socket.id,
+          userId
+        });
 
-    if (callback) {
-      callback(createSuccessResponse({
-        subscribed: true
-      }));
-    }
-  }, socket, logger, 'projects:subscribeAll'));
+        if (callback) {
+          callback(
+            createSuccessResponse({
+              subscribed: true
+            })
+          );
+        }
+      },
+      socket,
+      logger,
+      'projects:subscribeAll'
+    )
+  );
 }
 
 /**

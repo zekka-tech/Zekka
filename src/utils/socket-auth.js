@@ -109,7 +109,7 @@ async function authenticateSocket(socket, next) {
 
     next();
   } catch (error) {
-    next(new Error('Authentication failed: ' + error.message));
+    next(new Error(`Authentication failed: ${error.message}`));
   }
 }
 

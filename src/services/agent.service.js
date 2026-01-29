@@ -15,7 +15,8 @@ const AGENT_DEFINITIONS = {
   'pydantic-ai': {
     name: 'Pydantic AI',
     tier: 1,
-    description: 'Senior Agent for planning, research, and high-level implementation',
+    description:
+      'Senior Agent for planning, research, and high-level implementation',
     capabilities: ['planning', 'research', 'architecture', 'code-review']
   },
   'astron-agent': {
@@ -60,37 +61,45 @@ const AGENT_DEFINITIONS = {
     description: 'Second phase development and refinement',
     capabilities: ['optimization', 'refactoring', 'performance']
   },
-  'windsurf': {
+  windsurf: {
     name: 'Windsurf',
     tier: 2,
     description: 'Second phase development completion',
     capabilities: ['integration', 'testing', 'deployment']
   },
-  'coderabbit': {
+  coderabbit: {
     name: 'CodeRabbit',
     tier: 3,
     description: 'Code review and quality analysis',
     capabilities: ['code-review', 'quality-analysis', 'best-practices']
   },
-  'deepcode': {
+  deepcode: {
     name: 'DeepCode',
     tier: 3,
     description: 'AI-powered bug detection',
-    capabilities: ['bug-detection', 'security-analysis', 'vulnerability-scanning']
+    capabilities: [
+      'bug-detection',
+      'security-analysis',
+      'vulnerability-scanning'
+    ]
   },
-  'devin': {
+  devin: {
     name: 'Devin',
     tier: 3,
     description: 'Advanced autonomous coding tasks',
-    capabilities: ['autonomous-coding', 'complex-problem-solving', 'architecture']
+    capabilities: [
+      'autonomous-coding',
+      'complex-problem-solving',
+      'architecture'
+    ]
   },
-  'mintlify': {
+  mintlify: {
     name: 'Mintlify',
     tier: 4,
     description: 'Documentation generation',
     capabilities: ['documentation', 'api-docs', 'markdown']
   },
-  'bytebot': {
+  bytebot: {
     name: 'Bytebot',
     tier: 4,
     description: 'Client operations and automation',
@@ -193,9 +202,18 @@ class AgentService {
     const statusKey = CACHE_KEYS.AGENT_STATUS(agentId);
 
     // Validate status
-    const validStatuses = ['idle', 'busy', 'working', 'error', 'offline', 'paused'];
+    const validStatuses = [
+      'idle',
+      'busy',
+      'working',
+      'error',
+      'offline',
+      'paused'
+    ];
     if (!validStatuses.includes(newStatus)) {
-      throw new Error(`Invalid status: ${newStatus}. Must be one of: ${validStatuses.join(', ')}`);
+      throw new Error(
+        `Invalid status: ${newStatus}. Must be one of: ${validStatuses.join(', ')}`
+      );
     }
 
     // Update cache with TTL
@@ -273,7 +291,13 @@ class AgentService {
    * @returns {Promise<object>} Updated task
    */
   async updateTaskStatus(taskId, status, metadata = {}) {
-    const validStatuses = ['pending', 'in_progress', 'completed', 'failed', 'cancelled'];
+    const validStatuses = [
+      'pending',
+      'in_progress',
+      'completed',
+      'failed',
+      'cancelled'
+    ];
     if (!validStatuses.includes(status)) {
       throw new Error(`Invalid task status: ${status}`);
     }
@@ -346,15 +370,17 @@ class AgentService {
     `;
 
     const result = await pool.query(query, [agentId]);
-    return result.rows[0] || {
-      projects_worked: 0,
-      total_actions: 0,
-      tasks_completed: 0,
-      tasks_failed: 0,
-      tasks_pending: 0,
-      first_activity: null,
-      last_activity: null
-    };
+    return (
+      result.rows[0] || {
+        projects_worked: 0,
+        total_actions: 0,
+        tasks_completed: 0,
+        tasks_failed: 0,
+        tasks_pending: 0,
+        first_activity: null,
+        last_activity: null
+      }
+    );
   }
 
   /**
@@ -428,17 +454,17 @@ class AgentService {
    */
   _getTimeFilter(period) {
     switch (period) {
-      case 'day':
-        return "NOW() - INTERVAL '1 day'";
-      case 'week':
-        return "NOW() - INTERVAL '7 days'";
-      case 'month':
-        return "NOW() - INTERVAL '30 days'";
-      case 'year':
-        return "NOW() - INTERVAL '365 days'";
-      case 'all':
-      default:
-        return null;
+    case 'day':
+      return 'NOW() - INTERVAL \'1 day\'';
+    case 'week':
+      return 'NOW() - INTERVAL \'7 days\'';
+    case 'month':
+      return 'NOW() - INTERVAL \'30 days\'';
+    case 'year':
+      return 'NOW() - INTERVAL \'365 days\'';
+    case 'all':
+    default:
+      return null;
     }
   }
 }

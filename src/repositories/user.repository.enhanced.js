@@ -1,6 +1,6 @@
 /**
  * Enhanced User Repository with Advanced Security Features
- * 
+ *
  * Features:
  * - Password history tracking
  * - Password expiration
@@ -18,13 +18,13 @@ class EnhancedUserRepository {
     this.policyManager = getPasswordPolicyManager();
     this.keyManager = getKeyManager();
   }
-  
+
   /**
    * Initialize database schema
    */
   async initializeDatabase() {
     const client = await pool.connect();
-    
+
     try {
       // Users table (enhanced)
       await client.query(`
@@ -46,7 +46,7 @@ class EnhancedUserRepository {
           metadata JSONB DEFAULT '{}'::jsonb
         )
       `);
-      
+
       // Password history table
       await client.query(`
         CREATE TABLE IF NOT EXISTS password_history (
@@ -57,7 +57,7 @@ class EnhancedUserRepository {
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
       `);
-      
+
       // Create indexes
       await client.query(`
         CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
@@ -66,7 +66,7 @@ class EnhancedUserRepository {
         CREATE INDEX IF NOT EXISTS idx_password_history_user_id ON password_history(user_id);
         CREATE INDEX IF NOT EXISTS idx_password_history_created_at ON password_history(created_at);
       `);
-      
+
       // Create trigger for updated_at
       await client.query(`
         CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -77,7 +77,7 @@ class EnhancedUserRepository {
         END;
         $$ language 'plpgsql';
       `);
-      
+
       await client.query(`
         DROP TRIGGER IF EXISTS update_users_updated_at ON users;
         CREATE TRIGGER update_users_updated_at
@@ -85,53 +85,64 @@ class EnhancedUserRepository {
         FOR EACH ROW
         EXECUTE FUNCTION update_updated_at_column();
       `);
-      
     } finally {
       client.release();
     }
   }
-  
+
   /**
    * Create new user with password policy enforcement
    */
   async createUser(email, password, name, metadata = {}) {
     // Validate password
-    const validation = this.policyManager.validatePassword(password, { email, name });
+    const validation = this.policyManager.validatePassword(password, {
+      email,
+      name
+    });
     if (!validation.isValid) {
-      throw new Error(`Password validation failed: ${validation.errors.join(', ')}`);
+      throw new Error(
+        `Password validation failed: ${validation.errors.join(', ')}`
+      );
     }
-    
+
     // Hash password
     const passwordHash = await this.policyManager.hashPassword(password);
-    
+
     // Calculate password expiration
     const policy = this.policyManager.getPolicy();
     const passwordExpiresAt = policy.expirationDays
       ? new Date(Date.now() + policy.expirationDays * 24 * 60 * 60 * 1000)
       : null;
-    
+
     const client = await pool.connect();
-    
+
     try {
       await client.query('BEGIN');
-      
+
       // Generate user ID
       const userId = `user_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
-      
+
       // Insert user
       const result = await client.query(
         `INSERT INTO users (
           id, email, password_hash, name, password_expires_at, metadata
         ) VALUES ($1, $2, $3, $4, $5, $6)
         RETURNING id, email, name, is_active, created_at`,
-        [userId, email.toLowerCase(), passwordHash, name, passwordExpiresAt, JSON.stringify(metadata)]
+        [
+          userId,
+          email.toLowerCase(),
+          passwordHash,
+          name,
+          passwordExpiresAt,
+          JSON.stringify(metadata)
+        ]
       );
-      
+
       // Add to password history
       await this.addToPasswordHistory(client, userId, passwordHash);
-      
+
       await client.query('COMMIT');
-      
+
       return result.rows[0];
     } catch (error) {
       await client.query('ROLLBACK');
@@ -140,19 +151,19 @@ class EnhancedUserRepository {
       client.release();
     }
   }
-  
+
   /**
    * Add password to history (encrypted)
    */
   async addToPasswordHistory(client, userId, passwordHash) {
     const encrypted = this.keyManager.encrypt(passwordHash);
-    
+
     await client.query(
       `INSERT INTO password_history (user_id, password_hash_encrypted, encryption_version)
        VALUES ($1, $2, $3)`,
       [userId, JSON.stringify(encrypted), encrypted.version]
     );
-    
+
     // Clean up old history based on policy
     const policy = this.policyManager.getPolicy();
     if (policy.historySize > 0) {
@@ -169,22 +180,27 @@ class EnhancedUserRepository {
       );
     }
   }
-  
+
   /**
    * Change user password with history check
    */
   async changePassword(userId, newPassword, userInfo = {}) {
     // Validate password
-    const validation = this.policyManager.validatePassword(newPassword, userInfo);
+    const validation = this.policyManager.validatePassword(
+      newPassword,
+      userInfo
+    );
     if (!validation.isValid) {
-      throw new Error(`Password validation failed: ${validation.errors.join(', ')}`);
+      throw new Error(
+        `Password validation failed: ${validation.errors.join(', ')}`
+      );
     }
-    
+
     const client = await pool.connect();
-    
+
     try {
       await client.query('BEGIN');
-      
+
       // Check password history
       const historyResult = await client.query(
         `SELECT password_hash_encrypted, encryption_version
@@ -193,15 +209,20 @@ class EnhancedUserRepository {
          ORDER BY created_at DESC`,
         [userId]
       );
-      
+
       for (const row of historyResult.rows) {
         try {
           const encryptedData = JSON.parse(row.password_hash_encrypted);
           const oldHash = this.keyManager.decrypt(encryptedData);
-          const matches = await this.policyManager.verifyPassword(newPassword, oldHash);
-          
+          const matches = await this.policyManager.verifyPassword(
+            newPassword,
+            oldHash
+          );
+
           if (matches) {
-            throw new Error('Password was used recently. Please choose a different password.');
+            throw new Error(
+              'Password was used recently. Please choose a different password.'
+            );
           }
         } catch (error) {
           if (error.message.includes('recently')) {
@@ -210,16 +231,16 @@ class EnhancedUserRepository {
           // Ignore decryption errors for old passwords
         }
       }
-      
+
       // Hash new password
       const passwordHash = await this.policyManager.hashPassword(newPassword);
-      
+
       // Calculate expiration
       const policy = this.policyManager.getPolicy();
       const passwordExpiresAt = policy.expirationDays
         ? new Date(Date.now() + policy.expirationDays * 24 * 60 * 60 * 1000)
         : null;
-      
+
       // Update user
       await client.query(
         `UPDATE users
@@ -230,12 +251,12 @@ class EnhancedUserRepository {
          WHERE id = $3`,
         [passwordHash, passwordExpiresAt, userId]
       );
-      
+
       // Add to password history
       await this.addToPasswordHistory(client, userId, passwordHash);
-      
+
       await client.query('COMMIT');
-      
+
       return { success: true };
     } catch (error) {
       await client.query('ROLLBACK');
@@ -244,50 +265,57 @@ class EnhancedUserRepository {
       client.release();
     }
   }
-  
+
   /**
    * Authenticate user
    */
   async authenticate(email, password) {
-    const result = await pool.query(
-      'SELECT * FROM users WHERE email = $1',
-      [email.toLowerCase()]
-    );
-    
+    const result = await pool.query('SELECT * FROM users WHERE email = $1', [
+      email.toLowerCase()
+    ]);
+
     if (result.rows.length === 0) {
       return null;
     }
-    
+
     const user = result.rows[0];
-    
+
     // Check if user is active
     if (!user.is_active) {
       throw new Error('Account is disabled');
     }
-    
+
     // Check if user is locked
     if (user.is_locked) {
       if (user.locked_until && new Date() > new Date(user.locked_until)) {
         // Unlock account
         await this.unlockAccount(user.id);
       } else {
-        throw new Error('Account is locked due to too many failed login attempts');
+        throw new Error(
+          'Account is locked due to too many failed login attempts'
+        );
       }
     }
-    
+
     // Verify password
-    const isValid = await this.policyManager.verifyPassword(password, user.password_hash);
-    
+    const isValid = await this.policyManager.verifyPassword(
+      password,
+      user.password_hash
+    );
+
     if (!isValid) {
       await this.recordFailedLogin(user.id);
       return null;
     }
-    
+
     // Check if password is expired
-    if (user.password_expires_at && new Date() > new Date(user.password_expires_at)) {
+    if (
+      user.password_expires_at
+      && new Date() > new Date(user.password_expires_at)
+    ) {
       throw new Error('Password has expired. Please change your password.');
     }
-    
+
     // Reset failed attempts and update last login
     await pool.query(
       `UPDATE users
@@ -296,7 +324,7 @@ class EnhancedUserRepository {
        WHERE id = $1`,
       [user.id]
     );
-    
+
     return {
       id: user.id,
       email: user.email,
@@ -305,13 +333,13 @@ class EnhancedUserRepository {
       mustChangePassword: user.must_change_password
     };
   }
-  
+
   /**
    * Record failed login attempt
    */
   async recordFailedLogin(userId) {
     const policy = this.policyManager.getPolicy();
-    
+
     const result = await pool.query(
       `UPDATE users
        SET failed_login_attempts = failed_login_attempts + 1
@@ -319,14 +347,14 @@ class EnhancedUserRepository {
        RETURNING failed_login_attempts`,
       [userId]
     );
-    
+
     const attempts = result.rows[0]?.failed_login_attempts || 0;
-    
+
     // Lock account if threshold reached
     if (attempts >= policy.maxFailedAttempts) {
       const lockoutDuration = policy.lockoutDurationMinutes * 60 * 1000;
       const lockedUntil = new Date(Date.now() + lockoutDuration);
-      
+
       await pool.query(
         `UPDATE users
          SET is_locked = true,
@@ -335,10 +363,10 @@ class EnhancedUserRepository {
         [lockedUntil, userId]
       );
     }
-    
+
     return attempts;
   }
-  
+
   /**
    * Unlock account
    */
@@ -352,39 +380,37 @@ class EnhancedUserRepository {
       [userId]
     );
   }
-  
+
   /**
    * Get user by ID
    */
   async findById(userId) {
-    const result = await pool.query(
-      'SELECT * FROM users WHERE id = $1',
-      [userId]
-    );
-    
+    const result = await pool.query('SELECT * FROM users WHERE id = $1', [
+      userId
+    ]);
+
     if (result.rows.length === 0) {
       return null;
     }
-    
+
     return result.rows[0];
   }
-  
+
   /**
    * Get user by email
    */
   async findByEmail(email) {
-    const result = await pool.query(
-      'SELECT * FROM users WHERE email = $1',
-      [email.toLowerCase()]
-    );
-    
+    const result = await pool.query('SELECT * FROM users WHERE email = $1', [
+      email.toLowerCase()
+    ]);
+
     if (result.rows.length === 0) {
       return null;
     }
-    
+
     return result.rows[0];
   }
-  
+
   /**
    * Update user metadata
    */
@@ -396,7 +422,7 @@ class EnhancedUserRepository {
       [JSON.stringify(metadata), userId]
     );
   }
-  
+
   /**
    * Get users requiring password change
    */
@@ -408,10 +434,10 @@ class EnhancedUserRepository {
        AND password_expires_at < CURRENT_TIMESTAMP
        AND is_active = true`
     );
-    
+
     return result.rows;
   }
-  
+
   /**
    * Get users with expiring passwords (for warnings)
    */
@@ -424,7 +450,7 @@ class EnhancedUserRepository {
        AND password_expires_at < CURRENT_TIMESTAMP + INTERVAL '${daysUntilExpiration} days'
        AND is_active = true`
     );
-    
+
     return result.rows;
   }
 }

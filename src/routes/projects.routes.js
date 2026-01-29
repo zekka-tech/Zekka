@@ -15,10 +15,15 @@
  */
 
 const express = require('express');
+
 const router = express.Router();
 const projectsController = require('../controllers/projects.controller');
 const projectSchemas = require('../schemas/projects.schema');
-const { validateBody, validateQuery, validateParams } = require('../middleware/validate');
+const {
+  validateBody,
+  validateQuery,
+  validateParams
+} = require('../middleware/validate');
 const { authenticate } = require('../middleware/auth');
 
 // Apply authentication to all project routes

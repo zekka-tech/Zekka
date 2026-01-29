@@ -13,13 +13,20 @@ class AgentsController {
    */
   async listAgents(req, res, next) {
     try {
-      const userId = req.user.userId;
-      const { projectId, status, limit = 20, offset = 0 } = req.query;
+      const { userId } = req.user;
+      const {
+        projectId, status, limit = 20, offset = 0
+      } = req.query;
 
       const filters = { status };
       const pagination = { limit: parseInt(limit), offset: parseInt(offset) };
 
-      const result = await agentService.listAgents(userId, projectId, filters, pagination);
+      const result = await agentService.listAgents(
+        userId,
+        projectId,
+        filters,
+        pagination
+      );
 
       res.status(200).json({
         success: true,
@@ -37,8 +44,10 @@ class AgentsController {
    */
   async createAgent(req, res, next) {
     try {
-      const userId = req.user.userId;
-      const { projectId, name, type, config, description } = req.body;
+      const { userId } = req.user;
+      const {
+        projectId, name, type, config, description
+      } = req.body;
 
       const agent = await agentService.createAgent(userId, {
         projectId,
@@ -64,7 +73,7 @@ class AgentsController {
    */
   async getAgent(req, res, next) {
     try {
-      const userId = req.user.userId;
+      const { userId } = req.user;
       const { id } = req.params;
 
       const agent = await agentService.getAgent(id, userId);
@@ -84,7 +93,7 @@ class AgentsController {
    */
   async updateAgent(req, res, next) {
     try {
-      const userId = req.user.userId;
+      const { userId } = req.user;
       const { id } = req.params;
       const updates = req.body;
 
@@ -106,7 +115,7 @@ class AgentsController {
    */
   async deleteAgent(req, res, next) {
     try {
-      const userId = req.user.userId;
+      const { userId } = req.user;
       const { id } = req.params;
 
       await agentService.deleteAgent(id, userId);
@@ -126,7 +135,7 @@ class AgentsController {
    */
   async startAgent(req, res, next) {
     try {
-      const userId = req.user.userId;
+      const { userId } = req.user;
       const { id } = req.params;
 
       const agent = await agentService.startAgent(id, userId);
@@ -147,7 +156,7 @@ class AgentsController {
    */
   async stopAgent(req, res, next) {
     try {
-      const userId = req.user.userId;
+      const { userId } = req.user;
       const { id } = req.params;
 
       const agent = await agentService.stopAgent(id, userId);
@@ -168,7 +177,7 @@ class AgentsController {
    */
   async getAgentActivity(req, res, next) {
     try {
-      const userId = req.user.userId;
+      const { userId } = req.user;
       const { id } = req.params;
       const { limit = 50, offset = 0 } = req.query;
 

@@ -1,9 +1,9 @@
 /**
  * Security Monitoring Service
  * ===========================
- * 
+ *
  * Real-time security monitoring and threat detection service.
- * 
+ *
  * Features:
  * - Real-time security event monitoring
  * - Threat detection and alerting
@@ -11,13 +11,14 @@
  * - Anomaly detection
  * - Incident response automation
  * - Security reporting
- * 
+ *
  * Compliance: OWASP, SOC 2, PCI DSS, GDPR
  */
 
 import pool from '../config/database.js';
 import redis from '../config/redis.js';
 import auditService from './audit-service.js';
+import logger from '../utils/logger.js';
 
 // Alert thresholds
 const THRESHOLDS = {
@@ -58,8 +59,8 @@ class SecurityMonitor {
    * Initialize security monitoring
    */
   async initialize() {
-    console.log('Security monitoring service initialized');
-    
+    logger.info('Security monitoring service initialized');
+
     // Start periodic monitoring tasks
     this.startPeriodicMonitoring();
   }
@@ -70,23 +71,17 @@ class SecurityMonitor {
   startPeriodicMonitoring() {
     // Check for security threats every minute
     setInterval(() => {
-      this.checkSecurityThreats().catch(err => 
-        console.error('Security threat check error:', err)
-      );
+      this.checkSecurityThreats().catch((err) => logger.error('Security threat check error:', err));
     }, 60000); // 1 minute
 
     // Generate security metrics every 5 minutes
     setInterval(() => {
-      this.updateSecurityMetrics().catch(err => 
-        console.error('Security metrics update error:', err)
-      );
+      this.updateSecurityMetrics().catch((err) => logger.error('Security metrics update error:', err));
     }, 300000); // 5 minutes
 
     // Check for expiring passwords daily
     setInterval(() => {
-      this.checkPasswordExpirations().catch(err => 
-        console.error('Password expiration check error:', err)
-      );
+      this.checkPasswordExpirations().catch((err) => logger.error('Password expiration check error:', err));
     }, 86400000); // 24 hours
   }
 
@@ -123,13 +118,14 @@ class SecurityMonitor {
             usernames: row.usernames,
             lastAttempt: row.last_attempt
           },
-          recommendedAction: 'Block IP address temporarily or investigate user accounts'
+          recommendedAction:
+            'Block IP address temporarily or investigate user accounts'
         });
       }
 
       return result.rows;
     } catch (error) {
-      console.error('Failed login monitoring error:', error);
+      logger.error('Failed login monitoring error:', error);
       throw error;
     }
   }
@@ -161,7 +157,7 @@ class SecurityMonitor {
         await this.createAlert({
           type: 'suspicious_activity',
           severity: threshold.severity,
-          title: `Multiple suspicious activities detected`,
+          title: 'Multiple suspicious activities detected',
           description: `${row.event_count} suspicious events from user ${row.username || 'unknown'} in ${threshold.windowMinutes} minutes`,
           metadata: {
             userId: row.user_id,
@@ -171,13 +167,14 @@ class SecurityMonitor {
             actions: row.actions,
             lastEvent: row.last_event
           },
-          recommendedAction: 'Investigate user activity and consider temporary account suspension'
+          recommendedAction:
+            'Investigate user activity and consider temporary account suspension'
         });
       }
 
       return result.rows;
     } catch (error) {
-      console.error('Suspicious activity monitoring error:', error);
+      logger.error('Suspicious activity monitoring error:', error);
       throw error;
     }
   }
@@ -209,7 +206,7 @@ class SecurityMonitor {
         await this.createAlert({
           type: 'unauthorized_access',
           severity: threshold.severity,
-          title: `Multiple unauthorized access attempts`,
+          title: 'Multiple unauthorized access attempts',
           description: `${row.attempt_count} unauthorized access attempts by ${row.username || 'unknown'} in ${threshold.windowMinutes} minutes`,
           metadata: {
             userId: row.user_id,
@@ -219,13 +216,14 @@ class SecurityMonitor {
             resourcesAccessed: row.resources_accessed,
             lastAttempt: row.last_attempt
           },
-          recommendedAction: 'Review user permissions and investigate potential privilege escalation'
+          recommendedAction:
+            'Review user permissions and investigate potential privilege escalation'
         });
       }
 
       return result.rows;
     } catch (error) {
-      console.error('Unauthorized access monitoring error:', error);
+      logger.error('Unauthorized access monitoring error:', error);
       throw error;
     }
   }
@@ -256,7 +254,7 @@ class SecurityMonitor {
         await this.createAlert({
           type: 'potential_data_exfiltration',
           severity: threshold.severity,
-          title: `Potential data exfiltration detected`,
+          title: 'Potential data exfiltration detected',
           description: `${row.export_count} data exports by ${row.username || 'unknown'} in ${threshold.windowMinutes} minutes`,
           metadata: {
             userId: row.user_id,
@@ -265,13 +263,14 @@ class SecurityMonitor {
             exportCount: row.export_count,
             lastExport: row.last_export
           },
-          recommendedAction: 'Immediately review exported data and consider suspending account'
+          recommendedAction:
+            'Immediately review exported data and consider suspending account'
         });
       }
 
       return result.rows;
     } catch (error) {
-      console.error('Data exfiltration monitoring error:', error);
+      logger.error('Data exfiltration monitoring error:', error);
       throw error;
     }
   }
@@ -289,9 +288,11 @@ class SecurityMonitor {
       ]);
 
       const totalThreats = results.reduce((sum, r) => sum + r.length, 0);
-      
+
       if (totalThreats > 0) {
-        console.log(`Security monitoring: ${totalThreats} potential threats detected`);
+        logger.info(
+          `Security monitoring: ${totalThreats} potential threats detected`
+        );
       }
 
       return {
@@ -303,7 +304,7 @@ class SecurityMonitor {
         total: totalThreats
       };
     } catch (error) {
-      console.error('Security threat check error:', error);
+      logger.error('Security threat check error:', error);
       throw error;
     }
   }
@@ -373,7 +374,7 @@ class SecurityMonitor {
 
       return alert;
     } catch (error) {
-      console.error('Alert creation error:', error);
+      logger.error('Alert creation error:', error);
       throw error;
     }
   }
@@ -386,7 +387,7 @@ class SecurityMonitor {
       try {
         await handler(alert);
       } catch (error) {
-        console.error('Alert handler error:', error);
+        logger.error('Alert handler error:', error);
       }
     }
   }
@@ -404,7 +405,7 @@ class SecurityMonitor {
   async getActiveAlerts(filters = {}) {
     try {
       const { severity, type, limit = 50 } = filters;
-      
+
       let query = `
         SELECT *
         FROM security_alerts
@@ -431,7 +432,7 @@ class SecurityMonitor {
       const result = await pool.query(query, values);
       return result.rows;
     } catch (error) {
-      console.error('Get active alerts error:', error);
+      logger.error('Get active alerts error:', error);
       throw error;
     }
   }
@@ -469,7 +470,7 @@ class SecurityMonitor {
 
       return result.rows[0];
     } catch (error) {
-      console.error('Alert acknowledgment error:', error);
+      logger.error('Alert acknowledgment error:', error);
       throw error;
     }
   }
@@ -507,7 +508,7 @@ class SecurityMonitor {
 
       return result.rows[0];
     } catch (error) {
-      console.error('Alert resolution error:', error);
+      logger.error('Alert resolution error:', error);
       throw error;
     }
   }
@@ -518,7 +519,7 @@ class SecurityMonitor {
   async getSecurityMetrics(timeRange = '24 hours') {
     try {
       const cacheKey = `security_metrics_${timeRange}`;
-      
+
       // Check cache
       const cached = this.metricsCache.get(cacheKey);
       if (cached && cached.expiresAt > Date.now()) {
@@ -542,7 +543,7 @@ class SecurityMonitor {
       `;
 
       const auditResult = await pool.query(query);
-      
+
       const alertsQuery = `
         SELECT 
           COUNT(*) as total_alerts,
@@ -569,12 +570,12 @@ class SecurityMonitor {
       // Cache for 5 minutes
       this.metricsCache.set(cacheKey, {
         data: metrics,
-        expiresAt: Date.now() + (5 * 60 * 1000)
+        expiresAt: Date.now() + 5 * 60 * 1000
       });
 
       return metrics;
     } catch (error) {
-      console.error('Get security metrics error:', error);
+      logger.error('Get security metrics error:', error);
       throw error;
     }
   }
@@ -597,7 +598,7 @@ class SecurityMonitor {
         healthStatus: this.calculateHealthStatus(metrics)
       };
     } catch (error) {
-      console.error('Get dashboard error:', error);
+      logger.error('Get dashboard error:', error);
       throw error;
     }
   }
@@ -690,7 +691,7 @@ class SecurityMonitor {
 
       return result.rows;
     } catch (error) {
-      console.error('Get recent security events error:', error);
+      logger.error('Get recent security events error:', error);
       throw error;
     }
   }
@@ -706,7 +707,7 @@ class SecurityMonitor {
       // Get fresh metrics
       const metrics = await this.getSecurityMetrics('24 hours');
 
-      console.log('Security metrics updated:', {
+      logger.info('Security metrics updated:', {
         total_events: metrics.audit.total_events,
         suspicious_events: metrics.audit.suspicious_events,
         active_alerts: metrics.alerts.open_alerts
@@ -714,7 +715,7 @@ class SecurityMonitor {
 
       return metrics;
     } catch (error) {
-      console.error('Update security metrics error:', error);
+      logger.error('Update security metrics error:', error);
       throw error;
     }
   }
@@ -748,8 +749,10 @@ class SecurityMonitor {
       const result = await pool.query(query);
 
       if (result.rows.length > 0) {
-        console.log(`Password expiration check: ${result.rows.length} users with expiring passwords`);
-        
+        logger.info(
+          `Password expiration check: ${result.rows.length} users with expiring passwords`
+        );
+
         // Create alert for expired passwords
         await this.createAlert({
           type: 'password_expiration_warning',
@@ -760,13 +763,14 @@ class SecurityMonitor {
             userCount: result.rows.length,
             users: result.rows.slice(0, 10) // First 10 users
           },
-          recommendedAction: 'Send password expiration notifications to affected users'
+          recommendedAction:
+            'Send password expiration notifications to affected users'
         });
       }
 
       return result.rows;
     } catch (error) {
-      console.error('Password expiration check error:', error);
+      logger.error('Password expiration check error:', error);
       throw error;
     }
   }
@@ -801,10 +805,22 @@ class SecurityMonitor {
         },
         summary: {
           total_days: result.rows.length,
-          total_events: result.rows.reduce((sum, row) => sum + parseInt(row.total_events), 0),
-          total_suspicious: result.rows.reduce((sum, row) => sum + parseInt(row.suspicious_events), 0),
-          total_high_risk: result.rows.reduce((sum, row) => sum + parseInt(row.high_risk_events), 0),
-          total_critical_risk: result.rows.reduce((sum, row) => sum + parseInt(row.critical_risk_events), 0)
+          total_events: result.rows.reduce(
+            (sum, row) => sum + parseInt(row.total_events),
+            0
+          ),
+          total_suspicious: result.rows.reduce(
+            (sum, row) => sum + parseInt(row.suspicious_events),
+            0
+          ),
+          total_high_risk: result.rows.reduce(
+            (sum, row) => sum + parseInt(row.high_risk_events),
+            0
+          ),
+          total_critical_risk: result.rows.reduce(
+            (sum, row) => sum + parseInt(row.critical_risk_events),
+            0
+          )
         },
         daily: result.rows,
         generated_at: new Date()
@@ -816,7 +832,7 @@ class SecurityMonitor {
 
       return report;
     } catch (error) {
-      console.error('Generate report error:', error);
+      logger.error('Generate report error:', error);
       throw error;
     }
   }
@@ -825,8 +841,17 @@ class SecurityMonitor {
    * Convert report to CSV
    */
   convertReportToCSV(report) {
-    const headers = ['Date', 'Total Events', 'Failed Events', 'Suspicious Events', 'High Risk', 'Critical Risk', 'Unique Users', 'Unique IPs'];
-    const rows = report.daily.map(row => [
+    const headers = [
+      'Date',
+      'Total Events',
+      'Failed Events',
+      'Suspicious Events',
+      'High Risk',
+      'Critical Risk',
+      'Unique Users',
+      'Unique IPs'
+    ];
+    const rows = report.daily.map((row) => [
       row.date,
       row.total_events,
       row.failed_events,
@@ -837,10 +862,7 @@ class SecurityMonitor {
       row.unique_ips
     ]);
 
-    return [
-      headers.join(','),
-      ...rows.map(row => row.join(','))
-    ].join('\n');
+    return [headers.join(','), ...rows.map((row) => row.join(','))].join('\n');
   }
 }
 

@@ -1,6 +1,6 @@
 /**
  * Custom Error Classes
- * 
+ *
  * SECURITY FIX: Phase 1 & 3 - Proper error handling
  */
 

@@ -1,7 +1,7 @@
 /**
  * API Versioning Middleware
  * ==========================
- * 
+ *
  * Comprehensive API versioning system supporting:
  * - URL-based versioning (/api/v1/users, /api/v2/users)
  * - Header-based versioning (Accept-Version: v1)
@@ -9,7 +9,7 @@
  * - Automatic deprecation warnings
  * - Version migration support
  * - Backward compatibility
- * 
+ *
  * Industry Standards:
  * - Semantic Versioning (SemVer)
  * - API Blueprint specification
@@ -17,6 +17,7 @@
  */
 
 import auditService from '../services/audit-service.js';
+import logger from '../utils/logger.js';
 
 // Supported API versions
 const SUPPORTED_VERSIONS = ['v1', 'v2'];
@@ -30,13 +31,14 @@ const VERSION_DEPRECATION = {
     deprecatedAt: '2026-01-01',
     sunsetAt: '2026-06-01',
     replacement: 'v2',
-    message: 'API v1 is deprecated and will be removed on June 1, 2026. Please migrate to v2.'
+    message:
+      'API v1 is deprecated and will be removed on June 1, 2026. Please migrate to v2.'
   }
 };
 
 /**
  * Extract API version from request
- * 
+ *
  * Priority:
  * 1. URL path (/api/v1/...)
  * 2. Accept-Version header
@@ -60,7 +62,9 @@ export const extractVersion = (req) => {
   // 3. Check Accept header with vendor media type
   const acceptHeader = req.get('Accept');
   if (acceptHeader) {
-    const vendorMatch = acceptHeader.match(/application\/vnd\.zekka\.(v\d+)\+json/);
+    const vendorMatch = acceptHeader.match(
+      /application\/vnd\.zekka\.(v\d+)\+json/
+    );
     if (vendorMatch && SUPPORTED_VERSIONS.includes(vendorMatch[1])) {
       return vendorMatch[1];
     }
@@ -93,16 +97,12 @@ export const validateVersion = (version) => {
 /**
  * Check if version is deprecated
  */
-export const isDeprecated = (version) => {
-  return DEPRECATED_VERSIONS.includes(version);
-};
+export const isDeprecated = (version) => DEPRECATED_VERSIONS.includes(version);
 
 /**
  * Get deprecation info for version
  */
-export const getDeprecationInfo = (version) => {
-  return VERSION_DEPRECATION[version] || null;
-};
+export const getDeprecationInfo = (version) => VERSION_DEPRECATION[version] || null;
 
 /**
  * Calculate days until sunset
@@ -121,7 +121,7 @@ export const daysUntilSunset = (version) => {
 
 /**
  * API Versioning Middleware
- * 
+ *
  * Attaches version information to request object and
  * adds deprecation warnings to response headers
  */
@@ -158,7 +158,10 @@ export const apiVersioning = async (req, res, next) => {
       res.setHeader('X-API-Deprecated', 'true');
       res.setHeader('X-API-Sunset-Date', deprecationInfo.sunsetAt);
       res.setHeader('X-API-Replacement-Version', deprecationInfo.replacement);
-      res.setHeader('Warning', `299 - "API ${version} is deprecated. ${deprecationInfo.message}"`);
+      res.setHeader(
+        'Warning',
+        `299 - "API ${version} is deprecated. ${deprecationInfo.message}"`
+      );
 
       // Log deprecation warning
       await auditService.log({
@@ -181,7 +184,7 @@ export const apiVersioning = async (req, res, next) => {
 
       // Add deprecation warning to response
       const originalJson = res.json;
-      res.json = function(data) {
+      res.json = function (data) {
         if (typeof data === 'object' && data !== null) {
           data._deprecation = {
             version,
@@ -198,7 +201,7 @@ export const apiVersioning = async (req, res, next) => {
 
     next();
   } catch (error) {
-    console.error('API versioning error:', error);
+    logger.error('API versioning error:', error);
     res.status(500).json({
       success: false,
       error: 'API versioning failed'
@@ -208,46 +211,47 @@ export const apiVersioning = async (req, res, next) => {
 
 /**
  * Version-specific route handler wrapper
- * 
+ *
  * Usage:
  * app.get('/api/users', versionHandler({
  *   v1: async (req, res) => { ... },
  *   v2: async (req, res) => { ... }
  * }));
  */
-export const versionHandler = (handlers) => {
-  return async (req, res, next) => {
-    const version = req.apiVersion || DEFAULT_VERSION;
-    const handler = handlers[version];
+export const versionHandler = (handlers) => async (req, res, next) => {
+  const version = req.apiVersion || DEFAULT_VERSION;
+  const handler = handlers[version];
 
-    if (!handler) {
-      return res.status(501).json({
-        success: false,
-        error: `Endpoint not implemented for API version ${version}`,
-        supportedVersions: Object.keys(handlers)
-      });
-    }
+  if (!handler) {
+    return res.status(501).json({
+      success: false,
+      error: `Endpoint not implemented for API version ${version}`,
+      supportedVersions: Object.keys(handlers)
+    });
+  }
 
-    try {
-      await handler(req, res, next);
-    } catch (error) {
-      next(error);
-    }
-  };
+  try {
+    await handler(req, res, next);
+  } catch (error) {
+    next(error);
+  }
 };
 
 /**
  * API version upgrade checker
- * 
+ *
  * Suggests upgrades when new versions are available
  */
 export const suggestUpgrade = (req, res, next) => {
   const currentVersion = req.apiVersion || DEFAULT_VERSION;
-  
+
   if (currentVersion !== LATEST_VERSION) {
     res.setHeader('X-API-Upgrade-Available', 'true');
     res.setHeader('X-API-Upgrade-To', LATEST_VERSION);
-    res.setHeader('Link', `<https://docs.zekka.ai/api/${LATEST_VERSION}>; rel="upgrade"`);
+    res.setHeader(
+      'Link',
+      `<https://docs.zekka.ai/api/${LATEST_VERSION}>; rel="upgrade"`
+    );
   }
 
   next();
@@ -255,7 +259,7 @@ export const suggestUpgrade = (req, res, next) => {
 
 /**
  * API version compatibility middleware
- * 
+ *
  * Transforms responses to maintain backward compatibility
  */
 export const ensureCompatibility = (req, res, next) => {
@@ -264,7 +268,7 @@ export const ensureCompatibility = (req, res, next) => {
   if (version === 'v1') {
     // Intercept JSON responses and transform for v1 compatibility
     const originalJson = res.json;
-    res.json = function(data) {
+    res.json = function (data) {
       // Transform v2 response format to v1 format
       if (typeof data === 'object' && data !== null) {
         // Example: v2 uses 'data' wrapper, v1 doesn't
@@ -286,25 +290,23 @@ export const ensureCompatibility = (req, res, next) => {
 /**
  * Get API version info
  */
-export const getVersionInfo = () => {
-  return {
-    supportedVersions: SUPPORTED_VERSIONS,
-    latestVersion: LATEST_VERSION,
-    defaultVersion: DEFAULT_VERSION,
-    deprecatedVersions: DEPRECATED_VERSIONS.map(v => ({
-      version: v,
-      ...getDeprecationInfo(v),
-      daysUntilSunset: daysUntilSunset(v)
-    }))
-  };
-};
+export const getVersionInfo = () => ({
+  supportedVersions: SUPPORTED_VERSIONS,
+  latestVersion: LATEST_VERSION,
+  defaultVersion: DEFAULT_VERSION,
+  deprecatedVersions: DEPRECATED_VERSIONS.map((v) => ({
+    version: v,
+    ...getDeprecationInfo(v),
+    daysUntilSunset: daysUntilSunset(v)
+  }))
+});
 
 /**
  * API version documentation endpoint
  */
 export const versionDocsHandler = (req, res) => {
   const versionInfo = getVersionInfo();
-  
+
   res.json({
     success: true,
     apiName: 'Zekka Framework API',

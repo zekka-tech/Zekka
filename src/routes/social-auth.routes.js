@@ -1,10 +1,10 @@
 /**
  * Phase 6A: Social Authentication Routes
- * 
+ *
  * Provides authentication endpoints for:
  * - WhatsApp Business API
  * - Telegram Bot API
- * 
+ *
  * Features:
  * - OAuth-style authentication flows
  * - OTP (One-Time Password) verification
@@ -14,11 +14,12 @@
  */
 
 const express = require('express');
+
 const router = express.Router();
+const crypto = require('crypto');
 const { Phase6AIntegrations } = require('../integrations/phase6a-integrations');
 const { AuthService } = require('../services/auth.service');
 const { AuditLogger } = require('../utils/audit-logger');
-const crypto = require('crypto');
 
 const integrations = new Phase6AIntegrations();
 const authService = new AuthService();
@@ -45,7 +46,7 @@ router.post('/whatsapp/request-otp', async (req, res) => {
 
     // Generate 6-digit OTP
     const otp = crypto.randomInt(100000, 999999).toString();
-    
+
     // Store OTP with expiration (5 minutes)
     const otpKey = `whatsapp:otp:${phoneNumber}`;
     await req.app.locals.cache.set(otpKey, otp, 300);
@@ -76,10 +77,9 @@ router.post('/whatsapp/request-otp', async (req, res) => {
       message: 'OTP sent via WhatsApp',
       expiresIn: 300 // seconds
     });
-
   } catch (error) {
     console.error('WhatsApp OTP request error:', error);
-    
+
     await auditLogger.log({
       category: 'auth',
       action: 'whatsapp_otp_error',
@@ -141,7 +141,7 @@ router.post('/whatsapp/verify-otp', async (req, res) => {
 
     // Find or create user
     let user = await authService.findUserByPhone(phoneNumber);
-    
+
     if (!user) {
       user = await authService.createUser({
         phone: phoneNumber,
@@ -178,10 +178,9 @@ router.post('/whatsapp/verify-otp', async (req, res) => {
         expiresAt: session.expiresAt
       }
     });
-
   } catch (error) {
     console.error('WhatsApp OTP verification error:', error);
-    
+
     await auditLogger.log({
       category: 'auth',
       action: 'whatsapp_verify_error',
@@ -208,7 +207,7 @@ router.post('/whatsapp/verify-otp', async (req, res) => {
 router.post('/telegram/generate-auth-link', async (req, res) => {
   try {
     const botUsername = process.env.TELEGRAM_BOT_USERNAME;
-    
+
     if (!botUsername) {
       return res.status(500).json({
         success: false,
@@ -218,7 +217,7 @@ router.post('/telegram/generate-auth-link', async (req, res) => {
 
     // Generate unique auth request ID
     const authRequestId = crypto.randomBytes(16).toString('hex');
-    
+
     // Store auth request with expiration (10 minutes)
     await req.app.locals.cache.set(
       `telegram:auth:${authRequestId}`,
@@ -242,9 +241,9 @@ router.post('/telegram/generate-auth-link', async (req, res) => {
       authLink,
       authRequestId,
       expiresIn: 600,
-      instructions: 'Click the link and start the bot to complete authentication'
+      instructions:
+        'Click the link and start the bot to complete authentication'
     });
-
   } catch (error) {
     console.error('Telegram auth link generation error:', error);
     res.status(500).json({
@@ -265,20 +264,20 @@ router.post('/telegram/webhook', async (req, res) => {
     // Verify webhook signature
     const secret = process.env.TELEGRAM_WEBHOOK_SECRET;
     const signature = req.headers['x-telegram-bot-api-secret-token'];
-    
+
     if (secret && signature !== secret) {
       return res.status(403).json({ error: 'Invalid signature' });
     }
 
     // Handle /start command with auth parameter
     if (update.message && update.message.text) {
-      const text = update.message.text;
+      const { text } = update.message;
       const chatId = update.message.chat.id;
       const user = update.message.from;
 
       // Check if this is an auth request
       const authMatch = text.match(/^\/start auth_([a-f0-9]{32})$/);
-      
+
       if (authMatch) {
         const authRequestId = authMatch[1];
         const authKey = `telegram:auth:${authRequestId}`;
@@ -328,7 +327,6 @@ router.post('/telegram/webhook', async (req, res) => {
     }
 
     res.json({ ok: true });
-
   } catch (error) {
     console.error('Telegram webhook error:', error);
     res.status(500).json({ error: 'Webhook processing failed' });
@@ -370,9 +368,9 @@ router.post('/telegram/check-auth', async (req, res) => {
     }
 
     // Create or find user
-    const telegramUser = authRequest.telegramUser;
+    const { telegramUser } = authRequest;
     let user = await authService.findUserByTelegramId(telegramUser.id);
-    
+
     if (!user) {
       user = await authService.createUser({
         telegramId: telegramUser.id,
@@ -421,10 +419,9 @@ router.post('/telegram/check-auth', async (req, res) => {
         expiresAt: session.expiresAt
       }
     });
-
   } catch (error) {
     console.error('Telegram auth check error:', error);
-    
+
     await auditLogger.log({
       category: 'auth',
       action: 'telegram_check_error',
@@ -451,7 +448,7 @@ router.post('/telegram/check-auth', async (req, res) => {
 router.get('/social/health', async (req, res) => {
   try {
     const health = await integrations.healthCheck();
-    
+
     res.json({
       success: true,
       services: {
@@ -460,7 +457,6 @@ router.get('/social/health', async (req, res) => {
       },
       timestamp: new Date().toISOString()
     });
-
   } catch (error) {
     console.error('Social auth health check error:', error);
     res.status(500).json({

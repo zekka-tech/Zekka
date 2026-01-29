@@ -1,6 +1,6 @@
 /**
  * Authentication Middleware - SECURE VERSION
- * 
+ *
  * SECURITY FIXES:
  * - Phase 1: No default JWT secret (CRITICAL FIX)
  * - Phase 1: Database user storage instead of memory (CRITICAL FIX)
@@ -13,11 +13,12 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const config = require('../config');
 const UserRepository = require('../repositories/user.repository');
-const { 
-  AuthenticationError, 
+const {
+  AuthenticationError,
   ValidationError,
-  RateLimitError 
+  RateLimitError
 } = require('../utils/errors');
+const logger = require('../utils/logger');
 
 // Initialize user repository
 const userRepository = new UserRepository();
@@ -48,23 +49,28 @@ async function verifyPassword(password, hash) {
  */
 function validatePassword(password) {
   const errors = [];
-  
+
   if (password.length < config.password.minLength) {
-    errors.push(`Password must be at least ${config.password.minLength} characters`);
+    errors.push(
+      `Password must be at least ${config.password.minLength} characters`
+    );
   }
-  
+
   if (config.password.requireUppercase && !/[A-Z]/.test(password)) {
     errors.push('Password must contain at least one uppercase letter');
   }
-  
+
   if (config.password.requireNumbers && !/\d/.test(password)) {
     errors.push('Password must contain at least one number');
   }
-  
-  if (config.password.requireSpecial && !/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
+
+  if (
+    config.password.requireSpecial
+    && !/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)
+  ) {
     errors.push('Password must contain at least one special character');
   }
-  
+
   return {
     valid: errors.length === 0,
     errors,
@@ -77,7 +83,7 @@ function validatePassword(password) {
  */
 function calculatePasswordStrength(password) {
   let strength = 0;
-  
+
   if (password.length >= 8) strength += 20;
   if (password.length >= 12) strength += 20;
   if (password.length >= 16) strength += 10;
@@ -85,7 +91,7 @@ function calculatePasswordStrength(password) {
   if (/[A-Z]/.test(password)) strength += 10;
   if (/\d/.test(password)) strength += 10;
   if (/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) strength += 20;
-  
+
   if (strength < 40) return 'weak';
   if (strength < 70) return 'medium';
   return 'strong';
@@ -97,8 +103,8 @@ function calculatePasswordStrength(password) {
  */
 function generateToken(userId, email) {
   return jwt.sign(
-    { 
-      userId, 
+    {
+      userId,
       email,
       iat: Math.floor(Date.now() / 1000)
     },
@@ -124,18 +130,24 @@ function verifyToken(token) {
  */
 function authenticate(req, res, next) {
   const authHeader = req.headers.authorization;
-  
+
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return next(new AuthenticationError('Authentication required. Please provide a valid Bearer token in Authorization header'));
+    return next(
+      new AuthenticationError(
+        'Authentication required. Please provide a valid Bearer token in Authorization header'
+      )
+    );
   }
-  
+
   const token = authHeader.substring(7);
   const decoded = verifyToken(token);
-  
+
   if (!decoded) {
-    return next(new AuthenticationError('Invalid or expired token. Please login again'));
+    return next(
+      new AuthenticationError('Invalid or expired token. Please login again')
+    );
   }
-  
+
   req.user = decoded;
   next();
 }
@@ -145,7 +157,7 @@ function authenticate(req, res, next) {
  */
 function optionalAuth(req, res, next) {
   const authHeader = req.headers.authorization;
-  
+
   if (authHeader && authHeader.startsWith('Bearer ')) {
     const token = authHeader.substring(7);
     const decoded = verifyToken(token);
@@ -153,7 +165,7 @@ function optionalAuth(req, res, next) {
       req.user = decoded;
     }
   }
-  
+
   next();
 }
 
@@ -171,24 +183,24 @@ async function register(email, password, name) {
       strength: passwordValidation.strength
     });
   }
-  
+
   // Hash password
   const passwordHash = await hashPassword(password);
-  
+
   // Create user in database
   const user = await userRepository.create({
     email,
     passwordHash,
     name
   });
-  
+
   // Log audit event
   logAuditEvent('user.registered', {
     userId: user.id,
     email: user.email,
     timestamp: new Date().toISOString()
   });
-  
+
   return {
     userId: user.id,
     email: user.email,
@@ -212,12 +224,14 @@ async function login(email, password, ip = 'unknown') {
       ip,
       timestamp: new Date().toISOString()
     });
-    throw new RateLimitError('Account temporarily locked due to too many failed login attempts. Please try again later.');
+    throw new RateLimitError(
+      'Account temporarily locked due to too many failed login attempts. Please try again later.'
+    );
   }
-  
+
   // Find user
   const user = await userRepository.findByEmail(email);
-  
+
   if (!user) {
     // Don't reveal if user exists
     logAuditEvent('auth.failed', {
@@ -228,14 +242,14 @@ async function login(email, password, ip = 'unknown') {
     });
     throw new AuthenticationError('Invalid credentials');
   }
-  
+
   // Verify password
   const isValid = await verifyPassword(password, user.password_hash);
-  
+
   if (!isValid) {
     // Increment failed attempts
     const attempts = await userRepository.incrementFailedAttempts(email);
-    
+
     logAuditEvent('auth.failed', {
       email,
       reason: 'invalid_password',
@@ -243,20 +257,22 @@ async function login(email, password, ip = 'unknown') {
       ip,
       timestamp: new Date().toISOString()
     });
-    
+
     if (attempts.locked_until) {
-      throw new RateLimitError('Too many failed login attempts. Account locked for 15 minutes.');
+      throw new RateLimitError(
+        'Too many failed login attempts. Account locked for 15 minutes.'
+      );
     }
-    
+
     throw new AuthenticationError('Invalid credentials');
   }
-  
+
   // Reset failed attempts on successful login
   await userRepository.resetFailedAttempts(email);
-  
+
   // Generate token
   const token = generateToken(user.id, user.email);
-  
+
   // Log successful login
   logAuditEvent('auth.success', {
     userId: user.id,
@@ -264,7 +280,7 @@ async function login(email, password, ip = 'unknown') {
     ip,
     timestamp: new Date().toISOString()
   });
-  
+
   return {
     token,
     expiresIn: JWT_EXPIRATION,
@@ -295,10 +311,10 @@ function logAuditEvent(event, details) {
     ...details,
     timestamp: new Date().toISOString()
   };
-  
+
   // Log to console (in production, send to audit log service)
-  console.log('🔒 AUDIT:', JSON.stringify(auditLog));
-  
+  logger.info('🔒 AUDIT:', JSON.stringify(auditLog));
+
   // TODO: Send to dedicated audit logging service (ELK, Splunk, etc.)
 }
 

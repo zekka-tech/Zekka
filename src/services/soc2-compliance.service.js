@@ -1,14 +1,14 @@
 /**
  * SOC 2 Compliance Service
  * =========================
- * 
+ *
  * Comprehensive SOC 2 compliance implementation covering:
  * - Security (CC6)
  * - Availability (A1)
  * - Processing Integrity (PI1)
  * - Confidentiality (C1)
  * - Privacy (P1)
- * 
+ *
  * Trust Service Criteria:
  * - CC1: Control Environment
  * - CC2: Communication and Information
@@ -19,7 +19,7 @@
  * - CC7: System Operations
  * - CC8: Change Management
  * - CC9: Risk Mitigation
- * 
+ *
  * Compliance Standards:
  * - AICPA TSC (Trust Services Criteria)
  * - SOC 2 Type II
@@ -28,11 +28,12 @@
 import pool from '../config/database.js';
 import auditService from './audit-service.js';
 import securityMonitor from './security-monitor.js';
+import logger from '../utils/logger.js';
 
 class SOC2ComplianceService {
   /**
    * CC6: Security - Access Controls
-   * 
+   *
    * Monitor and audit access control effectiveness
    */
   async auditAccessControls() {
@@ -71,9 +72,13 @@ class SOC2ComplianceService {
         category: 'CC6 - Security',
         metrics: {
           failedLoginAttempts: parseInt(failedLogins.rows[0].count),
-          unauthorizedAccessAttempts: parseInt(unauthorizedAccess.rows[0].count),
-          mfaAdoptionRate: (parseInt(mfaUsers.rows[0].count) / parseInt(totalUsers.rows[0].count) * 100).toFixed(2) + '%',
-          privilegeEscalationAttempts: parseInt(privilegeEscalation.rows[0].count)
+          unauthorizedAccessAttempts: parseInt(
+            unauthorizedAccess.rows[0].count
+          ),
+          mfaAdoptionRate: `${((parseInt(mfaUsers.rows[0].count) / parseInt(totalUsers.rows[0].count)) * 100).toFixed(2)}%`,
+          privilegeEscalationAttempts: parseInt(
+            privilegeEscalation.rows[0].count
+          )
         },
         compliance: {
           accessControlsImplemented: true,
@@ -83,19 +88,22 @@ class SOC2ComplianceService {
           passwordPolicies: true
         },
         recommendations: this.getAccessControlRecommendations({
-          mfaAdoptionRate: parseInt(mfaUsers.rows[0].count) / parseInt(totalUsers.rows[0].count) * 100,
+          mfaAdoptionRate:
+            (parseInt(mfaUsers.rows[0].count)
+              / parseInt(totalUsers.rows[0].count))
+            * 100,
           failedLogins: parseInt(failedLogins.rows[0].count)
         })
       };
     } catch (error) {
-      console.error('Access control audit error:', error);
+      logger.error('Access control audit error:', error);
       throw error;
     }
   }
 
   /**
    * A1: Availability
-   * 
+   *
    * Monitor system availability and uptime
    */
   async auditAvailability() {
@@ -117,46 +125,50 @@ class SOC2ComplianceService {
       );
 
       const errorRate = parseInt(totalRequests.rows[0].count) > 0
-        ? (parseInt(errors.rows[0].count) / parseInt(totalRequests.rows[0].count) * 100).toFixed(2)
+        ? (
+          (parseInt(errors.rows[0].count)
+                / parseInt(totalRequests.rows[0].count))
+              * 100
+        ).toFixed(2)
         : 0;
 
       // Circuit breaker status
       const circuitBreakers = {
         total: 82,
-        open: 0,  // Would query from circuit breaker service
+        open: 0, // Would query from circuit breaker service
         closed: 82
       };
 
       return {
         category: 'A1 - Availability',
         metrics: {
-          systemUptime: uptimeHours + ' hours',
-          errorRate: errorRate + '%',
+          systemUptime: `${uptimeHours} hours`,
+          errorRate: `${errorRate}%`,
           circuitBreakers,
           targetAvailability: '99.9%',
-          actualAvailability: (100 - parseFloat(errorRate)).toFixed(2) + '%'
+          actualAvailability: `${(100 - parseFloat(errorRate)).toFixed(2)}%`
         },
         compliance: {
           redundancyImplemented: true,
-          loadBalancingEnabled: false,  // Would be true in production
+          loadBalancingEnabled: false, // Would be true in production
           backupSystemsAvailable: true,
           disasterRecoveryPlan: true,
           monitoringEnabled: true
         },
         recommendations: this.getAvailabilityRecommendations({
           errorRate: parseFloat(errorRate),
-          uptime: uptime
+          uptime
         })
       };
     } catch (error) {
-      console.error('Availability audit error:', error);
+      logger.error('Availability audit error:', error);
       throw error;
     }
   }
 
   /**
    * PI1: Processing Integrity
-   * 
+   *
    * Verify data processing accuracy and completeness
    */
   async auditProcessingIntegrity() {
@@ -205,14 +217,14 @@ class SOC2ComplianceService {
         })
       };
     } catch (error) {
-      console.error('Processing integrity audit error:', error);
+      logger.error('Processing integrity audit error:', error);
       throw error;
     }
   }
 
   /**
    * C1: Confidentiality
-   * 
+   *
    * Verify data confidentiality measures
    */
   async auditConfidentiality() {
@@ -241,7 +253,9 @@ class SOC2ComplianceService {
         metrics: {
           encryptionKeys: encryptionKeys.rows,
           dataExports: parseInt(dataExports.rows[0].count),
-          unauthorizedDataAccess: parseInt(unauthorizedDataAccess.rows[0].count)
+          unauthorizedDataAccess: parseInt(
+            unauthorizedDataAccess.rows[0].count
+          )
         },
         compliance: {
           dataEncryption: true,
@@ -256,14 +270,14 @@ class SOC2ComplianceService {
         })
       };
     } catch (error) {
-      console.error('Confidentiality audit error:', error);
+      logger.error('Confidentiality audit error:', error);
       throw error;
     }
   }
 
   /**
    * P1: Privacy
-   * 
+   *
    * Verify privacy controls and compliance
    */
   async auditPrivacy() {
@@ -307,7 +321,7 @@ class SOC2ComplianceService {
         })
       };
     } catch (error) {
-      console.error('Privacy audit error:', error);
+      logger.error('Privacy audit error:', error);
       throw error;
     }
   }
@@ -332,16 +346,17 @@ class SOC2ComplianceService {
       ]);
 
       const report = {
-        reportType,  // 'type1' or 'type2'
+        reportType, // 'type1' or 'type2'
         generatedAt: new Date().toISOString(),
         reportPeriod: {
-          start: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString(),  // 1 year ago
+          start: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString(), // 1 year ago
           end: new Date().toISOString()
         },
         organization: {
           name: 'Zekka Framework',
           description: 'Enterprise AI Orchestration Platform',
-          systemDescription: 'Cloud-based AI agent orchestration with 95 integrated tools'
+          systemDescription:
+            'Cloud-based AI agent orchestration with 95 integrated tools'
         },
         trustServicesCriteria: {
           security: accessControls,
@@ -356,21 +371,21 @@ class SOC2ComplianceService {
           integrityScore: this.calculateComplianceScore(processingIntegrity),
           confidentialityScore: this.calculateComplianceScore(confidentiality),
           privacyScore: this.calculateComplianceScore(privacy),
-          overallScore: 0  // Calculated below
+          overallScore: 0 // Calculated below
         },
         controlsImplemented: this.getImplementedControls(),
-        auditorOpinion: 'Unqualified Opinion',  // Would be set by auditor
-        managementAssertion: 'Management asserts that controls are suitably designed and operating effectively'
+        auditorOpinion: 'Unqualified Opinion', // Would be set by auditor
+        managementAssertion:
+          'Management asserts that controls are suitably designed and operating effectively'
       };
 
       // Calculate overall score
-      report.overallCompliance.overallScore = (
-        report.overallCompliance.securityScore +
-        report.overallCompliance.availabilityScore +
-        report.overallCompliance.integrityScore +
-        report.overallCompliance.confidentialityScore +
-        report.overallCompliance.privacyScore
-      ) / 5;
+      report.overallCompliance.overallScore = (report.overallCompliance.securityScore
+          + report.overallCompliance.availabilityScore
+          + report.overallCompliance.integrityScore
+          + report.overallCompliance.confidentialityScore
+          + report.overallCompliance.privacyScore)
+        / 5;
 
       // Log audit report generation
       await auditService.log({
@@ -383,7 +398,7 @@ class SOC2ComplianceService {
 
       return report;
     } catch (error) {
-      console.error('SOC 2 report generation error:', error);
+      logger.error('SOC 2 report generation error:', error);
       throw error;
     }
   }
@@ -393,7 +408,9 @@ class SOC2ComplianceService {
    */
   calculateComplianceScore(audit) {
     const totalControls = Object.keys(audit.compliance).length;
-    const implementedControls = Object.values(audit.compliance).filter(v => v === true).length;
+    const implementedControls = Object.values(audit.compliance).filter(
+      (v) => v === true
+    ).length;
     return Math.round((implementedControls / totalControls) * 100);
   }
 
@@ -435,7 +452,8 @@ class SOC2ComplianceService {
       recommendations.push({
         priority: 'medium',
         control: 'CC6.1',
-        recommendation: 'High number of failed logins detected - review password policies'
+        recommendation:
+          'High number of failed logins detected - review password policies'
       });
     }
 
@@ -469,7 +487,8 @@ class SOC2ComplianceService {
       recommendations.push({
         priority: 'medium',
         control: 'PI1.1',
-        recommendation: 'High validation error rate - review input validation rules'
+        recommendation:
+          'High validation error rate - review input validation rules'
       });
     }
 
@@ -486,7 +505,8 @@ class SOC2ComplianceService {
       recommendations.push({
         priority: 'critical',
         control: 'C1.2',
-        recommendation: 'Unauthorized data access detected - immediate investigation required'
+        recommendation:
+          'Unauthorized data access detected - immediate investigation required'
       });
     }
 
@@ -503,7 +523,8 @@ class SOC2ComplianceService {
       recommendations.push({
         priority: 'medium',
         control: 'P1.2',
-        recommendation: 'High number of data deletion requests - review data retention policies'
+        recommendation:
+          'High number of data deletion requests - review data retention policies'
       });
     }
 

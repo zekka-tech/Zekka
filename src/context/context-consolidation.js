@@ -44,9 +44,10 @@ class ContextConsolidation extends EventEmitter {
         timestamp: new Date().toISOString()
       });
 
-      this.logger.info('[Context] Context consolidation initialized successfully');
+      this.logger.info(
+        '[Context] Context consolidation initialized successfully'
+      );
       return true;
-
     } catch (error) {
       this.logger.error('[Context] Failed to initialize:', error);
       throw error;
@@ -117,9 +118,13 @@ class ContextConsolidation extends EventEmitter {
       } else if (key === 'workflow') {
         context.data.workflow = { ...context.data.workflow, ...value };
       } else if (key === 'decisions') {
-        context.data.decisions.push(...(Array.isArray(value) ? value : [value]));
+        context.data.decisions.push(
+          ...(Array.isArray(value) ? value : [value])
+        );
       } else if (key === 'artifacts') {
-        context.data.artifacts.push(...(Array.isArray(value) ? value : [value]));
+        context.data.artifacts.push(
+          ...(Array.isArray(value) ? value : [value])
+        );
       } else {
         context.data[key] = value;
       }
@@ -154,7 +159,9 @@ class ContextConsolidation extends EventEmitter {
    * Consolidate context - compress, deduplicate, and optimize
    */
   async consolidate(projectId) {
-    this.logger.info(`[Context] Consolidating context for project: ${projectId}`);
+    this.logger.info(
+      `[Context] Consolidating context for project: ${projectId}`
+    );
 
     const context = this.contexts.get(projectId);
     if (!context) {
@@ -172,7 +179,9 @@ class ContextConsolidation extends EventEmitter {
     try {
       // 1. Deduplicate decisions
       const beforeDecisions = context.data.decisions.length;
-      context.data.decisions = this.deduplicateDecisions(context.data.decisions);
+      context.data.decisions = this.deduplicateDecisions(
+        context.data.decisions
+      );
       const afterDecisions = context.data.decisions.length;
       if (beforeDecisions !== afterDecisions) {
         consolidation.operations.push({
@@ -201,10 +210,12 @@ class ContextConsolidation extends EventEmitter {
       }
 
       // 3. Archive old artifacts
-      const oldArtifacts = context.data.artifacts.filter(a => this.isOldArtifact(a));
+      const oldArtifacts = context.data.artifacts.filter((a) => this.isOldArtifact(a));
       if (oldArtifacts.length > 0) {
         const archived = await this.archiveArtifacts(projectId, oldArtifacts);
-        context.data.artifacts = context.data.artifacts.filter(a => !this.isOldArtifact(a));
+        context.data.artifacts = context.data.artifacts.filter(
+          (a) => !this.isOldArtifact(a)
+        );
         consolidation.operations.push({
           type: 'archive',
           target: 'artifacts',
@@ -227,7 +238,7 @@ class ContextConsolidation extends EventEmitter {
       context.updatedAt = new Date().toISOString();
 
       consolidation.afterSize = afterSize;
-      consolidation.reduction = ((beforeSize - afterSize) / beforeSize * 100).toFixed(2) + '%';
+      consolidation.reduction = `${(((beforeSize - afterSize) / beforeSize) * 100).toFixed(2)}%`;
 
       // Store consolidation record
       this.consolidationHistory.push(consolidation);
@@ -240,12 +251,16 @@ class ContextConsolidation extends EventEmitter {
         timestamp: consolidation.timestamp
       });
 
-      this.logger.info(`[Context] Consolidated ${projectId}: ${beforeSize} → ${afterSize} (${consolidation.reduction} reduction)`);
+      this.logger.info(
+        `[Context] Consolidated ${projectId}: ${beforeSize} → ${afterSize} (${consolidation.reduction} reduction)`
+      );
 
       return consolidation;
-
     } catch (error) {
-      this.logger.error(`[Context] Consolidation failed for ${projectId}:`, error);
+      this.logger.error(
+        `[Context] Consolidation failed for ${projectId}:`,
+        error
+      );
       throw error;
     }
   }
@@ -281,7 +296,9 @@ class ContextConsolidation extends EventEmitter {
    * Merge research into context
    */
   async mergeResearch(projectId, researchTopic, researchData) {
-    this.logger.info(`[Context] Merging research "${researchTopic}" into project ${projectId}`);
+    this.logger.info(
+      `[Context] Merging research "${researchTopic}" into project ${projectId}`
+    );
 
     const updates = {
       research: {
@@ -299,7 +316,9 @@ class ContextConsolidation extends EventEmitter {
    * Add agent activity to context
    */
   async addAgentActivity(projectId, agentRole, activity) {
-    this.logger.info(`[Context] Adding ${agentRole} activity to project ${projectId}`);
+    this.logger.info(
+      `[Context] Adding ${agentRole} activity to project ${projectId}`
+    );
 
     const context = this.contexts.get(projectId);
     if (!context) {
@@ -361,7 +380,9 @@ class ContextConsolidation extends EventEmitter {
    * Export context for external use
    */
   async exportContext(projectId, format = 'json') {
-    this.logger.info(`[Context] Exporting context for project ${projectId} as ${format}`);
+    this.logger.info(
+      `[Context] Exporting context for project ${projectId} as ${format}`
+    );
 
     const context = this.contexts.get(projectId);
     if (!context) {
@@ -369,17 +390,17 @@ class ContextConsolidation extends EventEmitter {
     }
 
     switch (format) {
-      case 'json':
-        return JSON.stringify(context, null, 2);
-      
-      case 'markdown':
-        return this.contextToMarkdown(context);
-      
-      case 'summary':
-        return this.contextToSummary(context);
-      
-      default:
-        throw new Error(`Unsupported export format: ${format}`);
+    case 'json':
+      return JSON.stringify(context, null, 2);
+
+    case 'markdown':
+      return this.contextToMarkdown(context);
+
+    case 'summary':
+      return this.contextToSummary(context);
+
+    default:
+      throw new Error(`Unsupported export format: ${format}`);
     }
   }
 
@@ -397,7 +418,7 @@ class ContextConsolidation extends EventEmitter {
 
   deduplicateDecisions(decisions) {
     const seen = new Set();
-    return decisions.filter(d => {
+    return decisions.filter((d) => {
       const key = `${d.type}-${d.decision}`;
       if (seen.has(key)) {
         return false;
@@ -435,8 +456,10 @@ class ContextConsolidation extends EventEmitter {
 
   async archiveArtifacts(projectId, artifacts) {
     // In real implementation, would store in external archive (S3, etc.)
-    this.logger.info(`[Context] Archiving ${artifacts.length} old artifacts for project ${projectId}`);
-    
+    this.logger.info(
+      `[Context] Archiving ${artifacts.length} old artifacts for project ${projectId}`
+    );
+
     // Store archive reference in context bus
     await this.contextBus.set(
       `archive:${projectId}:artifacts`,
@@ -474,7 +497,7 @@ class ContextConsolidation extends EventEmitter {
 
   extractKeywords(context) {
     const keywords = new Set();
-    
+
     // Extract from project data
     if (context.data.project?.name) {
       keywords.add(context.data.project.name.toLowerCase());
@@ -483,9 +506,12 @@ class ContextConsolidation extends EventEmitter {
     // Extract from requirements
     for (const req of context.data.requirements || []) {
       if (typeof req === 'string') {
-        req.toLowerCase().split(/\s+/).forEach(word => {
-          if (word.length > 3) keywords.add(word);
-        });
+        req
+          .toLowerCase()
+          .split(/\s+/)
+          .forEach((word) => {
+            if (word.length > 3) keywords.add(word);
+          });
       }
     }
 
@@ -500,7 +526,7 @@ class ContextConsolidation extends EventEmitter {
   calculateRelevance(context, query) {
     const queryWords = query.toLowerCase().split(/\s+/);
     const contextText = JSON.stringify(context.data).toLowerCase();
-    
+
     let matches = 0;
     for (const word of queryWords) {
       if (contextText.includes(word)) {
@@ -518,16 +544,16 @@ class ContextConsolidation extends EventEmitter {
     md += `**Version**: ${context.version}\n`;
     md += `**Size**: ${context.size} characters\n\n`;
 
-    md += `## Project Information\n`;
+    md += '## Project Information\n';
     md += `${JSON.stringify(context.data.project, null, 2)}\n\n`;
 
-    md += `## Requirements\n`;
+    md += '## Requirements\n';
     for (const req of context.data.requirements) {
       md += `- ${req}\n`;
     }
-    md += `\n`;
+    md += '\n';
 
-    md += `## Research\n`;
+    md += '## Research\n';
     for (const [topic, research] of Object.entries(context.data.research)) {
       md += `### ${topic}\n`;
       md += `${research.synthesized?.summary || 'No summary available'}\n\n`;
@@ -566,7 +592,10 @@ class ContextConsolidation extends EventEmitter {
           try {
             await this.consolidate(projectId);
           } catch (error) {
-            this.logger.error(`[Context] Auto-consolidation failed for ${projectId}:`, error);
+            this.logger.error(
+              `[Context] Auto-consolidation failed for ${projectId}:`,
+              error
+            );
           }
         }
       }
@@ -575,12 +604,15 @@ class ContextConsolidation extends EventEmitter {
 
   setupEventListeners() {
     // Listen for research completion
-    this.contextBus.subscribe('research.completed', async (channel, message) => {
-      const data = typeof message === 'string' ? JSON.parse(message) : message;
-      if (data.projectId) {
-        await this.mergeResearch(data.projectId, data.topic, data.research);
+    this.contextBus.subscribe(
+      'research.completed',
+      async (channel, message) => {
+        const data = typeof message === 'string' ? JSON.parse(message) : message;
+        if (data.projectId) {
+          await this.mergeResearch(data.projectId, data.topic, data.research);
+        }
       }
-    });
+    );
 
     // Listen for agent activities
     this.contextBus.subscribe('agent.*.completed', async (channel, message) => {
@@ -601,8 +633,9 @@ class ContextConsolidation extends EventEmitter {
     return {
       totalContexts: this.contexts.size,
       totalConsolidations: this.consolidationHistory.length,
-      averageContextSize: Array.from(this.contexts.values())
-        .reduce((sum, c) => sum + c.size, 0) / this.contexts.size || 0,
+      averageContextSize:
+        Array.from(this.contexts.values()).reduce((sum, c) => sum + c.size, 0)
+          / this.contexts.size || 0,
       indexedKeywords: this.contextIndex.size,
       recentConsolidations: this.consolidationHistory.slice(-10)
     };
