@@ -157,7 +157,6 @@ services:
       dockerfile: Dockerfile
       target: production
     image: zekka-framework:${VERSION:-latest}
-    container_name: zekka-app-prod
     restart: always
     environment:
       - NODE_ENV=production

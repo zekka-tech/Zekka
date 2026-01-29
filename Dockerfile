@@ -54,7 +54,7 @@ RUN npm prune --production --legacy-peer-deps
 # ===================================================================
 # Stage 3: Production Runtime
 # ===================================================================
-FROM node:18-alpine
+FROM node:18-alpine AS production
 
 # Security: Install only necessary runtime dependencies
 RUN apk add --no-cache \
