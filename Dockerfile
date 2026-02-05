@@ -44,6 +44,7 @@ COPY tsconfig.json ./
 COPY src ./src
 COPY migrations ./migrations
 COPY scripts ./scripts
+COPY public ./public
 
 # Build TypeScript and prepare for production
 RUN npm run build || echo "Build step completed"
@@ -78,6 +79,7 @@ COPY --from=builder --chown=nodejs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist
 COPY --from=builder --chown=nodejs:nodejs /app/src ./src
 COPY --from=builder --chown=nodejs:nodejs /app/migrations ./migrations
+COPY --from=builder --chown=nodejs:nodejs /app/public ./public
 COPY --from=builder --chown=nodejs:nodejs /app/package*.json ./
 
 # Copy necessary configuration files

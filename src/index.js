@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const http = require('http');
+const path = require('path');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
@@ -577,6 +578,11 @@ app.use('/api/v1/analytics', analyticsRoutes);
 app.use('/api/v1/agents', agentsRoutes);
 app.use('/api/v1/sources', sourcesRoutes);
 app.use('/api/v1/preferences', preferencesRoutes);
+
+// Serve landing page at root
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/index.html'));
+});
 
 // Serve static files (frontend)
 app.use(express.static('public'));
