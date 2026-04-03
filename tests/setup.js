@@ -84,6 +84,8 @@ process.env.VAULT_ADDR = 'http://localhost:8200';
 process.env.VAULT_TOKEN = 'test-vault-token';
 process.env.API_PORT = '3001';
 process.env.VAULT_ENABLED = 'false';
+process.env.AUDIT_LOG_DIR = process.env.AUDIT_LOG_DIR || '/tmp/zekka-tests/audit';
+process.env.KEY_PASSPHRASE = process.env.KEY_PASSPHRASE || 'zekka-default-passphrase-change-in-production';
 
 // Mock database pool
 const mockPool = {

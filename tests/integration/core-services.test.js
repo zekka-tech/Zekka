@@ -5,13 +5,19 @@
  * @group integration
  */
 
+// Mock dependencies for isolated testing with stable constructor shapes.
+jest.mock('pg', () => ({
+  Pool: jest.fn()
+}));
+
+jest.mock('redis', () => ({
+  createClient: jest.fn()
+}));
+
 const request = require('supertest');
+const path = require('path');
 const { Pool } = require('pg');
 const Redis = require('redis');
-
-// Mock dependencies for isolated testing
-jest.mock('pg');
-jest.mock('redis');
 
 describe('Core Services Integration Tests', () => {
   let app;
@@ -23,7 +29,8 @@ describe('Core Services Integration Tests', () => {
     mockPool = {
       query: jest.fn(),
       connect: jest.fn(),
-      end: jest.fn()
+      end: jest.fn(),
+      on: jest.fn()
     };
     
     // Initialize mock Redis
@@ -32,15 +39,17 @@ describe('Core Services Integration Tests', () => {
       get: jest.fn(),
       set: jest.fn(),
       del: jest.fn(),
-      quit: jest.fn()
+      quit: jest.fn(),
+      on: jest.fn(),
+      ping: jest.fn(),
+      info: jest.fn(),
+      disconnect: jest.fn()
     };
 
-    // Mock Pool constructor - when Pool is called as constructor, return mockPool
-    Pool.prototype = mockPool;
-    Pool.mockReturnValue(mockPool);
+    Pool.mockImplementation(() => mockPool);
 
     // Mock Redis.createClient
-    Redis.createClient = jest.fn(() => mockRedis);
+    Redis.createClient.mockReturnValue(mockRedis);
   });
 
   afterAll(async () => {
@@ -50,19 +59,26 @@ describe('Core Services Integration Tests', () => {
 
   describe('Service Initialization', () => {
     it('should initialize all core services successfully', async () => {
-      const services = [
-        'auth-service',
-        'audit-service', 
-        'encryption-service',
-        'password-service',
-        'security-monitor'
+      const currentEntryPoints = [
+        '../../src/services/auth.service.js',
+        '../../src/repositories/user.repository.js',
+        '../../src/config/database.js',
+        '../../src/config/redis.js',
+        '../../src/controllers/auth.controller.js',
+        '../../src/routes/auth.routes.js'
       ];
 
-      for (const service of services) {
-        expect(() => {
-          require(`../../src/services/${service}`);
-        }).not.toThrow();
+      for (const entryPoint of currentEntryPoints) {
+        expect(() =>
+          require.resolve(path.join(__dirname, entryPoint))
+        ).not.toThrow();
       }
+
+      const { AuthService } = require('../../src/services/auth.service.js');
+      const UserRepository = require('../../src/repositories/user.repository.js');
+
+      expect(typeof AuthService).toBe('function');
+      expect(typeof UserRepository).toBe('function');
     });
 
     it('should handle service initialization failures gracefully', async () => {

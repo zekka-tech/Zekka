@@ -66,7 +66,9 @@ Backend:
 ```bash
 npm run lint
 npm test
+npm run test:coverage
 npm run build
+npm run verify:ci
 ```
 
 Frontend:

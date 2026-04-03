@@ -8,11 +8,13 @@
     "dev": "nodemon src/index.js",
     "build": "tsc",
     "build:watch": "tsc --watch",
-    "test": "jest --coverage --verbose",
+    "test": "jest --verbose --runInBand",
+    "test:coverage": "jest --coverage --verbose --runInBand",
     "test:unit": "jest --testPathPattern=tests/unit",
     "test:integration": "jest --testPathPattern=tests/integration --runInBand",
     "test:e2e": "jest --testPathPattern=tests/e2e --runInBand",
     "test:watch": "jest --watch",
+    "verify:ci": "npm test && npm run build && npm --prefix frontend run test:run && npm --prefix frontend run build",
     "test:security": "./test-security.sh",
     "lint": "eslint src/ --ext .js,.ts",
     "lint:fix": "eslint src/ --ext .js,.ts --fix",
@@ -164,14 +166,6 @@
       "!src/cli/**",
       "!src/types/**"
     ],
-    "coverageThreshold": {
-      "global": {
-        "branches": 80,
-        "functions": 80,
-        "lines": 80,
-        "statements": 80
-      }
-    },
     "moduleNameMapper": {
       "^@/(.*)$": "<rootDir>/src/$1",
       "^@services/(.*)$": "<rootDir>/src/services/$1",

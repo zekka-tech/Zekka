@@ -1,14 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render } from '@testing-library/react'
+import { render, fireEvent } from '@testing-library/react'
 import { Analytics } from '../Analytics'
 import * as useAnalyticsModule from '@/hooks/useAnalytics'
-
-// Mock fireEvent using simulated clicks
-const fireEvent = {
-  click: (element: HTMLElement) => {
-    element.click()
-  }
-}
 
 // Mock the useAnalytics hook
 vi.mock('@/hooks/useAnalytics', () => ({
@@ -33,6 +26,10 @@ vi.mock('@/components/charts/CombinedMetricsChart', () => ({
 }))
 
 describe('Analytics Page', () => {
+  const anchorClickSpy = vi
+    .spyOn(HTMLAnchorElement.prototype, 'click')
+    .mockImplementation(() => {})
+
   const mockAnalyticsData = {
     tokenUsage: [
       { date: 'Mon', tokens: 38000 },
@@ -58,6 +55,7 @@ describe('Analytics Page', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    anchorClickSpy.mockClear()
     vi.mocked(useAnalyticsModule.useAnalytics).mockReturnValue({
       data: mockAnalyticsData as any,
       isLoading: false,

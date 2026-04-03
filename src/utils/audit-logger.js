@@ -45,7 +45,9 @@ const AuditOutcome = {
 
 class AuditLogger {
   constructor(options = {}) {
-    this.logDir = options.logDir || path.join(process.cwd(), 'logs', 'audit');
+    this.logDir = options.logDir
+      || process.env.AUDIT_LOG_DIR
+      || path.join(process.cwd(), 'logs', 'audit');
     this.retentionDays = options.retentionDays || 90; // 90 days default
     this.maxFileSize = options.maxFileSize || '100m';
     this.maxFiles = options.maxFiles || '90d';
@@ -132,6 +134,10 @@ class AuditLogger {
     this.batchTimer = setInterval(() => {
       this.flushBatch();
     }, this.batchInterval);
+
+    if (typeof this.batchTimer.unref === 'function') {
+      this.batchTimer.unref();
+    }
   }
 
   /**

@@ -78,6 +78,8 @@ tests/
 npm test
 ```
 
+Runs the active backend Jest suite without enforcing a global coverage threshold.
+
 ### Unit Tests Only
 
 ```bash
@@ -107,6 +109,16 @@ npm run test:watch
 ```bash
 npm run test:coverage
 ```
+
+Generates the backend coverage report.
+
+### Full CI Verification
+
+```bash
+npm run verify:ci
+```
+
+Runs backend tests and build, then frontend tests and build.
 
 ### Specific Test File
 
