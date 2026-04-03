@@ -178,7 +178,7 @@ class MentorAgent extends BaseAgentZero {
     review.achievements = this.identifyAchievements(mentorship);
 
     // Identify challenges
-    review.challenges = this.identifyChall enges(mentorship);
+    review.challenges = this.identifyChallenges(mentorship);
 
     // Assess strengths
     review.strengths = this.assessStrengths(mentorship);

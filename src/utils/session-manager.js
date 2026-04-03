@@ -18,6 +18,7 @@ const crypto = require('crypto');
 class SessionManager {
   constructor(redisClient, options = {}) {
     this.redisClient = redisClient;
+    this.memorySessions = new Map();
     this.options = {
       // Session configuration
       sessionMaxAge: options.sessionMaxAge || 24 * 60 * 60 * 1000, // 24 hours
@@ -50,8 +51,8 @@ class SessionManager {
       throw new Error('SESSION_SECRET is required');
     }
 
-    this.store = this.createStore();
-    this.middleware = this.createMiddleware();
+    this.store = this.redisClient ? this.createStore() : null;
+    this.middleware = this.store ? this.createMiddleware() : null;
   }
 
   /**
@@ -70,6 +71,10 @@ class SessionManager {
    * Create session middleware
    */
   createMiddleware() {
+    if (!this.store) {
+      return null;
+    }
+
     return session({
       store: this.store,
       name: this.options.sessionName,
@@ -244,6 +249,15 @@ class SessionManager {
    * Get user sessions
    */
   async getUserSessions(userId) {
+    if (!this.redisClient) {
+      return Array.from(this.memorySessions.entries())
+        .filter(([, session]) => session.userId === userId)
+        .map(([sessionId, session]) => ({
+          sessionId,
+          ...session
+        }));
+    }
+
     const key = `user:${userId}:sessions`;
     const sessions = await this.redisClient.hGetAll(key);
 
@@ -268,6 +282,10 @@ class SessionManager {
    * Get session information
    */
   async getSessionInfo(sessionId) {
+    if (!this.redisClient) {
+      return this.memorySessions.get(sessionId) || null;
+    }
+
     const sessionKey = `sess:${sessionId}`;
     const sessionData = await this.redisClient.get(sessionKey);
 
@@ -294,6 +312,11 @@ class SessionManager {
    * Destroy session
    */
   async destroySession(sessionId) {
+    if (!this.store) {
+      this.memorySessions.delete(sessionId);
+      return;
+    }
+
     return new Promise((resolve, reject) => {
       this.store.destroy(sessionId, (err) => {
         if (err) reject(err);
@@ -306,6 +329,15 @@ class SessionManager {
    * Destroy all user sessions
    */
   async destroyAllUserSessions(userId, exceptSessionId = null) {
+    if (!this.redisClient) {
+      for (const [sessionId, session] of this.memorySessions.entries()) {
+        if (session.userId === userId && sessionId !== exceptSessionId) {
+          this.memorySessions.delete(sessionId);
+        }
+      }
+      return;
+    }
+
     const key = `user:${userId}:sessions`;
     const sessions = await this.redisClient.hGetAll(key);
 
@@ -321,6 +353,15 @@ class SessionManager {
    * Cleanup expired sessions
    */
   async cleanupExpiredSessions() {
+    if (!this.redisClient) {
+      for (const [sessionId, session] of this.memorySessions.entries()) {
+        if (this.isSessionExpired(session)) {
+          this.memorySessions.delete(sessionId);
+        }
+      }
+      return;
+    }
+
     // Redis TTL handles most cleanup, but we clean user session tracking
     const pattern = 'user:*:sessions';
     let cursor = '0';
@@ -354,6 +395,29 @@ class SessionManager {
    * Get session statistics
    */
   async getSessionStatistics(userId = null) {
+    if (!this.redisClient) {
+      const sessions = Array.from(this.memorySessions.entries()).map(
+        ([sessionId, session]) => ({
+          sessionId,
+          ...session
+        })
+      );
+
+      if (userId) {
+        const userSessions = sessions.filter((session) => session.userId === userId);
+        return {
+          userId,
+          totalSessions: userSessions.length,
+          activeSessions: userSessions.filter((session) => !this.isSessionExpired(session)).length,
+          sessions: userSessions
+        };
+      }
+
+      return {
+        totalActiveSessions: sessions.filter((session) => !this.isSessionExpired(session)).length
+      };
+    }
+
     if (userId) {
       const sessions = await this.getUserSessions(userId);
       return {
@@ -440,6 +504,117 @@ class SessionManager {
   }
 
   /**
+   * Create a service-level session record for token-based auth flows.
+   */
+  async createSession({ userId, token, metadata = {} }) {
+    const sessionId = crypto.randomUUID();
+    const sessionData = {
+      userId,
+      token,
+      metadata,
+      createdAt: Date.now(),
+      lastActivity: Date.now()
+    };
+
+    if (!this.redisClient) {
+      this.memorySessions.set(sessionId, sessionData);
+      return sessionId;
+    }
+
+    await this.redisClient.set(
+      `auth:session:${sessionId}`,
+      JSON.stringify(sessionData),
+      { EX: Math.floor(this.options.sessionMaxAge / 1000) }
+    );
+    await this.redisClient.hSet(`auth:user:${userId}:sessions`, sessionId, token);
+
+    return sessionId;
+  }
+
+  /**
+   * Validate a token-based auth session for a user.
+   */
+  async validateSession(userId, token) {
+    if (!this.redisClient) {
+      return Array.from(this.memorySessions.values()).some(
+        (session) => session.userId === userId && session.token === token
+      );
+    }
+
+    const sessions = await this.redisClient.hGetAll(`auth:user:${userId}:sessions`);
+    return Object.values(sessions).includes(token);
+  }
+
+  /**
+   * Invalidate a single token-based auth session.
+   */
+  async invalidateSession(userId, token) {
+    if (!this.redisClient) {
+      for (const [sessionId, session] of this.memorySessions.entries()) {
+        if (session.userId === userId && session.token === token) {
+          this.memorySessions.delete(sessionId);
+        }
+      }
+      return;
+    }
+
+    const key = `auth:user:${userId}:sessions`;
+    const sessions = await this.redisClient.hGetAll(key);
+
+    for (const [sessionId, sessionToken] of Object.entries(sessions)) {
+      if (sessionToken === token) {
+        await this.redisClient.del(`auth:session:${sessionId}`);
+        await this.redisClient.hDel(key, sessionId);
+      }
+    }
+  }
+
+  /**
+   * Invalidate all token-based auth sessions for a user.
+   */
+  async invalidateAllUserSessions(userId) {
+    if (!this.redisClient) {
+      for (const [sessionId, session] of this.memorySessions.entries()) {
+        if (session.userId === userId) {
+          this.memorySessions.delete(sessionId);
+        }
+      }
+      return;
+    }
+
+    const key = `auth:user:${userId}:sessions`;
+    const sessions = await this.redisClient.hGetAll(key);
+
+    for (const sessionId of Object.keys(sessions)) {
+      await this.redisClient.del(`auth:session:${sessionId}`);
+    }
+
+    await this.redisClient.del(key);
+  }
+
+  /**
+   * Count active token-based auth sessions.
+   */
+  async getActiveSessionCount(userId = null) {
+    if (!this.redisClient) {
+      if (!userId) {
+        return this.memorySessions.size;
+      }
+
+      return Array.from(this.memorySessions.values()).filter(
+        (session) => session.userId === userId
+      ).length;
+    }
+
+    if (userId) {
+      return await this.redisClient.hLen(`auth:user:${userId}:sessions`);
+    }
+
+    const sessionStats = await this.getSessionStatistics();
+    return sessionStats.totalActiveSessions;
+  }
+
+  /**
    * Start cleanup job
    */
   startCleanupJob(intervalMinutes = 60) {
@@ -457,3 +632,4 @@ class SessionManager {
 }
 
 module.exports = SessionManager;
+module.exports.SessionManager = SessionManager;

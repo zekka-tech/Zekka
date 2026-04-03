@@ -146,6 +146,7 @@ async function initializeServices() {
 
 // Swagger API Documentation
 app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.get('/api/docs.json', (req, res) => {
   res.setHeader('Content-Type', 'application/json');
   res.send(swaggerSpec);
@@ -181,6 +182,22 @@ app.get('/metrics', async (req, res) => {
  *         description: System is unhealthy
  */
 app.get('/health', (req, res) => {
+  const health = {
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    services: {
+      contextBus: contextBus?.isConnected() || false,
+      orchestrator: orchestrator?.isReady() || false
+    }
+  };
+
+  const allHealthy = Object.values(health.services).every((s) => s === true);
+  const statusCode = allHealthy ? 200 : 503;
+
+  res.status(statusCode).json(health);
+});
+app.get('/api/health', (req, res) => {
   const health = {
     status: 'healthy',
     timestamp: new Date().toISOString(),
@@ -622,7 +639,9 @@ async function start() {
   server.listen(PORT, '0.0.0.0', () => {
     logger.info(`🌐 Zekka Framework listening on http://0.0.0.0:${PORT}`);
     logger.info(`📊 Health check: http://localhost:${PORT}/health`);
+    logger.info(`📊 Compatibility health check: http://localhost:${PORT}/api/health`);
     logger.info(`📚 API docs: http://localhost:${PORT}/api/docs`);
+    logger.info(`📚 Compatibility API docs: http://localhost:${PORT}/api-docs`);
     logger.info(`📈 Prometheus metrics: http://localhost:${PORT}/metrics`);
     logger.info(`🔌 WebSocket endpoint: ws://localhost:${PORT}/ws`);
   });

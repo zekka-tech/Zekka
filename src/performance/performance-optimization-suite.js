@@ -24,7 +24,7 @@ class PerformanceOptimizationSuite extends EventEmitter {
     
     this.config = {
       monitoringInterval: config.monitoringInterval || 5000, // 5 seconds
-      profil ingEnabled: config.profilingEnabled !== false,
+      profilingEnabled: config.profilingEnabled !== false,
       cacheEnabled: config.cacheEnabled !== false,
       cacheTTL: config.cacheTTL || 3600000, // 1 hour
       optimizationThreshold: config.optimizationThreshold || 0.75, // 75%

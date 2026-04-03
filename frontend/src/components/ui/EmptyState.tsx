@@ -1,4 +1,5 @@
-import { LucideIcon, Inbox, Search, AlertCircle, FileQuestion, Users, Zap } from 'lucide-react'
+import { Inbox, Search, AlertCircle, FileQuestion, Users, Zap } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface EmptyStateProps {

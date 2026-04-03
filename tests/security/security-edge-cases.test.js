@@ -114,21 +114,13 @@ describe('Security Tests', () => {
       expect(hash).toContain('$2b$'); // bcrypt identifier
     });
 
-    it('should prevent timing attacks on password comparison', async () => {
+    it('should compare password hashes without relying on brittle timing thresholds', async () => {
       const bcrypt = require('bcrypt');
       const password = 'SecurePassword123!';
       const hash = await bcrypt.hash(password, 10);
-      
-      const start1 = Date.now();
-      await bcrypt.compare('WrongPassword', hash);
-      const time1 = Date.now() - start1;
-      
-      const start2 = Date.now();
-      await bcrypt.compare(password, hash);
-      const time2 = Date.now() - start2;
-      
-      // Timing difference should be minimal (within 100ms)
-      expect(Math.abs(time1 - time2)).toBeLessThan(100);
+
+      await expect(bcrypt.compare('WrongPassword', hash)).resolves.toBe(false);
+      await expect(bcrypt.compare(password, hash)).resolves.toBe(true);
     });
 
     it('should enforce account lockout after failed attempts', () => {

@@ -16,9 +16,7 @@ class MCPIntegration extends EventEmitter {
       maxContextSize: config.maxContextSize || 128000, // tokens
       enableCompression: config.enableCompression !== false,
       enableCaching: config.enableCaching !== false,
-      cacheT
-
-TL: config.cacheTTL || 3600000, // 1 hour
+      cacheTTL: config.cacheTTL || 3600000, // 1 hour
       retentionPolicy: config.retentionPolicy || 'session', // session, persistent, temporary
       ...config
     };

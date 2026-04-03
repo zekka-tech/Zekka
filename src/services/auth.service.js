@@ -14,7 +14,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { AppError, ErrorCodes } = require('../utils/errors');
 const { AuditLogger } = require('../utils/audit-logger');
-const { PasswordPolicy } = require('../utils/password-policy');
+const { getPasswordPolicyManager } = require('../utils/password-policy');
 const { SessionManager } = require('../utils/session-manager');
 
 class AuthService {
@@ -22,7 +22,7 @@ class AuthService {
     this.userRepository = userRepository;
     this.config = config;
     this.auditLogger = new AuditLogger();
-    this.passwordPolicy = new PasswordPolicy();
+    this.passwordPolicy = getPasswordPolicyManager();
     this.sessionManager = new SessionManager();
     this.saltRounds = 12;
   }
@@ -86,7 +86,8 @@ class AuthService {
         metadata: {
           ...metadata,
           registeredAt: new Date().toISOString(),
-          passwordStrength: passwordValidation.strength
+          passwordStrength:
+            passwordValidation.strength || passwordValidation.strengthScore
         }
       });
 

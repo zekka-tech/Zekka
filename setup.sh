@@ -1,175 +1,61 @@
 #!/bin/bash
 
-# Zekka Framework - Beginner-Friendly Setup Script
-# This script will guide you through the complete setup process
-
-set -e  # Exit on error
+set -euo pipefail
 
 echo "========================================="
-echo "🚀 Zekka Framework Setup"
+echo "Zekka setup"
 echo "========================================="
-echo ""
+echo
 
-# Color codes
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+if ! command -v docker >/dev/null 2>&1; then
+  echo "Docker is required. Install Docker Desktop or Docker Engine first."
+  exit 1
+fi
 
-# Check if Docker is installed
-if ! command -v docker &> /dev/null; then
-    echo -e "${RED}❌ Docker is not installed${NC}"
-    echo "Please install Docker Desktop from: https://www.docker.com/products/docker-desktop"
+if docker compose version >/dev/null 2>&1; then
+  COMPOSE_CMD="docker compose"
+elif command -v docker-compose >/dev/null 2>&1; then
+  COMPOSE_CMD="docker-compose"
+else
+  echo "Docker Compose is required. Install the Docker Compose plugin or docker-compose."
+  exit 1
+fi
+
+if [ ! -f .env.production ]; then
+  cp .env.production.example .env.production
+  echo "Created .env.production from .env.production.example"
+  echo "Edit .env.production before exposing this stack outside your machine."
+  echo
+fi
+
+echo "Starting backend and monitoring services with: ${COMPOSE_CMD}"
+${COMPOSE_CMD} up -d --build
+
+echo
+echo "Waiting for the API health endpoint..."
+for i in {1..60}; do
+  if curl -fsS http://localhost:3000/health >/dev/null 2>&1; then
+    echo "API is healthy."
+    break
+  fi
+
+  if [ "$i" -eq 60 ]; then
+    echo "API health check timed out."
+    echo "Inspect logs with: ${COMPOSE_CMD} logs app"
     exit 1
-fi
+  fi
 
-if ! command -v docker-compose &> /dev/null; then
-    echo -e "${RED}❌ Docker Compose is not installed${NC}"
-    echo "Please install Docker Compose from: https://docs.docker.com/compose/install/"
-    exit 1
-fi
-
-echo -e "${GREEN}✅ Docker is installed${NC}"
-
-# Check if .env file exists
-if [ ! -f .env ]; then
-    echo ""
-    echo "📝 Creating environment configuration..."
-    cp .env.example .env
-    
-    echo ""
-    echo -e "${YELLOW}⚠️  IMPORTANT: Please configure your API keys in .env file${NC}"
-    echo ""
-    echo "Required steps:"
-    echo "1. Get GitHub token from: https://github.com/settings/tokens"
-    echo "   - Required permissions: repo, workflow"
-    echo ""
-    echo "2. (Optional) Get Anthropic API key from: https://console.anthropic.com/"
-    echo "   - This enables Claude for better conflict resolution"
-    echo ""
-    echo "3. Edit .env file with your tokens:"
-    echo "   nano .env  (or use your preferred editor)"
-    echo ""
-    read -p "Press Enter when you've configured .env file..."
-fi
-
-# Verify .env has at least GitHub token
-if ! grep -q "ghp_" .env; then
-    echo -e "${YELLOW}⚠️  Warning: No GitHub token found in .env${NC}"
-    echo "The system will work, but GitHub integration won't function."
-    read -p "Continue anyway? (y/n) " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        exit 1
-    fi
-fi
-
-echo ""
-echo "🐳 Starting Docker containers..."
-echo "This may take a few minutes on first run..."
-echo ""
-
-# Pull and start containers
-docker-compose pull
-docker-compose up -d
-
-echo ""
-echo "⏳ Waiting for services to be ready..."
-echo ""
-
-# Wait for PostgreSQL
-echo -n "Waiting for PostgreSQL..."
-for i in {1..30}; do
-    if docker-compose exec -T postgres pg_isready -U zekka > /dev/null 2>&1; then
-        echo -e " ${GREEN}✅${NC}"
-        break
-    fi
-    echo -n "."
-    sleep 2
+  sleep 2
 done
 
-# Wait for Redis
-echo -n "Waiting for Redis..."
-for i in {1..30}; do
-    if docker-compose exec -T redis redis-cli ping > /dev/null 2>&1; then
-        echo -e " ${GREEN}✅${NC}"
-        break
-    fi
-    echo -n "."
-    sleep 2
-done
-
-# Wait for Ollama
-echo -n "Waiting for Ollama..."
-for i in {1..60}; do
-    if curl -s http://localhost:11434/api/tags > /dev/null 2>&1; then
-        echo -e " ${GREEN}✅${NC}"
-        break
-    fi
-    echo -n "."
-    sleep 2
-done
-
-# Pull Ollama models
-echo ""
-echo "📥 Downloading AI models (this may take 5-10 minutes)..."
-echo ""
-
-echo "Pulling llama3.1:8b..."
-docker-compose exec -T ollama ollama pull llama3.1:8b
-
-echo "Pulling mistral..."
-docker-compose exec -T ollama ollama pull mistral
-
-echo "Pulling codellama..."
-docker-compose exec -T ollama ollama pull codellama
-
-# Wait for main application
-echo ""
-echo -n "Waiting for Orchestrator..."
-for i in {1..60}; do
-    if curl -s http://localhost:3000/health > /dev/null 2>&1; then
-        echo -e " ${GREEN}✅${NC}"
-        break
-    fi
-    echo -n "."
-    sleep 2
-done
-
-# Wait for Arbitrator
-echo -n "Waiting for Arbitrator..."
-for i in {1..60}; do
-    if curl -s http://localhost:3001/health > /dev/null 2>&1; then
-        echo -e " ${GREEN}✅${NC}"
-        break
-    fi
-    echo -n "."
-    sleep 2
-done
-
-echo ""
-echo "========================================="
-echo -e "${GREEN}🎉 Zekka Framework is ready!${NC}"
-echo "========================================="
-echo ""
-echo "📊 Access the dashboard:"
-echo "   👉 http://localhost:3000"
-echo ""
-echo "🤖 API endpoints:"
-echo "   • Health: http://localhost:3000/health"
-echo "   • API:    http://localhost:3000/api"
-echo "   • Arbitrator: http://localhost:3001"
-echo ""
-echo "📚 Useful commands:"
-echo "   • View logs:     docker-compose logs -f"
-echo "   • Stop system:   docker-compose down"
-echo "   • Restart:       docker-compose restart"
-echo "   • Full reset:    docker-compose down -v"
-echo ""
-echo "💡 Next steps:"
-echo "   1. Open http://localhost:3000 in your browser"
-echo "   2. Create a new project in the dashboard"
-echo "   3. Watch the multi-agent system work!"
-echo ""
-echo "📖 For more help, see README.md"
-echo ""
+echo
+echo "Services:"
+echo "  API:        http://localhost:3000/health"
+echo "  Swagger:    http://localhost:3000/api/docs"
+echo "  Prometheus: http://localhost:9090"
+echo "  Grafana:    http://localhost:3001"
+echo
+echo "Notes:"
+echo "  - This script starts the backend, PostgreSQL, Redis, Prometheus, and Grafana."
+echo "  - The React frontend lives in ./frontend and runs separately with npm install && npm run dev."
+echo "  - Configure external model providers in .env.production if you need them."

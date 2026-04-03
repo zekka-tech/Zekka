@@ -65,6 +65,19 @@ class DatabaseError extends AppError {
   }
 }
 
+const ErrorCodes = {
+  VALIDATION_ERROR: 'VALIDATION_ERROR',
+  DUPLICATE_ENTRY: 'DUPLICATE_ENTRY',
+  PASSWORD_WEAK: 'PASSWORD_WEAK',
+  INVALID_CREDENTIALS: 'INVALID_CREDENTIALS',
+  ACCOUNT_LOCKED: 'ACCOUNT_LOCKED',
+  PASSWORD_EXPIRED: 'PASSWORD_EXPIRED',
+  INTERNAL_ERROR: 'INTERNAL_ERROR',
+  NOT_FOUND: 'NOT_FOUND',
+  PASSWORD_REUSE: 'PASSWORD_REUSE',
+  INVALID_TOKEN: 'INVALID_TOKEN'
+};
+
 module.exports = {
   AppError,
   ValidationError,
@@ -73,5 +86,6 @@ module.exports = {
   NotFoundError,
   ConflictError,
   RateLimitError,
-  DatabaseError
+  DatabaseError,
+  ErrorCodes
 };

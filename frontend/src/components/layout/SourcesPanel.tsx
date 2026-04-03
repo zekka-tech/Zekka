@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react'
 import { cn } from '@/lib/cn'
 import { useSources, useCreateSource } from '@/hooks/useSources'
+import type { Source } from '@/types/project.types'
 import {
   FileIcon,
   FolderIcon,
@@ -20,11 +21,12 @@ export const SourcesPanel = ({ projectId = 'demo' }: SourcesPanelProps) => {
   const [searchQuery, setSearchQuery] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const { data: sources = [], isLoading } = useSources(projectId)
+  const { data: sourcesData, isLoading } = useSources(projectId)
+  const sources = (sourcesData ?? []) as Source[]
   const createSourceMutation = useCreateSource(projectId)
 
   // Demo data when no sources
-  const demoSources = sources.length === 0 ? [
+  const demoSources: Source[] = sources.length === 0 ? [
     {
       id: '1',
       projectId,
@@ -200,7 +202,7 @@ export const SourcesPanel = ({ projectId = 'demo' }: SourcesPanelProps) => {
 }
 
 interface SourceItemProps {
-  source: any
+  source: Source
   onDelete: () => void
 }
 
