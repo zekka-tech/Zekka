@@ -1,18 +1,34 @@
+import { lazy, Suspense } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { RootLayout } from '@/components/layout/RootLayout'
 import { ErrorBoundary } from '@/components/layout/ErrorBoundary'
-import { Dashboard } from '@/pages/Dashboard'
-import { Projects } from '@/pages/Projects'
-import { Analytics } from '@/pages/Analytics'
-import { Settings } from '@/pages/Settings'
-import { Auth } from '@/pages/Auth'
-import { CommandPalette } from '@/components/ui/CommandPalette'
 import { ThemeProvider } from '@/contexts/ThemeContext'
 import { ToastProvider } from '@/components/ui/Toast'
 import { useAuth } from '@/hooks/useAuth'
 import { useTheme } from '@/contexts/ThemeContext'
 import './styles/globals.css'
+
+const DashboardPage = lazy(() =>
+  import('@/pages/Dashboard').then((module) => ({ default: module.Dashboard }))
+)
+const ProjectsPage = lazy(() =>
+  import('@/pages/Projects').then((module) => ({ default: module.Projects }))
+)
+const AnalyticsPage = lazy(() =>
+  import('@/pages/Analytics').then((module) => ({ default: module.Analytics }))
+)
+const SettingsPage = lazy(() =>
+  import('@/pages/Settings').then((module) => ({ default: module.Settings }))
+)
+const AuthPage = lazy(() =>
+  import('@/pages/Auth').then((module) => ({ default: module.Auth }))
+)
+const CommandPalette = lazy(() =>
+  import('@/components/ui/CommandPalette').then((module) => ({
+    default: module.CommandPalette,
+  }))
+)
 
 // Create a client for React Query
 const queryClient = new QueryClient({
@@ -24,23 +40,29 @@ const queryClient = new QueryClient({
   },
 })
 
+const AppLoadingFallback = () => (
+  <div className="flex items-center justify-center h-screen w-screen bg-background">
+    <div className="text-center">
+      <div className="w-8 h-8 rounded-full border-4 border-primary border-t-transparent animate-spin mx-auto mb-4" />
+      <p className="text-muted-foreground">Loading...</p>
+    </div>
+  </div>
+)
+
 function AppContentInner() {
   const { user, isLoading, isAuthenticated } = useAuth()
   const { theme, setTheme } = useTheme()
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-screen w-screen bg-background">
-        <div className="text-center">
-          <div className="w-8 h-8 rounded-full border-4 border-primary border-t-transparent animate-spin mx-auto mb-4" />
-          <p className="text-muted-foreground">Loading...</p>
-        </div>
-      </div>
-    )
+    return <AppLoadingFallback />
   }
 
   if (!isAuthenticated || !user) {
-    return <Auth />
+    return (
+      <Suspense fallback={<AppLoadingFallback />}>
+        <AuthPage />
+      </Suspense>
+    )
   }
 
   const handleThemeToggle = () => {
@@ -51,17 +73,21 @@ function AppContentInner() {
     <ErrorBoundary>
       <>
         <RootLayout>
-          <Routes>
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/projects" element={<Projects />} />
-            <Route path="/analytics" element={<Analytics />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          </Routes>
+          <Suspense fallback={<AppLoadingFallback />}>
+            <Routes>
+              <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/projects" element={<ProjectsPage />} />
+              <Route path="/analytics" element={<AnalyticsPage />} />
+              <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            </Routes>
+          </Suspense>
         </RootLayout>
 
         {/* Command Palette */}
-        <CommandPalette isDark={theme === 'dark'} onThemeToggle={handleThemeToggle} />
+        <Suspense fallback={null}>
+          <CommandPalette isDark={theme === 'dark'} onThemeToggle={handleThemeToggle} />
+        </Suspense>
       </>
     </ErrorBoundary>
   )

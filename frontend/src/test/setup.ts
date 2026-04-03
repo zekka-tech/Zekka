@@ -47,6 +47,8 @@ Object.defineProperty(window, 'confirm', {
   value: vi.fn(() => true),
 })
 
+vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+
 vi.mock('recharts', async () => {
   const actual = await vi.importActual<typeof import('recharts')>('recharts')
 
