@@ -50,6 +50,7 @@ dist/
 tmp/
 temp/
 *.tmp
+keys/
 
 # Backup files
 *.backup

@@ -1,6 +1,6 @@
 # Frontend Deployment Guide
 
-This frontend is a separate Vite build, not part of the root Docker Compose stack by default.
+This frontend remains a separate Vite workspace for development, but the root Docker build now packages its production bundle and serves it through the backend container as the primary shipped UI.
 
 ## Build
 
@@ -38,6 +38,16 @@ Default preview URL: `http://localhost:4173`
 ```bash
 docker build -t zekka-frontend:latest .
 ```
+
+## Root Docker Packaging
+
+From the repository root:
+
+```bash
+docker compose up -d --build
+```
+
+The root `Dockerfile` builds `frontend/`, copies `frontend/dist` into the app image, and the backend serves that UI on `http://localhost:3000/`.
 
 ## Deployment Targets
 

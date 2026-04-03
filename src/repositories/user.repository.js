@@ -1,13 +1,10 @@
 /**
  * User Repository
- * Database operations for users
- *
- * SECURITY FIX: Phase 1 - Database user storage
- * SECURITY FIX: Phase 2 - SQL injection prevention with parameterized queries
+ * Centralized persistence layer for auth flows.
  */
 
-const { Pool } = require('pg');
-const config = require('../config');
+const bcrypt = require('bcryptjs');
+const { pool: sharedPool } = require('../config/database');
 const {
   DatabaseError,
   NotFoundError,
@@ -15,74 +12,187 @@ const {
 } = require('../utils/errors');
 
 class UserRepository {
-  constructor() {
-    this.pool = new Pool({
-      connectionString: config.database.url,
-      min: config.database.poolMin,
-      max: config.database.poolMax,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 2000,
-      ssl: config.isProduction ? { rejectUnauthorized: false } : false
-    });
-
-    this.pool.on('error', (err) => {
-      console.error('❌ Unexpected database pool error:', err);
-    });
-
-    this.initializeSchema();
+  constructor(pool = sharedPool) {
+    this.pool = pool;
+    this.initializeSchemaPromise = this.initializeSchema();
   }
 
-  /**
-   * Initialize database schema
-   */
   async initializeSchema() {
     try {
       await this.pool.query(`
         CREATE TABLE IF NOT EXISTS users (
-          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          id SERIAL PRIMARY KEY,
+          user_id VARCHAR(64) UNIQUE NOT NULL,
           email VARCHAR(255) UNIQUE NOT NULL,
           password_hash TEXT NOT NULL,
-          name VARCHAR(100) NOT NULL,
-          mfa_enabled BOOLEAN DEFAULT false,
-          mfa_secret TEXT,
+          name VARCHAR(255) NOT NULL,
+          is_active BOOLEAN DEFAULT true,
+          email_verified BOOLEAN DEFAULT false,
+          login_attempts INTEGER DEFAULT 0,
           failed_login_attempts INTEGER DEFAULT 0,
-          locked_until TIMESTAMP,
-          last_login TIMESTAMP,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          locked_until TIMESTAMP WITH TIME ZONE,
+          last_login TIMESTAMP WITH TIME ZONE,
+          metadata JSONB DEFAULT '{}'::jsonb,
+          phone VARCHAR(32),
+          telegram_id VARCHAR(64),
+          username VARCHAR(255),
+          auth_method VARCHAR(32) DEFAULT 'password',
+          verified BOOLEAN DEFAULT false,
+          password_expires_at TIMESTAMP WITH TIME ZONE,
+          password_history JSONB DEFAULT '[]'::jsonb,
+          reset_token TEXT,
+          reset_token_expires_at TIMESTAMP WITH TIME ZONE,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
         );
-        
+
         CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
-        CREATE INDEX IF NOT EXISTS idx_users_created_at ON users(created_at);
+        CREATE INDEX IF NOT EXISTS idx_users_user_id ON users(user_id);
+        CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone);
+        CREATE INDEX IF NOT EXISTS idx_users_telegram_id ON users(telegram_id);
       `);
 
-      console.log('✅ User database schema initialized');
+      await this.pool.query(`
+        ALTER TABLE users
+          ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb,
+          ADD COLUMN IF NOT EXISTS phone VARCHAR(32),
+          ADD COLUMN IF NOT EXISTS telegram_id VARCHAR(64),
+          ADD COLUMN IF NOT EXISTS username VARCHAR(255),
+          ADD COLUMN IF NOT EXISTS auth_method VARCHAR(32) DEFAULT 'password',
+          ADD COLUMN IF NOT EXISTS verified BOOLEAN DEFAULT false,
+          ADD COLUMN IF NOT EXISTS password_expires_at TIMESTAMP WITH TIME ZONE,
+          ADD COLUMN IF NOT EXISTS password_history JSONB DEFAULT '[]'::jsonb,
+          ADD COLUMN IF NOT EXISTS reset_token TEXT,
+          ADD COLUMN IF NOT EXISTS reset_token_expires_at TIMESTAMP WITH TIME ZONE,
+          ADD COLUMN IF NOT EXISTS failed_login_attempts INTEGER DEFAULT 0;
+      `);
     } catch (error) {
-      console.error('❌ Failed to initialize user schema:', error);
       throw new DatabaseError('Schema initialization failed', {
         error: error.message
       });
     }
   }
 
-  /**
-   * Create new user
-   * SECURITY: Uses parameterized queries to prevent SQL injection
-   */
-  async create({ email, passwordHash, name }) {
+  async ready() {
+    await this.initializeSchemaPromise;
+  }
+
+  generateUserId() {
+    return `user_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+  }
+
+  toDomainUser(row) {
+    if (!row) {
+      return null;
+    }
+
+    return {
+      id: row.user_id || String(row.id),
+      userId: row.user_id || String(row.id),
+      email: row.email,
+      password: row.password_hash,
+      name: row.name,
+      metadata: row.metadata || {},
+      phone: row.phone || null,
+      telegramId: row.telegram_id || null,
+      username: row.username || null,
+      authMethod: row.auth_method || 'password',
+      verified: row.verified ?? row.email_verified ?? false,
+      is_active: row.is_active,
+      email_verified: row.email_verified,
+      last_login: row.last_login,
+      login_attempts: row.login_attempts ?? row.failed_login_attempts ?? 0,
+      failed_login_attempts: row.failed_login_attempts ?? row.login_attempts ?? 0,
+      locked_until: row.locked_until,
+      password_expires_at: row.password_expires_at,
+      password_history: Array.isArray(row.password_history)
+        ? row.password_history
+        : [],
+      reset_token: row.reset_token,
+      reset_token_expires_at: row.reset_token_expires_at,
+      created_at: row.created_at,
+      updated_at: row.updated_at
+    };
+  }
+
+  buildSyntheticEmail({ phone, telegramId }) {
+    if (phone) {
+      return `${phone.replace(/\D/g, '') || 'user'}@whatsapp.zekka.local`;
+    }
+    if (telegramId) {
+      return `telegram-${telegramId}@telegram.zekka.local`;
+    }
+    return `user-${Date.now()}@zekka.local`;
+  }
+
+  buildDisplayName({ name, username, firstName, lastName, phone, telegramId }) {
+    if (name) return name;
+    const composite = [firstName, lastName].filter(Boolean).join(' ').trim();
+    if (composite) return composite;
+    if (username) return username;
+    if (phone) return `WhatsApp ${phone}`;
+    if (telegramId) return `Telegram ${telegramId}`;
+    return 'Zekka User';
+  }
+
+  async create(input) {
+    await this.ready();
+
+    const {
+      email,
+      password,
+      passwordHash,
+      name,
+      metadata = {},
+      phone = null,
+      telegramId = null,
+      username = null,
+      authMethod = 'password',
+      verified = false,
+      firstName,
+      lastName
+    } = input;
+
+    const userId = input.userId || input.id || this.generateUserId();
+    const resolvedEmail = (email || this.buildSyntheticEmail({ phone, telegramId }))
+      .toLowerCase()
+      .trim();
+    const resolvedName = this.buildDisplayName({
+      name,
+      username,
+      firstName,
+      lastName,
+      phone,
+      telegramId
+    });
+    const resolvedPassword = passwordHash || password || `social-${userId}`;
+
     try {
       const result = await this.pool.query(
-        `INSERT INTO users (email, password_hash, name) 
-         VALUES ($1, $2, $3) 
-         RETURNING id, email, name, created_at`,
-        [email, passwordHash, name]
+        `INSERT INTO users (
+          user_id, email, password_hash, name, metadata, phone, telegram_id,
+          username, auth_method, verified, email_verified
+        ) VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10, $11)
+        RETURNING *`,
+        [
+          userId,
+          resolvedEmail,
+          resolvedPassword,
+          resolvedName,
+          JSON.stringify(metadata),
+          phone,
+          telegramId,
+          username,
+          authMethod,
+          verified,
+          verified
+        ]
       );
 
-      return result.rows[0];
+      return this.toDomainUser(result.rows[0]);
     } catch (error) {
       if (error.code === '23505') {
-        // Unique violation
-        throw new ConflictError('User with this email already exists');
+        throw new ConflictError('User with this identity already exists');
       }
       throw new DatabaseError('Failed to create user', {
         error: error.message
@@ -90,183 +200,238 @@ class UserRepository {
     }
   }
 
-  /**
-   * Find user by email
-   * SECURITY: Uses parameterized queries to prevent SQL injection
-   */
   async findByEmail(email) {
+    await this.ready();
     try {
       const result = await this.pool.query(
         'SELECT * FROM users WHERE email = $1',
-        [email]
+        [email.toLowerCase().trim()]
       );
-
-      return result.rows[0] || null;
+      return this.toDomainUser(result.rows[0]);
     } catch (error) {
-      throw new DatabaseError('Failed to find user', { error: error.message });
+      throw new DatabaseError('Failed to find user by email', {
+        error: error.message
+      });
     }
   }
 
-  /**
-   * Find user by ID
-   * SECURITY: Uses parameterized queries to prevent SQL injection
-   */
   async findById(id) {
+    await this.ready();
     try {
       const result = await this.pool.query(
-        'SELECT id, email, name, mfa_enabled, last_login, created_at, updated_at FROM users WHERE id = $1',
+        'SELECT * FROM users WHERE user_id = $1 OR CAST(id AS TEXT) = $1',
         [id]
       );
-
       if (result.rows.length === 0) {
         throw new NotFoundError('User');
       }
-
-      return result.rows[0];
+      return this.toDomainUser(result.rows[0]);
     } catch (error) {
-      if (error instanceof NotFoundError) throw error;
-      throw new DatabaseError('Failed to find user', { error: error.message });
+      if (error instanceof NotFoundError) {
+        throw error;
+      }
+      throw new DatabaseError('Failed to find user by id', {
+        error: error.message
+      });
     }
   }
 
-  /**
-   * Update user
-   * SECURITY: Uses parameterized queries to prevent SQL injection
-   */
-  async update(id, updates) {
-    const allowedFields = ['name', 'mfa_enabled', 'mfa_secret', 'last_login'];
-    const fields = Object.keys(updates).filter((key) => allowedFields.includes(key));
+  async findUserByPhone(phone) {
+    await this.ready();
+    const result = await this.pool.query(
+      'SELECT * FROM users WHERE phone = $1',
+      [phone]
+    );
+    return this.toDomainUser(result.rows[0]);
+  }
 
-    if (fields.length === 0) {
+  async findUserByTelegramId(telegramId) {
+    await this.ready();
+    const result = await this.pool.query(
+      'SELECT * FROM users WHERE telegram_id = $1',
+      [String(telegramId)]
+    );
+    return this.toDomainUser(result.rows[0]);
+  }
+
+  async update(id, updates) {
+    await this.ready();
+    const fieldMap = {
+      name: 'name',
+      metadata: 'metadata',
+      phone: 'phone',
+      telegramId: 'telegram_id',
+      username: 'username',
+      authMethod: 'auth_method',
+      verified: 'verified',
+      emailVerified: 'email_verified',
+      lastLogin: 'last_login',
+      lockedUntil: 'locked_until'
+    };
+
+    const entries = Object.entries(updates)
+      .filter(([key, value]) => fieldMap[key] && value !== undefined);
+
+    if (entries.length === 0) {
       return this.findById(id);
     }
 
-    const setClause = fields
-      .map((field, index) => `${field} = $${index + 2}`)
-      .join(', ');
-    const values = [id, ...fields.map((field) => updates[field])];
+    const values = [id];
+    const setClause = entries.map(([key, value], index) => {
+      values.push(key === 'metadata' ? JSON.stringify(value) : value);
+      const column = fieldMap[key];
+      const cast = key === 'metadata' ? '::jsonb' : '';
+      return `${column} = $${index + 2}${cast}`;
+    }).join(', ');
 
-    try {
-      const result = await this.pool.query(
-        `UPDATE users 
-         SET ${setClause}, updated_at = CURRENT_TIMESTAMP 
-         WHERE id = $1 
-         RETURNING id, email, name, mfa_enabled, last_login, created_at, updated_at`,
-        values
-      );
+    const result = await this.pool.query(
+      `UPDATE users
+       SET ${setClause}, updated_at = CURRENT_TIMESTAMP
+       WHERE user_id = $1 OR CAST(id AS TEXT) = $1
+       RETURNING *`,
+      values
+    );
 
-      if (result.rows.length === 0) {
-        throw new NotFoundError('User');
+    if (result.rows.length === 0) {
+      throw new NotFoundError('User');
+    }
+
+    return this.toDomainUser(result.rows[0]);
+  }
+
+  async recordFailedLoginAttempt(userId) {
+    await this.ready();
+    await this.pool.query(
+      `UPDATE users
+       SET failed_login_attempts = COALESCE(failed_login_attempts, login_attempts, 0) + 1,
+           login_attempts = COALESCE(failed_login_attempts, login_attempts, 0) + 1,
+           locked_until = CASE
+             WHEN COALESCE(failed_login_attempts, login_attempts, 0) + 1 >= 5
+             THEN CURRENT_TIMESTAMP + INTERVAL '15 minutes'
+             ELSE locked_until
+           END,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE user_id = $1 OR CAST(id AS TEXT) = $1`,
+      [userId]
+    );
+  }
+
+  async resetFailedLoginAttempts(userId) {
+    await this.ready();
+    await this.pool.query(
+      `UPDATE users
+       SET failed_login_attempts = 0,
+           login_attempts = 0,
+           locked_until = NULL,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE user_id = $1 OR CAST(id AS TEXT) = $1`,
+      [userId]
+    );
+  }
+
+  async updateLastLogin(userId) {
+    await this.ready();
+    await this.pool.query(
+      `UPDATE users
+       SET last_login = CURRENT_TIMESTAMP,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE user_id = $1 OR CAST(id AS TEXT) = $1`,
+      [userId]
+    );
+  }
+
+  async checkPasswordHistory(userId, candidatePassword) {
+    const user = await this.findById(userId);
+    const passwordHashes = [user.password, ...(user.password_history || [])]
+      .filter(Boolean);
+
+    for (const hash of passwordHashes) {
+      if (await bcrypt.compare(candidatePassword, hash)) {
+        return true;
       }
-
-      return result.rows[0];
-    } catch (error) {
-      if (error instanceof NotFoundError) throw error;
-      throw new DatabaseError('Failed to update user', {
-        error: error.message
-      });
     }
+
+    return false;
   }
 
-  /**
-   * Update failed login attempts
-   * SECURITY: Track failed logins for brute force protection
-   */
-  async incrementFailedAttempts(email) {
-    try {
-      const result = await this.pool.query(
-        `UPDATE users 
-         SET failed_login_attempts = failed_login_attempts + 1,
-             locked_until = CASE 
-               WHEN failed_login_attempts >= 4 THEN CURRENT_TIMESTAMP + INTERVAL '15 minutes'
-               ELSE locked_until
-             END
-         WHERE email = $1
-         RETURNING failed_login_attempts, locked_until`,
-        [email]
-      );
+  async updatePassword(userId, hashedPassword) {
+    const user = await this.findById(userId);
+    const passwordHistory = [user.password, ...(user.password_history || [])]
+      .filter(Boolean)
+      .slice(0, 5);
 
-      return result.rows[0];
-    } catch (error) {
-      throw new DatabaseError('Failed to update login attempts', {
-        error: error.message
-      });
-    }
+    await this.pool.query(
+      `UPDATE users
+       SET password_hash = $2,
+           password_history = $3::jsonb,
+           password_expires_at = CURRENT_TIMESTAMP + INTERVAL '90 days',
+           reset_token = NULL,
+           reset_token_expires_at = NULL,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE user_id = $1 OR CAST(id AS TEXT) = $1`,
+      [userId, hashedPassword, JSON.stringify(passwordHistory)]
+    );
   }
 
-  /**
-   * Reset failed login attempts
-   */
-  async resetFailedAttempts(email) {
-    try {
-      await this.pool.query(
-        `UPDATE users 
-         SET failed_login_attempts = 0,
-             locked_until = NULL,
-             last_login = CURRENT_TIMESTAMP
-         WHERE email = $1`,
-        [email]
-      );
-    } catch (error) {
-      throw new DatabaseError('Failed to reset login attempts', {
-        error: error.message
-      });
-    }
+  async storeResetToken(userId, token) {
+    await this.ready();
+    await this.pool.query(
+      `UPDATE users
+       SET reset_token = $2,
+           reset_token_expires_at = CURRENT_TIMESTAMP + INTERVAL '1 hour',
+           updated_at = CURRENT_TIMESTAMP
+       WHERE user_id = $1 OR CAST(id AS TEXT) = $1`,
+      [userId, token]
+    );
   }
 
-  /**
-   * Check if user is locked
-   */
-  async isLocked(email) {
-    try {
-      const result = await this.pool.query(
-        'SELECT locked_until FROM users WHERE email = $1',
-        [email]
-      );
-
-      if (result.rows.length === 0) {
-        return false;
-      }
-
-      const lockedUntil = result.rows[0].locked_until;
-      if (!lockedUntil) return false;
-
-      return new Date(lockedUntil) > new Date();
-    } catch (error) {
-      throw new DatabaseError('Failed to check lock status', {
-        error: error.message
-      });
-    }
+  async count() {
+    const result = await this.pool.query('SELECT COUNT(*)::int AS count FROM users');
+    return result.rows[0].count;
   }
 
-  /**
-   * Delete user (for testing)
-   */
+  async countActive() {
+    const result = await this.pool.query(
+      'SELECT COUNT(*)::int AS count FROM users WHERE is_active = true'
+    );
+    return result.rows[0].count;
+  }
+
+  async countLocked() {
+    const result = await this.pool.query(
+      'SELECT COUNT(*)::int AS count FROM users WHERE locked_until > CURRENT_TIMESTAMP'
+    );
+    return result.rows[0].count;
+  }
+
+  async countExpiredPasswords() {
+    const result = await this.pool.query(
+      `SELECT COUNT(*)::int AS count
+       FROM users
+       WHERE password_expires_at IS NOT NULL
+         AND password_expires_at < CURRENT_TIMESTAMP`
+    );
+    return result.rows[0].count;
+  }
+
   async delete(id) {
-    try {
-      const result = await this.pool.query(
-        'DELETE FROM users WHERE id = $1 RETURNING id',
-        [id]
-      );
+    await this.ready();
+    const result = await this.pool.query(
+      'DELETE FROM users WHERE user_id = $1 OR CAST(id AS TEXT) = $1 RETURNING user_id',
+      [id]
+    );
 
-      if (result.rows.length === 0) {
-        throw new NotFoundError('User');
-      }
-
-      return true;
-    } catch (error) {
-      if (error instanceof NotFoundError) throw error;
-      throw new DatabaseError('Failed to delete user', {
-        error: error.message
-      });
+    if (result.rows.length === 0) {
+      throw new NotFoundError('User');
     }
+
+    return true;
   }
 
-  /**
-   * Close database connection
-   */
   async close() {
-    await this.pool.end();
+    if (this.pool !== sharedPool) {
+      await this.pool.end();
+    }
   }
 }
 

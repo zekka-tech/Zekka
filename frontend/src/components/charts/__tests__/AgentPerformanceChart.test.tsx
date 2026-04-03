@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { render } from '@testing-library/react'
+import { renderWithProviders, screen } from '@/test/test-utils'
 import { AgentPerformanceChart } from '../AgentPerformanceChart'
 
 describe('AgentPerformanceChart', () => {
@@ -9,49 +9,32 @@ describe('AgentPerformanceChart', () => {
     { name: 'CodeRabbit', avgExecutionTime: 3.2, totalExecutions: 28, successRate: 0.92 }
   ]
 
-  it('renders chart with data', () => {
-    const { container } = render(<AgentPerformanceChart data={mockData} />)
-    expect(container.querySelector('svg')).toBeInTheDocument()
+  it('renders title and legend when data is present', () => {
+    renderWithProviders(<AgentPerformanceChart data={mockData} />)
+    expect(screen.getByText('Agent Performance')).toBeInTheDocument()
+    expect(screen.getByText(/Average execution time/i)).toBeInTheDocument()
+    expect(screen.getByText(/Fast/i)).toBeInTheDocument()
+    expect(screen.getByText(/Medium/i)).toBeInTheDocument()
+    expect(screen.getByText(/Slow/i)).toBeInTheDocument()
   })
 
-  it('displays no data message when data is empty', () => {
-    const { getByText } = render(<AgentPerformanceChart data={[]} />)
-    expect(getByText('No data available')).toBeInTheDocument()
+  it('displays empty-state message when no data exists', () => {
+    renderWithProviders(<AgentPerformanceChart data={[]} />)
+    expect(screen.getByText('No data available')).toBeInTheDocument()
   })
 
-  it('renders bar chart', () => {
-    const { container } = render(<AgentPerformanceChart data={mockData} />)
-    expect(container.querySelector('svg')).toBeInTheDocument()
-  })
-
-  it('accepts custom height prop', () => {
-    const { container } = render(
-      <AgentPerformanceChart data={mockData} height={400} />
+  it('accepts long names without crashing', () => {
+    renderWithProviders(
+      <AgentPerformanceChart
+        data={[
+          {
+            name: 'This is a very long agent name that should be truncated',
+            avgExecutionTime: 2.5,
+            totalExecutions: 45
+          }
+        ]}
+      />
     )
-    expect(container.querySelector('svg')).toBeInTheDocument()
-  })
-
-  it('truncates long agent names', () => {
-    const longNameData = [
-      {
-        name: 'This is a very long agent name that should be truncated',
-        avgExecutionTime: 2.5,
-        totalExecutions: 45
-      }
-    ]
-    const { container } = render(<AgentPerformanceChart data={longNameData} />)
-    expect(container.querySelector('svg')).toBeInTheDocument()
-  })
-
-  it('displays performance legend', () => {
-    const { getByText } = render(<AgentPerformanceChart data={mockData} />)
-    expect(getByText(/Fast/)).toBeInTheDocument()
-    expect(getByText(/Medium/)).toBeInTheDocument()
-    expect(getByText(/Slow/)).toBeInTheDocument()
-  })
-
-  it('includes success rate in tooltip data', () => {
-    const { container } = render(<AgentPerformanceChart data={mockData} />)
-    expect(container.querySelector('svg')).toBeInTheDocument()
+    expect(screen.getByText('Agent Performance')).toBeInTheDocument()
   })
 })

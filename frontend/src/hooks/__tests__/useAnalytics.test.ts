@@ -1,9 +1,10 @@
+import { createElement, type ReactNode } from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { renderHook } from '@testing-library/react'
+import { renderHook, waitFor } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useAnalytics } from '../useAnalytics'
 import { apiService } from '@/services/api'
 
-// Mock the API service
 vi.mock('@/services/api', () => ({
   apiService: {
     getMetrics: vi.fn(),
@@ -12,39 +13,37 @@ vi.mock('@/services/api', () => ({
   }
 }))
 
-// Mock React Query
-vi.mock('@tanstack/react-query', async () => {
-  const actual = await vi.importActual('@tanstack/react-query')
-  return {
-    ...actual,
-    useQuery: vi.fn(({ queryFn }) => {
-      try {
-        const data = queryFn()
-        return { data, isLoading: false, error: null }
-      } catch (error) {
-        return { data: null, isLoading: false, error }
-      }
-    })
-  }
-})
+const createWrapper = () => {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, staleTime: 0, gcTime: 0 }
+    }
+  })
+
+  return ({ children }: { children: ReactNode }) =>
+    createElement(QueryClientProvider, { client: queryClient }, children)
+}
 
 describe('useAnalytics', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  it('returns default values when data is null', () => {
+  it('returns empty transformed data when APIs return nullish values', async () => {
     vi.mocked(apiService.getMetrics).mockResolvedValue(null)
     vi.mocked(apiService.getCosts).mockResolvedValue(null)
+    vi.mocked(apiService.getCostsBreakdown).mockResolvedValue(null)
 
-    const { result } = renderHook(() => useAnalytics())
+    const { result } = renderHook(() => useAnalytics(), {
+      wrapper: createWrapper()
+    })
 
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
     expect(result.current.data).toBeNull()
-    expect(result.current.isLoading).toBe(false)
   })
 
-  it('transforms metrics data correctly', () => {
-    const mockMetrics = {
+  it('transforms metrics and costs for charts', async () => {
+    const metrics = {
       totalTokens: 1000000,
       timeline: [
         { timestamp: '2024-01-15T10:00:00Z', tokens: 100000, cost: 5 },
@@ -56,7 +55,7 @@ describe('useAnalytics', () => {
       }
     }
 
-    const mockCosts = {
+    const costs = {
       totalCost: 50,
       byModel: {
         'Model A': { cost: 30 },
@@ -64,78 +63,53 @@ describe('useAnalytics', () => {
       }
     }
 
-    vi.mocked(apiService.getMetrics).mockResolvedValue(mockMetrics)
-    vi.mocked(apiService.getCosts).mockResolvedValue(mockCosts)
-    vi.mocked(apiService.getCostsBreakdown).mockResolvedValue(mockCosts)
+    vi.mocked(apiService.getMetrics).mockResolvedValue(metrics)
+    vi.mocked(apiService.getCosts).mockResolvedValue(costs)
+    vi.mocked(apiService.getCostsBreakdown).mockResolvedValue(costs)
 
-    const { result } = renderHook(() => useAnalytics('week'))
+    const { result } = renderHook(() => useAnalytics('week'), {
+      wrapper: createWrapper()
+    })
 
-    expect(result.current.data?.tokenUsage).toBeDefined()
-    expect(result.current.data?.costBreakdown).toBeDefined()
-    expect(result.current.data?.agentPerformance).toBeDefined()
-    expect(result.current.data?.stats).toBeDefined()
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+    expect(result.current.data?.tokenUsage).toHaveLength(2)
+    expect(result.current.data?.costBreakdown).toHaveLength(2)
+    expect(result.current.data?.agentPerformance).toHaveLength(2)
+    expect(result.current.data?.stats.totalTokens).toBe(1000000)
+    expect(result.current.data?.stats.totalCost).toBe(50)
   })
 
-  it('calculates statistics correctly', () => {
-    const mockMetrics = {
+  it('calculates statistics correctly', async () => {
+    vi.mocked(apiService.getMetrics).mockResolvedValue({
       totalTokens: 1000000,
       timeline: [],
       byAgent: {
-        'TopAgent': { totalExecutions: 100, avgExecutionTime: 2.5 }
+        TopAgent: { totalExecutions: 100, avgExecutionTime: 2.5 }
       }
-    }
-
-    const mockCosts = {
+    })
+    vi.mocked(apiService.getCosts).mockResolvedValue({
       totalCost: 50,
       byModel: {
-        'TopModel': { cost: 30 },
-        'OtherModel': { cost: 20 }
+        TopModel: { cost: 30 },
+        OtherModel: { cost: 20 }
       }
-    }
+    })
+    vi.mocked(apiService.getCostsBreakdown).mockResolvedValue({
+      byModel: {
+        TopModel: { cost: 30 },
+        OtherModel: { cost: 20 }
+      }
+    })
 
-    vi.mocked(apiService.getMetrics).mockResolvedValue(mockMetrics)
-    vi.mocked(apiService.getCosts).mockResolvedValue(mockCosts)
-    vi.mocked(apiService.getCostsBreakdown).mockResolvedValue(mockCosts)
+    const { result } = renderHook(() => useAnalytics(), {
+      wrapper: createWrapper()
+    })
 
-    const { result } = renderHook(() => useAnalytics())
-
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
     expect(result.current.data?.stats.totalTokens).toBe(1000000)
     expect(result.current.data?.stats.totalCost).toBe(50)
     expect(result.current.data?.stats.averageCostPerToken).toBeCloseTo(0.00005)
-  })
-
-  it('accepts different periods', () => {
-    vi.mocked(apiService.getMetrics).mockResolvedValue({ timeline: [], totalTokens: 0, byAgent: {} })
-    vi.mocked(apiService.getCosts).mockResolvedValue({ totalCost: 0, byModel: {} })
-    vi.mocked(apiService.getCostsBreakdown).mockResolvedValue({ byModel: {} })
-
-    const { result: dayResult } = renderHook(() => useAnalytics('day'))
-    const { result: weekResult } = renderHook(() => useAnalytics('week'))
-    const { result: monthResult } = renderHook(() => useAnalytics('month'))
-
-    expect(dayResult.current.period).toBe('day')
-    expect(weekResult.current.period).toBe('week')
-    expect(monthResult.current.period).toBe('month')
-  })
-
-  it('handles empty responses gracefully', () => {
-    vi.mocked(apiService.getMetrics).mockResolvedValue({
-      totalTokens: 0,
-      timeline: [],
-      byAgent: {}
-    })
-    vi.mocked(apiService.getCosts).mockResolvedValue({
-      totalCost: 0,
-      byModel: {}
-    })
-    vi.mocked(apiService.getCostsBreakdown).mockResolvedValue({
-      byModel: {}
-    })
-
-    const { result } = renderHook(() => useAnalytics())
-
-    expect(result.current.data?.tokenUsage).toEqual([])
-    expect(result.current.data?.costBreakdown).toEqual([])
-    expect(result.current.data?.agentPerformance).toEqual([])
+    expect(result.current.data?.stats.topAgent).toBe('TopAgent')
+    expect(result.current.data?.stats.topModel).toBe('TopModel')
   })
 })

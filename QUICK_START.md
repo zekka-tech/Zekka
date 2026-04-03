@@ -7,9 +7,9 @@ cp .env.production.example .env.production
 ./setup.sh
 ```
 
-This starts the API, PostgreSQL, Redis, Prometheus, and Grafana.
+This starts the packaged app UI at `/`, plus the API, PostgreSQL, Redis, Prometheus, and Grafana.
 
-## 2. Start the frontend
+## 2. Start the frontend in development mode
 
 ```bash
 cd frontend
@@ -18,6 +18,8 @@ npm run dev
 ```
 
 Open `http://localhost:5173`.
+
+If you just want the packaged application, open `http://localhost:3000` after step 1.
 
 ## 3. Check the backend
 

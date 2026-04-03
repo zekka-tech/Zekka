@@ -1,5 +1,6 @@
 require('dotenv').config();
 const express = require('express');
+const fs = require('fs');
 const http = require('http');
 const path = require('path');
 const cors = require('cors');
@@ -17,15 +18,11 @@ const { initVault } = require('./config/vault');
 // Middleware
 const {
   apiLimiter,
-  createProjectLimiter,
-  authLimiter
+  createProjectLimiter
 } = require('./middleware/rateLimit');
 const {
   authenticate,
-  optionalAuth,
-  register,
-  login,
-  getUser
+  optionalAuth
 } = require('./middleware/auth');
 const {
   metricsMiddleware,
@@ -44,6 +41,7 @@ const analyticsRoutes = require('./routes/analytics.routes');
 const agentsRoutes = require('./routes/agents.routes');
 const sourcesRoutes = require('./routes/sources.routes');
 const preferencesRoutes = require('./routes/preferences.routes');
+const authRoutes = require('./routes/auth.routes');
 
 // Logger setup
 const logger = createLogger({
@@ -216,126 +214,7 @@ app.get('/api/health', (req, res) => {
 
 // API Routes
 
-// Authentication routes
-/**
- * @swagger
- * /api/auth/register:
- *   post:
- *     summary: Register new user
- *     tags: [Authentication]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - email
- *               - password
- *               - name
- *             properties:
- *               email:
- *                 type: string
- *                 format: email
- *               password:
- *                 type: string
- *                 format: password
- *               name:
- *                 type: string
- *     responses:
- *       201:
- *         description: User registered successfully
- *       400:
- *         description: Invalid input
- */
-app.post('/api/auth/register', authLimiter, async (req, res) => {
-  try {
-    const { email, password, name } = req.body;
-
-    if (!email || !password || !name) {
-      return res.status(400).json({ error: 'Missing required fields' });
-    }
-
-    const user = await register(email, password, name);
-    logger.info(`👤 User registered: ${email}`);
-    res.status(201).json(user);
-  } catch (error) {
-    logger.error('Registration error:', error);
-    res.status(400).json({ error: error.message });
-  }
-});
-
-/**
- * @swagger
- * /api/auth/login:
- *   post:
- *     summary: User login
- *     tags: [Authentication]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - email
- *               - password
- *             properties:
- *               email:
- *                 type: string
- *                 format: email
- *               password:
- *                 type: string
- *                 format: password
- *     responses:
- *       200:
- *         description: Login successful
- *       401:
- *         description: Invalid credentials
- */
-app.post('/api/auth/login', authLimiter, async (req, res) => {
-  try {
-    const { email, password } = req.body;
-
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Missing email or password' });
-    }
-
-    const result = await login(email, password);
-    logger.info(`👤 User logged in: ${email}`);
-    res.json(result);
-  } catch (error) {
-    logger.error('Login error:', error);
-    res.status(401).json({ error: error.message });
-  }
-});
-
-/**
- * @swagger
- * /api/auth/me:
- *   get:
- *     summary: Get current user
- *     tags: [Authentication]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: User information
- *       401:
- *         description: Unauthorized
- */
-app.get('/api/auth/me', authenticate, async (req, res) => {
-  try {
-    const user = getUser(req.user.userId);
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-    res.json(user);
-  } catch (error) {
-    logger.error('Error fetching user:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
+app.use('/api/auth', authRoutes);
 
 // Create new project
 /**
@@ -596,13 +475,26 @@ app.use('/api/v1/agents', agentsRoutes);
 app.use('/api/v1/sources', sourcesRoutes);
 app.use('/api/v1/preferences', preferencesRoutes);
 
-// Serve landing page at root
+const frontendBuildDir = path.join(__dirname, '../frontend/dist');
+const legacyPublicDir = path.join(__dirname, '../public');
+const primaryWebDir = fs.existsSync(path.join(frontendBuildDir, 'index.html'))
+  ? frontendBuildDir
+  : legacyPublicDir;
+
+app.use(express.static(primaryWebDir));
+
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, '../public/index.html'));
+  res.sendFile(path.join(primaryWebDir, 'index.html'));
 });
 
-// Serve static files (frontend)
-app.use(express.static('public'));
+app.get(/^\/(?!api|metrics).*/, (req, res, next) => {
+  const indexFile = path.join(primaryWebDir, 'index.html');
+  if (!fs.existsSync(indexFile)) {
+    return next();
+  }
+
+  return res.sendFile(indexFile);
+});
 
 // 404 handler
 app.use((req, res) => {

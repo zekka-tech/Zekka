@@ -126,8 +126,8 @@ async function configureServices() {
   DIContainer.registerSingleton(
     'authService',
     (pool, redis, passwordService, auditService) => {
-      const AuthService = require('../services/auth-service');
-      return new AuthService(pool, redis, { passwordService, auditService });
+      const { AuthService } = require('../services/auth.service');
+      return new AuthService();
     },
     ['database', 'redis', 'passwordService', 'auditService']
   );

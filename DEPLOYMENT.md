@@ -1,17 +1,16 @@
 # Deployment Guide
 
-## Backend deployment model
+## Packaged deployment model
 
-The repository's root deployment assets are for the backend stack:
+The repository's root deployment assets package the backend stack and the primary React UI together:
 
 - Node.js API container
+- React frontend bundle served by the backend container at `/`
 - PostgreSQL
 - Redis
 - Prometheus
 - Grafana
 - Optional production Nginx via `docker-compose.prod.yml`
-
-The React frontend in `frontend/` is deployed separately as a static site.
 
 ## Local Docker deployment
 
@@ -28,7 +27,8 @@ curl http://localhost:3000/health
 
 Service URLs:
 
-- API: `http://localhost:3000`
+- App UI: `http://localhost:3000`
+- API: `http://localhost:3000/api`
 - Swagger: `http://localhost:3000/api/docs`
 - Prometheus: `http://localhost:9090`
 - Grafana: `http://localhost:3001`
@@ -52,7 +52,7 @@ Review and populate these before use:
 - `GRAFANA_ADMIN_PASSWORD`
 - `VAULT_TOKEN` if Vault is enabled
 
-## Frontend deployment
+## Frontend development and standalone deployment
 
 Build from `frontend/`:
 
@@ -62,7 +62,7 @@ npm install
 npm run build
 ```
 
-Deploy the generated `frontend/dist` directory to any static host. Set:
+The packaged Docker image already embeds this bundle for the primary shipped UI. You can also deploy the generated `frontend/dist` directory to a separate static host when needed. Set:
 
 - `VITE_API_URL`
 - `VITE_WS_URL`
@@ -70,6 +70,6 @@ Deploy the generated `frontend/dist` directory to any static host. Set:
 ## Operational notes
 
 - Root Docker Compose does not include an `ollama` service.
-- Root Docker Compose does not start the React frontend.
+- Local frontend development still runs separately with Vite on `5173`.
 - The current backend health endpoint is `/health`.
 - Grafana uses port `3001`, so that port is not available for another app service in the default stack.

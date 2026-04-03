@@ -16,15 +16,58 @@ const { AppError, ErrorCodes } = require('../utils/errors');
 const { AuditLogger } = require('../utils/audit-logger');
 const { getPasswordPolicyManager } = require('../utils/password-policy');
 const { SessionManager } = require('../utils/session-manager');
+const UserRepository = require('../repositories/user.repository');
+const appConfig = require('../config');
 
 class AuthService {
   constructor(userRepository, config) {
-    this.userRepository = userRepository;
-    this.config = config;
+    this.userRepository =
+      userRepository && typeof userRepository.findByEmail === 'function'
+        ? userRepository
+        : new UserRepository();
+    this.config = config && config.jwtSecret
+      ? config
+      : {
+          jwtSecret: appConfig.jwt.secret,
+          jwtExpiration: appConfig.jwt.expiration
+        };
     this.auditLogger = new AuditLogger();
     this.passwordPolicy = getPasswordPolicyManager();
     this.sessionManager = new SessionManager();
     this.saltRounds = 12;
+  }
+
+  async getUserById(userId) {
+    const user = await this.userRepository.findById(userId);
+    return this.sanitizeUser(user);
+  }
+
+  async createUser(userData) {
+    const user = await this.userRepository.create(userData);
+    return this.sanitizeUser(user);
+  }
+
+  async findUserByPhone(phone) {
+    const user = await this.userRepository.findUserByPhone(phone);
+    return user ? this.sanitizeUser(user) : null;
+  }
+
+  async findUserByTelegramId(telegramId) {
+    const user = await this.userRepository.findUserByTelegramId(telegramId);
+    return user ? this.sanitizeUser(user) : null;
+  }
+
+  async createSession(userId, metadata = {}) {
+    const user = await this.userRepository.findById(userId);
+    const token = this.generateAccessToken(user);
+    await this.sessionManager.createSession({ userId, token, metadata });
+
+    return {
+      token,
+      expiresAt: new Date(
+        Date.now() + 24 * 60 * 60 * 1000
+      ).toISOString()
+    };
   }
 
   /**
@@ -112,7 +155,8 @@ class AuthService {
 
       return {
         user: this.sanitizeUser(user),
-        token
+        token,
+        accessToken: token
       };
     } catch (error) {
       if (error instanceof AppError) {
@@ -248,7 +292,8 @@ class AuthService {
 
       return {
         user: this.sanitizeUser(user),
-        token
+        token,
+        accessToken: token
       };
     } catch (error) {
       if (error instanceof AppError) {

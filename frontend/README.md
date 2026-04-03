@@ -1,6 +1,6 @@
 # Zekka Frontend
 
-The frontend is a standalone React application in the monorepo. It is not served by the root Docker Compose stack.
+This workspace is the React source for the primary Zekka UI. In local development it runs as a standalone Vite app; in packaged Docker deployments the root `Dockerfile` builds this workspace and the backend serves the resulting bundle at `/`.
 
 ## Stack
 
@@ -45,4 +45,4 @@ npm run build
 npm run build
 ```
 
-Deploy `dist/` to a static host and point it at the backend API with `VITE_API_URL`.
+Deploy `dist/` to a static host and point it at the backend API with `VITE_API_URL`, or let the root Docker build package and serve it through the backend container.

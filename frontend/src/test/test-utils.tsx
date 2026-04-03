@@ -3,6 +3,7 @@ import { render, type RenderOptions } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import { ThemeProvider } from '@/contexts/ThemeContext'
+import { ToastProvider } from '@/components/ui/Toast'
 
 interface RenderWithProvidersOptions extends Omit<RenderOptions, 'wrapper'> {
   initialRoute?: string
@@ -30,9 +31,11 @@ export function renderWithProviders(
     return (
       <QueryClientProvider client={queryClient}>
         <ThemeProvider>
-          <MemoryRouter initialEntries={[initialRoute]}>
-            {children}
-          </MemoryRouter>
+          <ToastProvider>
+            <MemoryRouter initialEntries={[initialRoute]}>
+              {children}
+            </MemoryRouter>
+          </ToastProvider>
         </ThemeProvider>
       </QueryClientProvider>
     )

@@ -1,4 +1,5 @@
 import '@testing-library/jest-dom'
+import { createElement, type ReactNode } from 'react'
 import { afterEach, vi } from 'vitest'
 import { cleanup } from '@testing-library/react'
 
@@ -7,12 +8,19 @@ afterEach(() => {
   cleanup()
 })
 
-// Mock localStorage
+// Mock localStorage with in-memory persistence
+let storage: Record<string, string> = {}
 const localStorageMock = {
-  getItem: vi.fn(),
-  setItem: vi.fn(),
-  removeItem: vi.fn(),
-  clear: vi.fn(),
+  getItem: vi.fn((key: string) => (key in storage ? storage[key] : null)),
+  setItem: vi.fn((key: string, value: string) => {
+    storage[key] = String(value)
+  }),
+  removeItem: vi.fn((key: string) => {
+    delete storage[key]
+  }),
+  clear: vi.fn(() => {
+    storage = {}
+  }),
 }
 
 Object.defineProperty(window, 'localStorage', {
@@ -32,4 +40,48 @@ Object.defineProperty(window, 'matchMedia', {
     removeEventListener: vi.fn(),
     dispatchEvent: vi.fn(),
   })),
+})
+
+Object.defineProperty(window, 'confirm', {
+  writable: true,
+  value: vi.fn(() => true),
+})
+
+vi.mock('recharts', async () => {
+  const actual = await vi.importActual<typeof import('recharts')>('recharts')
+
+  return {
+    ...actual,
+    ResponsiveContainer: ({
+      children,
+      width,
+      height,
+    }: {
+      children: ReactNode
+      width?: number | string
+      height?: number | string
+    }) =>
+      createElement(
+        'div',
+        {
+          style: {
+            width: typeof width === 'number' ? `${width}px` : width || '800px',
+            height:
+              typeof height === 'number' ? `${height}px` : height || '300px',
+          },
+        },
+        children
+      ),
+  }
+})
+
+class ResizeObserver {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+
+Object.defineProperty(window, 'ResizeObserver', {
+  writable: true,
+  value: ResizeObserver
 })

@@ -40,6 +40,9 @@ export const SettingSelect = <T extends string | number>({
         <select
           value={value}
           onChange={(e) => {
+            if (disabled) {
+              return
+            }
             const selectedOption = options.find(
               (opt) => String(opt.value) === e.target.value
             )

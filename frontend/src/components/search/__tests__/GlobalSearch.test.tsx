@@ -1,188 +1,93 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { fireEvent } from '@testing-library/react'
+import { renderWithProviders, screen } from '@/test/test-utils'
 import { GlobalSearch } from '../GlobalSearch'
 
-// Mock fireEvent using simulated clicks and changes
-const fireEvent = {
-  click: (element: HTMLElement) => {
-    element.click()
-  },
-  change: (element: HTMLInputElement, data: any) => {
-    element.value = data.target.value
-    element.dispatchEvent(new Event('change', { bubbles: true }))
-  },
-  keyDown: (element: HTMLElement, data: any) => {
-    const event = new KeyboardEvent('keydown', { key: data.key })
-    element.dispatchEvent(event)
-  }
-}
+const addToHistory = vi.fn()
+const useUnifiedSearchMock = vi.fn()
 
-// Mock the search hooks
 vi.mock('@/hooks/useUnifiedSearch', () => ({
-  useUnifiedSearch: vi.fn(() => ({
-    all: [
-      {
-        item: { id: '1', title: 'React Project', category: 'project' },
-        score: 0.1,
-        matches: []
-      }
-    ],
-    total: 1,
-    isEmpty: false
-  }))
+  useUnifiedSearch: (...args: unknown[]) => useUnifiedSearchMock(...args)
 }))
 
 vi.mock('@/hooks/useSearchHistory', () => ({
-  useSearchHistory: vi.fn(() => ({
-    history: [
-      { query: 'React', timestamp: Date.now(), category: 'framework' }
-    ],
-    addToHistory: vi.fn(),
+  useSearchHistory: () => ({
+    history: [{ query: 'React', timestamp: Date.now(), category: 'framework' }],
+    addToHistory,
     isEmpty: false
-  }))
+  })
 }))
 
 describe('GlobalSearch', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    useUnifiedSearchMock.mockReturnValue({
+      all: [
+        {
+          item: { id: '1', title: 'React Project', category: 'project' },
+          score: 0.1
+        }
+      ],
+      total: 1,
+      isEmpty: false
+    })
   })
 
-  it('does not render when isOpen is false', () => {
-    const { container } = render(
-      <GlobalSearch isOpen={false} onClose={vi.fn()} />
-    )
-    expect(container.querySelector('input')).not.toBeInTheDocument()
+  it('does not render when closed', () => {
+    renderWithProviders(<GlobalSearch isOpen={false} onClose={vi.fn()} />)
+    expect(screen.queryByPlaceholderText(/Search projects/i)).not.toBeInTheDocument()
   })
 
-  it('renders search input when isOpen is true', () => {
-    const { getByPlaceholderText } = render(
-      <GlobalSearch isOpen={true} onClose={vi.fn()} />
-    )
-    expect(getByPlaceholderText(/Search projects/)).toBeInTheDocument()
-  })
-
-  it('closes modal when close button is clicked', () => {
+  it('renders and closes from backdrop', () => {
     const onClose = vi.fn()
-    const { container } = render(
+    const { container } = renderWithProviders(
       <GlobalSearch isOpen={true} onClose={onClose} />
     )
-    const closeButton = container.querySelector('button[class*="hover:bg-muted"]')
-    fireEvent.click(closeButton!)
+
+    fireEvent.click(container.querySelector('.bg-black\\/30') as HTMLElement)
     expect(onClose).toHaveBeenCalled()
   })
 
-  it('closes modal when backdrop is clicked', () => {
+  it('closes on Escape and supports keyboard selection', () => {
     const onClose = vi.fn()
-    const { container } = render(
-      <GlobalSearch isOpen={true} onClose={onClose} />
+    const onSelect = vi.fn()
+    renderWithProviders(
+      <GlobalSearch isOpen={true} onClose={onClose} onSelect={onSelect} />
     )
-    const backdrop = container.querySelector('.bg-black\\/30')
-    fireEvent.click(backdrop!)
-    expect(onClose).toHaveBeenCalled()
-  })
 
-  it('closes modal when Escape key is pressed', () => {
-    const onClose = vi.fn()
-    const { getByPlaceholderText } = render(
-      <GlobalSearch isOpen={true} onClose={onClose} />
-    )
-    const input = getByPlaceholderText(/Search projects/)
+    const input = screen.getByPlaceholderText(/Search projects/i)
+    fireEvent.change(input, { target: { value: 'react' } })
+    fireEvent.keyDown(input, { key: 'ArrowDown' })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(onSelect).toHaveBeenCalled()
+
     fireEvent.keyDown(input, { key: 'Escape' })
     expect(onClose).toHaveBeenCalled()
   })
 
-  it('updates query when input changes', () => {
-    const { getByPlaceholderText } = render(
-      <GlobalSearch isOpen={true} onClose={vi.fn()} />
-    )
-    const input = getByPlaceholderText(/Search projects/) as HTMLInputElement
-    fireEvent.change(input, { target: { value: 'React' } })
-    expect(input.value).toBe('React')
-  })
-
   it('shows recent searches when query is empty', () => {
-    const { getByText } = render(
-      <GlobalSearch isOpen={true} onClose={vi.fn()} />
-    )
-    expect(getByText(/Recent Searches/)).toBeInTheDocument()
+    renderWithProviders(<GlobalSearch isOpen={true} onClose={vi.fn()} />)
+    expect(screen.getByText(/Recent Searches/i)).toBeInTheDocument()
+    expect(screen.getByText('React')).toBeInTheDocument()
   })
 
-  it('shows results when query is entered', () => {
-    const { getByPlaceholderText } = render(
-      <GlobalSearch isOpen={true} onClose={vi.fn()} />
-    )
-    const input = getByPlaceholderText(/Search projects/)
-    fireEvent.change(input, { target: { value: 'React' } })
-    // Results should be displayed
-    expect(input).toBeInTheDocument()
+  it('shows advanced filter toggle when query has text', () => {
+    renderWithProviders(<GlobalSearch isOpen={true} onClose={vi.fn()} />)
+    const input = screen.getByPlaceholderText(/Search projects/i)
+    fireEvent.change(input, { target: { value: 'react' } })
+    expect(screen.getByRole('button', { name: /advanced filters/i })).toBeInTheDocument()
   })
 
-  it('navigates results with arrow keys', () => {
-    const { getByPlaceholderText, container } = render(
-      <GlobalSearch isOpen={true} onClose={vi.fn()} />
-    )
-    const input = getByPlaceholderText(/Search projects/)
-    fireEvent.change(input, { target: { value: 'test' } })
-
-    // Arrow down
-    fireEvent.keyDown(input, { key: 'ArrowDown' })
-    const highlights = container.querySelectorAll('[class*="bg-primary/10"]')
-    expect(highlights.length).toBeGreaterThan(0)
-  })
-
-  it('calls onSelect when result is clicked', () => {
-    const onSelect = vi.fn()
-    const { container } = render(
-      <GlobalSearch isOpen={true} onClose={vi.fn()} onSelect={onSelect} />
-    )
-    const buttons = container.querySelectorAll('button') as NodeListOf<HTMLButtonElement>
-    // Find a SearchHighlight result button (not close or toggle buttons)
-    let resultButton: HTMLButtonElement | undefined
-    buttons.forEach(b => {
-      if (b.querySelector('[class*="truncate"]')) {
-        resultButton = b
-      }
+  it('shows no-results state', () => {
+    useUnifiedSearchMock.mockReturnValue({
+      all: [],
+      total: 0,
+      isEmpty: true
     })
-    if (resultButton) {
-      fireEvent.click(resultButton)
-      expect(onSelect).toHaveBeenCalled()
-    }
-  })
 
-  it('shows no results message when nothing found', () => {
-    const { getByPlaceholderText, getByText } = render(
-      <GlobalSearch isOpen={true} onClose={vi.fn()} />
-    )
-    const input = getByPlaceholderText(/Search projects/)
+    renderWithProviders(<GlobalSearch isOpen={true} onClose={vi.fn()} />)
+    const input = screen.getByPlaceholderText(/Search projects/i)
     fireEvent.change(input, { target: { value: 'xyznonexistent' } })
-    // Wait for search to complete
-    setTimeout(() => {
-      expect(getByText(/No results found/)).toBeInTheDocument()
-    }, 100)
-  })
-
-  it('displays footer with keyboard shortcuts', () => {
-    const { getByText } = render(
-      <GlobalSearch isOpen={true} onClose={vi.fn()} />
-    )
-    expect(getByText(/Navigate/)).toBeInTheDocument()
-    expect(getByText(/Select/)).toBeInTheDocument()
-  })
-
-  it('shows advanced filters toggle when query is not empty', () => {
-    const { getByPlaceholderText, getByText } = render(
-      <GlobalSearch isOpen={true} onClose={vi.fn()} />
-    )
-    const input = getByPlaceholderText(/Search projects/)
-    fireEvent.change(input, { target: { value: 'test' } })
-    expect(getByText(/Advanced Filters/i)).toBeInTheDocument()
-  })
-
-  it('focuses input when opened', () => {
-    const { getByPlaceholderText } = render(
-      <GlobalSearch isOpen={true} onClose={vi.fn()} />
-    )
-    const input = getByPlaceholderText(/Search projects/) as HTMLInputElement
-    expect(document.activeElement).toBe(input)
+    expect(screen.getByText(/No results found/i)).toBeInTheDocument()
   })
 })

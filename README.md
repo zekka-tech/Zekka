@@ -3,7 +3,7 @@
 Zekka is a split-stack repository:
 
 - `src/`: Node.js/Express backend with PostgreSQL, Redis, Swagger, Prometheus metrics, and Docker deployment assets.
-- `frontend/`: React 19 + TypeScript + Vite frontend, built and deployed separately from the root Docker Compose stack.
+- `frontend/`: React 19 + TypeScript + Vite frontend for local development and standalone frontend workflows.
 
 ## Current Tech Stack
 
@@ -21,7 +21,7 @@ Zekka is a split-stack repository:
 - `prometheus` on `http://localhost:9090`
 - `grafana` on `http://localhost:3001`
 
-It does not start the React frontend in `frontend/`, and it does not define an `ollama` service.
+At development time, the React frontend still runs separately on `5173`. In packaged Docker deployments, the root `Dockerfile` now builds `frontend/` and the backend serves that bundle as the primary shipped UI at `/`.
 
 ## Quick Start
 
@@ -39,7 +39,7 @@ Useful endpoints after startup:
 - Prometheus: `http://localhost:9090`
 - Grafana: `http://localhost:3001`
 
-### Frontend
+### Frontend development
 
 ```bash
 cd frontend
@@ -50,6 +50,14 @@ npm run dev
 Default frontend URL: `http://localhost:5173`
 
 Set `VITE_API_URL` to point at the backend when needed. Local default is `http://localhost:3000`.
+
+### Packaged UI
+
+After `docker compose up -d --build`, open:
+
+- App UI: `http://localhost:3000`
+- API health: `http://localhost:3000/health`
+- Swagger: `http://localhost:3000/api/docs`
 
 ## Verification
 
@@ -73,8 +81,9 @@ npm run build
 
 ## Deployment Notes
 
-- Root Docker deployment is backend-only.
-- Frontend deployment is a separate static build from `frontend/dist`.
+- Root Docker deployment now ships the React frontend bundle through the backend container.
+- Frontend development remains a separate Vite workflow in `frontend/`.
+- `frontend/dist` can still be deployed separately when you want an independent static frontend deployment.
 - `docker-compose.prod.yml` contains the production-oriented backend stack.
 - `setup.sh` is the current local bootstrap script for the backend stack.
 
@@ -85,7 +94,16 @@ Use these files as the current source of truth:
 - `README.md`
 - `QUICK_START.md`
 - `DEPLOYMENT.md`
+- `DEPLOYMENT_RUNBOOK.md`
+- `ARCHITECTURE.md`
+- `API_REFERENCE.md`
+- `CONTRIBUTING.md`
 - `frontend/README.md`
 - `frontend/DEPLOYMENT.md`
+- `docs/README.md`
 
-Many other markdown files in the repo are historical implementation reports and should be treated as archival unless they are updated to match the current code.
+Historical implementation reports are archived under:
+
+- `docs/archive/root/`
+- `docs/archive/frontend/`
+- `docs/archive/README.md`

@@ -49,6 +49,19 @@ COPY public ./public
 # Build TypeScript and prepare for production
 RUN npm run build || echo "Build step completed"
 
+# ===================================================================
+# Stage 2b: Frontend Builder
+# ===================================================================
+FROM node:22-alpine AS frontend-builder
+
+WORKDIR /frontend
+
+COPY frontend/package*.json ./
+RUN npm ci
+
+COPY frontend ./
+RUN npm run build
+
 # Note: Skipping npm prune --production to preserve transitive runtime dependencies
 # Some packages like lru-cache are required at runtime but not in direct dependencies
 # RUN npm prune --production --legacy-peer-deps
@@ -80,6 +93,7 @@ COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist
 COPY --from=builder --chown=nodejs:nodejs /app/src ./src
 COPY --from=builder --chown=nodejs:nodejs /app/migrations ./migrations
 COPY --from=builder --chown=nodejs:nodejs /app/public ./public
+COPY --from=frontend-builder --chown=nodejs:nodejs /frontend/dist ./frontend/dist
 COPY --from=builder --chown=nodejs:nodejs /app/package*.json ./
 
 # Copy necessary configuration files
