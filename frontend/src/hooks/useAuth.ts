@@ -1,14 +1,26 @@
+import { useEffect, useSyncExternalStore } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiService } from '@/services/api'
 
 export const useAuth = () => {
   const queryClient = useQueryClient()
+  const hasToken = useSyncExternalStore(
+    (listener) => apiService.subscribeAuthChange(listener),
+    () => apiService.isAuthenticated(),
+    () => false
+  )
+
+  useEffect(() => {
+    if (!hasToken) {
+      queryClient.setQueryData(['auth', 'user'], null)
+    }
+  }, [hasToken, queryClient])
 
   // Get current user
   const { data: user, isLoading, error } = useQuery({
     queryKey: ['auth', 'user'],
     queryFn: () => apiService.getMe(),
-    enabled: apiService.isAuthenticated(),
+    enabled: hasToken,
     retry: false,
     staleTime: 5 * 60 * 1000 // 5 minutes
   })
@@ -46,7 +58,7 @@ export const useAuth = () => {
     user,
     isLoading,
     error,
-    isAuthenticated: !!user && !error,
+    isAuthenticated: hasToken && !!user && !error,
     loginAsync: loginMutation.mutateAsync,
     isLoggingIn: loginMutation.isPending,
     loginError: loginMutation.error,

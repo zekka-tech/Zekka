@@ -177,17 +177,33 @@ export function isValidEmail(email: string): boolean {
 }
 
 /**
+ * Trigger a browser download for a URL.
+ */
+export function triggerDownload(url: string, filename: string): void {
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.style.display = 'none'
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+}
+
+/**
  * Download file from blob
  */
 export function downloadFile(blob: Blob, filename: string): void {
   const url = window.URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
+  triggerDownload(url, filename)
   window.URL.revokeObjectURL(url)
+}
+
+/**
+ * Download text content as a file
+ */
+export function downloadText(content: string, filename: string, mimeType = 'text/plain;charset=utf-8'): void {
+  const encodedContent = encodeURIComponent(content)
+  triggerDownload(`data:${mimeType},${encodedContent}`, filename)
 }
 
 /**

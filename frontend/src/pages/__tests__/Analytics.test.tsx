@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, fireEvent } from '@testing-library/react'
+import { render, fireEvent, act } from '@testing-library/react'
 import { Analytics } from '../Analytics'
 import * as useAnalyticsModule from '@/hooks/useAnalytics'
 
@@ -85,12 +85,16 @@ describe('Analytics Page', () => {
     expect(getByText('Top Agent')).toBeInTheDocument()
   })
 
-  it('renders all chart components', () => {
-    const { getByTestId } = render(<Analytics />)
-    expect(getByTestId('token-usage-chart')).toBeInTheDocument()
-    expect(getByTestId('cost-breakdown-chart')).toBeInTheDocument()
-    expect(getByTestId('agent-performance-chart')).toBeInTheDocument()
-    expect(getByTestId('combined-metrics-chart')).toBeInTheDocument()
+  it('renders all chart components', async () => {
+    const { findByTestId } = render(<Analytics />)
+    await act(async () => {
+      await vi.dynamicImportSettled()
+      await vi.dynamicImportSettled()
+    })
+    expect(await findByTestId('token-usage-chart', {}, { timeout: 5000 })).toBeInTheDocument()
+    expect(await findByTestId('cost-breakdown-chart', {}, { timeout: 5000 })).toBeInTheDocument()
+    expect(await findByTestId('agent-performance-chart', {}, { timeout: 5000 })).toBeInTheDocument()
+    expect(await findByTestId('combined-metrics-chart', {}, { timeout: 5000 })).toBeInTheDocument()
   })
 
   it('displays export buttons', () => {

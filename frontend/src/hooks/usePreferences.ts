@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from 'react'
+import { downloadText } from '@/lib/utils'
 
 export interface UserPreferences {
   // Appearance
@@ -125,13 +126,11 @@ export const usePreferences = () => {
   // Export preferences to JSON
   const exportPreferences = useCallback(() => {
     const data = JSON.stringify(preferences, null, 2)
-    const element = document.createElement('a')
-    element.setAttribute('href', `data:application/json;charset=utf-8,${encodeURIComponent(data)}`)
-    element.setAttribute('download', `preferences-${Date.now()}.json`)
-    element.style.display = 'none'
-    document.body.appendChild(element)
-    element.click()
-    document.body.removeChild(element)
+    downloadText(
+      data,
+      `preferences-${Date.now()}.json`,
+      'application/json;charset=utf-8'
+    )
   }, [preferences])
 
   // Import preferences from JSON

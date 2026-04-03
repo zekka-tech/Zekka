@@ -1,6 +1,7 @@
 import { Copy, Check, Download } from 'lucide-react'
 import { useState, useMemo, useCallback } from 'react'
 import { cn } from '@/lib/cn'
+import { downloadFile } from '@/lib/utils'
 import Prism from 'prismjs'
 import 'prismjs/themes/prism-tomorrow.css'
 import 'prismjs/components/prism-typescript'
@@ -55,19 +56,13 @@ export const CodeBlock = ({ code, language, filename }: CodeBlockProps) => {
 
   const handleDownload = useCallback(() => {
     try {
-      const element = document.createElement('a')
       const file = new Blob([code], { type: 'text/plain' })
-      element.href = URL.createObjectURL(file)
 
       // Sanitize filename
       const sanitizedFilename = (filename || `code.${language}`)
         .replace(/[/\\:*?"<>|]/g, '_')
-      element.download = sanitizedFilename
 
-      document.body.appendChild(element)
-      element.click()
-      document.body.removeChild(element)
-      URL.revokeObjectURL(element.href)
+      downloadFile(file, sanitizedFilename)
     } catch (err) {
       console.error('Failed to download:', err)
     }

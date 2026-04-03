@@ -1,11 +1,74 @@
-import { useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { cn } from '@/lib/cn'
 import { useAnalytics, type Period } from '@/hooks/useAnalytics'
-import { TokenUsageChart } from '@/components/charts/TokenUsageChart'
-import { CostBreakdownChart } from '@/components/charts/CostBreakdownChart'
-import { AgentPerformanceChart } from '@/components/charts/AgentPerformanceChart'
-import { CombinedMetricsChart } from '@/components/charts/CombinedMetricsChart'
+import { downloadText } from '@/lib/utils'
 import { BarChart3Icon, TrendingUpIcon, DollarSignIcon, ZapIcon, RefreshCwIcon, DownloadIcon } from 'lucide-react'
+
+const TokenUsageChart = lazy(() =>
+  import('@/components/charts/TokenUsageChart').then((module) => ({
+    default: module.TokenUsageChart
+  }))
+)
+const CostBreakdownChart = lazy(() =>
+  import('@/components/charts/CostBreakdownChart').then((module) => ({
+    default: module.CostBreakdownChart
+  }))
+)
+const AgentPerformanceChart = lazy(() =>
+  import('@/components/charts/AgentPerformanceChart').then((module) => ({
+    default: module.AgentPerformanceChart
+  }))
+)
+const CombinedMetricsChart = lazy(() =>
+  import('@/components/charts/CombinedMetricsChart').then((module) => ({
+    default: module.CombinedMetricsChart
+  }))
+)
+
+const DeferredChart = ({
+  children,
+  fallback,
+  eager = false
+}: {
+  children: React.ReactNode
+  fallback: React.ReactNode
+  eager?: boolean
+}) => {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [shouldRender, setShouldRender] = useState(
+    eager || import.meta.env.MODE === 'test'
+  )
+
+  useEffect(() => {
+    if (shouldRender || eager || typeof IntersectionObserver === 'undefined') {
+      return
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setShouldRender(true)
+          observer.disconnect()
+        }
+      },
+      { rootMargin: '200px 0px' }
+    )
+
+    if (containerRef.current) {
+      observer.observe(containerRef.current)
+    }
+
+    return () => {
+      observer.disconnect()
+    }
+  }, [eager, shouldRender])
+
+  return (
+    <div ref={containerRef}>
+      {shouldRender ? children : fallback}
+    </div>
+  )
+}
 
 export const Analytics = () => {
   const [period, setPeriod] = useState<Period>('week')
@@ -34,14 +97,11 @@ export const Analytics = () => {
     const content = format === 'json'
       ? JSON.stringify(exportData, null, 2)
       : convertToCSV(exportData)
+    const mimeType = format === 'json'
+      ? 'application/json;charset=utf-8'
+      : 'text/csv;charset=utf-8'
 
-    const element = document.createElement('a')
-    element.setAttribute('href', `data:text/${format},${encodeURIComponent(content)}`)
-    element.setAttribute('download', `analytics-${period}-${Date.now()}.${format}`)
-    element.style.display = 'none'
-    document.body.appendChild(element)
-    element.click()
-    document.body.removeChild(element)
+    downloadText(content, `analytics-${period}-${Date.now()}.${format}`, mimeType)
   }
 
   const convertToCSV = (data: any): string => {
@@ -63,6 +123,19 @@ export const Analytics = () => {
 
     return csv
   }
+
+  const chartFallback = (message: string, height: number) => (
+    <div
+      className={cn(
+        'rounded-lg border border-border p-8',
+        'bg-muted/30',
+        'flex items-center justify-center'
+      )}
+      style={{ height }}
+    >
+      <p className="text-muted-foreground">{message}</p>
+    </div>
+  )
 
   if (error) {
     return (
@@ -257,68 +330,66 @@ export const Analytics = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Token Usage */}
         {data ? (
-          <TokenUsageChart
-            data={data.tokenUsage}
-            period={period}
-            showArea={true}
-            height={350}
-          />
+          <DeferredChart
+            eager={true}
+            fallback={chartFallback('Loading token usage chart...', 350)}
+          >
+            <Suspense fallback={chartFallback('Loading token usage chart...', 350)}>
+              <TokenUsageChart
+                data={data.tokenUsage}
+                period={period}
+                showArea={true}
+                height={350}
+              />
+            </Suspense>
+          </DeferredChart>
         ) : (
-          <div className={cn(
-            'rounded-lg border border-border p-8',
-            'bg-muted/30',
-            'flex items-center justify-center'
-          )} style={{ height: 350 }}>
-            <p className="text-muted-foreground">Loading chart...</p>
-          </div>
+          chartFallback('Loading chart...', 350)
         )}
 
         {/* Combined Metrics */}
         {data ? (
-          <CombinedMetricsChart
-            data={data.combinedMetrics}
-            height={350}
-          />
+          <DeferredChart
+            eager={true}
+            fallback={chartFallback('Loading combined metrics chart...', 350)}
+          >
+            <Suspense fallback={chartFallback('Loading combined metrics chart...', 350)}>
+              <CombinedMetricsChart
+                data={data.combinedMetrics}
+                height={350}
+              />
+            </Suspense>
+          </DeferredChart>
         ) : (
-          <div className={cn(
-            'rounded-lg border border-border p-8',
-            'bg-muted/30',
-            'flex items-center justify-center'
-          )} style={{ height: 350 }}>
-            <p className="text-muted-foreground">Loading chart...</p>
-          </div>
+          chartFallback('Loading chart...', 350)
         )}
 
         {/* Cost Breakdown */}
         {data ? (
-          <CostBreakdownChart
-            data={data.costBreakdown}
-            height={350}
-          />
+          <DeferredChart fallback={chartFallback('Loading cost breakdown chart...', 350)}>
+            <Suspense fallback={chartFallback('Loading cost breakdown chart...', 350)}>
+              <CostBreakdownChart
+                data={data.costBreakdown}
+                height={350}
+              />
+            </Suspense>
+          </DeferredChart>
         ) : (
-          <div className={cn(
-            'rounded-lg border border-border p-8',
-            'bg-muted/30',
-            'flex items-center justify-center'
-          )} style={{ height: 350 }}>
-            <p className="text-muted-foreground">Loading chart...</p>
-          </div>
+          chartFallback('Loading chart...', 350)
         )}
 
         {/* Agent Performance */}
         {data ? (
-          <AgentPerformanceChart
-            data={data.agentPerformance}
-            height={350}
-          />
+          <DeferredChart fallback={chartFallback('Loading agent performance chart...', 350)}>
+            <Suspense fallback={chartFallback('Loading agent performance chart...', 350)}>
+              <AgentPerformanceChart
+                data={data.agentPerformance}
+                height={350}
+              />
+            </Suspense>
+          </DeferredChart>
         ) : (
-          <div className={cn(
-            'rounded-lg border border-border p-8',
-            'bg-muted/30',
-            'flex items-center justify-center'
-          )} style={{ height: 350 }}>
-            <p className="text-muted-foreground">Loading chart...</p>
-          </div>
+          chartFallback('Loading chart...', 350)
         )}
       </div>
 

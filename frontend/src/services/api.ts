@@ -2,10 +2,12 @@ import axios, { AxiosError } from 'axios'
 import type { AxiosInstance } from 'axios'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000'
+type AuthChangeListener = (isAuthenticated: boolean) => void
 
 class ApiService {
   private axiosInstance: AxiosInstance
   private token: string | null = null
+  private authListeners = new Set<AuthChangeListener>()
 
   constructor() {
     this.axiosInstance = axios.create({
@@ -35,9 +37,8 @@ class ApiService {
       (response) => response,
       (error: AxiosError) => {
         if (error.response?.status === 401) {
-          // Clear token and redirect to login
+          // Clear auth state and let the app shell render the auth screen.
           this.clearAuth()
-          window.location.href = '/auth/login'
         }
         return Promise.reject(error)
       }
@@ -51,6 +52,7 @@ class ApiService {
     } else {
       localStorage.removeItem('auth_token')
     }
+    this.notifyAuthListeners()
   }
 
   clearAuth() {
@@ -59,6 +61,20 @@ class ApiService {
 
   isAuthenticated(): boolean {
     return this.token !== null
+  }
+
+  subscribeAuthChange(listener: AuthChangeListener) {
+    this.authListeners.add(listener)
+    return () => {
+      this.authListeners.delete(listener)
+    }
+  }
+
+  private notifyAuthListeners() {
+    const isAuthenticated = this.isAuthenticated()
+    for (const listener of this.authListeners) {
+      listener(isAuthenticated)
+    }
   }
 
   // ===== Authentication APIs =====
