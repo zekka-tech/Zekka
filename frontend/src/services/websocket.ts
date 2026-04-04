@@ -15,6 +15,7 @@ interface WebSocketServiceOptions {
 class WebSocketService {
   private socket: Socket | null = null
   private callbacks: Map<string, EventCallback[]> = new Map()
+  private socketListeners: Map<string, (...args: any[]) => void> = new Map()
   private isConnecting = false
   private isConnected = false
 
@@ -47,19 +48,20 @@ class WebSocketService {
           console.log('WebSocket connected')
           this.isConnected = true
           this.isConnecting = false
-          this.emit('connected')
+          this.attachRegisteredListeners()
+          this.dispatchLocalEvent('connected')
           resolve()
         })
 
         this.socket.on('disconnect', () => {
           console.log('WebSocket disconnected')
           this.isConnected = false
-          this.emit('disconnected')
+          this.dispatchLocalEvent('disconnected')
         })
 
         this.socket.on('error', (error) => {
           console.error('WebSocket error:', error)
-          this.emit('error', error)
+          this.dispatchLocalEvent('error', error)
         })
 
         this.socket.on('connect_error', (error) => {
@@ -79,24 +81,62 @@ class WebSocketService {
       this.socket.disconnect()
       this.socket = null
       this.isConnected = false
+      this.socketListeners.clear()
+    }
+  }
+
+  private dispatchLocalEvent(event: string, ...args: any[]): void {
+    const callbacks = this.callbacks.get(event) || []
+    callbacks.forEach(cb => cb(...args))
+  }
+
+  private attachSocketListener(event: string): void {
+    if (!this.socket || this.socketListeners.has(event)) {
+      return
+    }
+
+    const listener = (...args: any[]) => {
+      this.dispatchLocalEvent(event, ...args)
+    }
+
+    this.socketListeners.set(event, listener)
+    this.socket.on(event, listener)
+  }
+
+  private detachSocketListener(event: string): void {
+    const listener = this.socketListeners.get(event)
+    if (!listener) {
+      return
+    }
+
+    if (this.socket) {
+      this.socket.off(event, listener)
+    }
+
+    this.socketListeners.delete(event)
+  }
+
+  private attachRegisteredListeners(): void {
+    for (const event of this.callbacks.keys()) {
+      if (event === 'connected' || event === 'disconnected' || event === 'error') {
+        continue
+      }
+
+      this.attachSocketListener(event)
     }
   }
 
   on(event: string, callback: EventCallback): void {
     if (!this.callbacks.has(event)) {
       this.callbacks.set(event, [])
-
-      // Register socket listener
-      if (this.socket) {
-        this.socket.on(event, (...args) => {
-          const callbacks = this.callbacks.get(event) || []
-          callbacks.forEach(cb => cb(...args))
-        })
-      }
     }
 
     const callbacks = this.callbacks.get(event)!
     callbacks.push(callback)
+
+    if (event !== 'connected' && event !== 'disconnected' && event !== 'error') {
+      this.attachSocketListener(event)
+    }
   }
 
   off(event: string, callback: EventCallback): void {
@@ -105,16 +145,20 @@ class WebSocketService {
     if (index !== -1) {
       callbacks.splice(index, 1)
     }
+
+    if (callbacks.length === 0) {
+      this.callbacks.delete(event)
+      this.detachSocketListener(event)
+    }
   }
 
   emit(event: string, ...args: any[]): void {
     if (this.socket && this.isConnected) {
       this.socket.emit(event, ...args)
-    } else {
-      // Call local callbacks even if not connected
-      const callbacks = this.callbacks.get(event) || []
-      callbacks.forEach(cb => cb(...args))
+      return
     }
+
+    this.dispatchLocalEvent(event, ...args)
   }
 
   isReady(): boolean {

@@ -238,6 +238,68 @@ class ModelClient {
     }
   }
 
+  async generateOrchestratorResponseStream(prompt, options = {}) {
+    const config = this.modelConfig.orchestrator;
+    const requestedModel = options.model || options.aiModel || config.primary;
+    const resolvedOptions = {
+      maxTokens: options.maxTokens || config.maxTokens,
+      temperature:
+        options.temperature !== undefined
+          ? options.temperature
+          : config.temperature,
+      ...options
+    };
+    const shouldUseOllamaStreaming = requestedModel === 'ollama'
+      || requestedModel === this.modelConfig.ollama.model
+      || config.primary === 'ollama';
+    const shouldUseOpenAIStreaming = this._isOpenAIModel(requestedModel);
+    const shouldUseAnthropicStreaming = this._isAnthropicModel(requestedModel);
+
+    if (shouldUseOllamaStreaming) {
+      return await this._streamWithOllama(prompt, 'orchestrator', resolvedOptions);
+    }
+
+    try {
+      if (shouldUseOpenAIStreaming) {
+        return await this._streamWithOpenAI(prompt, 'orchestrator', resolvedOptions);
+      }
+
+      if (shouldUseAnthropicStreaming) {
+        return await this._streamWithAnthropic(prompt, 'orchestrator', resolvedOptions);
+      }
+    } catch (error) {
+      this.logger.warn(
+        '⚠️  Orchestrator streaming model failed, falling back to Ollama',
+        {
+          error: error.message
+        }
+      );
+
+      this.fallbackCount.orchestrator++;
+
+      return await this._streamWithOllama(prompt, 'orchestrator', {
+        ...resolvedOptions,
+        model: this.modelConfig.ollama.model,
+        fallbackUsed: true
+      });
+    }
+
+    const response = await this.generateOrchestratorResponse(prompt, options);
+
+    if (typeof options.onToken === 'function' && response.text) {
+      await options.onToken(response.text, {
+        done: true,
+        buffered: true
+      });
+    }
+
+    return {
+      ...response,
+      streamUsed: false,
+      bufferedStream: true
+    };
+  }
+
   /**
    * Call Claude Sonnet 4.5 API
    *
@@ -260,7 +322,7 @@ class ModelClient {
         }
       ],
       max_tokens: options.maxTokens || 4000,
-      temperature: options.temperature || 0.3
+      temperature: options.temperature ?? 0.3
     });
 
     return {
@@ -301,7 +363,7 @@ class ModelClient {
           }
         ],
         generationConfig: {
-          temperature: options.temperature || 0.7,
+          temperature: options.temperature ?? 0.7,
           maxOutputTokens: options.maxTokens || 2000,
           topP: parseFloat(process.env.GEMINI_TOP_P) || 0.95,
           topK: parseInt(process.env.GEMINI_TOP_K) || 40
@@ -379,7 +441,7 @@ class ModelClient {
         prompt,
         stream: false,
         options: {
-          temperature: options.temperature || 0.7,
+          temperature: options.temperature ?? 0.7,
           num_predict: options.maxTokens || 2000
         }
       });
@@ -420,6 +482,153 @@ class ModelClient {
         `All models failed for ${component}: Primary and Ollama unavailable`
       );
     }
+  }
+
+  async _streamWithOllama(prompt, component, options = {}) {
+    this.logger.info(`🌊 Using Ollama native streaming for ${component}`);
+
+    const response = await this.apiClient.callOllamaStream(
+      {
+        model: options.model === 'ollama'
+          ? this.modelConfig.ollama.model
+          : options.model || this.modelConfig.ollama.model,
+        prompt,
+        options: {
+          temperature: options.temperature ?? 0.7,
+          num_predict: options.maxTokens || 2000
+        }
+      },
+      {
+        onToken: options.onToken
+      }
+    );
+
+    if (this.contextBus && options.fallbackUsed) {
+      await this.contextBus.incrementCounter(`fallback:${component}:ollama`);
+    }
+
+    if (this.tokenEconomics) {
+      await this.tokenEconomics.recordCost({
+        projectId: options.projectId,
+        taskId: options.taskId || component,
+        agentName: component,
+        model: response.model,
+        tokensInput: response.prompt_eval_count || Math.ceil(prompt.length / 4),
+        tokensOutput: response.eval_count || Math.ceil(response.response.length / 4)
+      });
+    }
+
+    return {
+      text: response.response,
+      model: response.model,
+      usage: {
+        promptTokens: response.prompt_eval_count || Math.ceil(prompt.length / 4),
+        completionTokens: response.eval_count || Math.ceil(response.response.length / 4),
+        totalTokens:
+          (response.prompt_eval_count || Math.ceil(prompt.length / 4))
+          + (response.eval_count || Math.ceil(response.response.length / 4))
+      },
+      fallbackUsed: !!options.fallbackUsed,
+      streamUsed: true
+    };
+  }
+
+  async _streamWithOpenAI(prompt, component, options = {}) {
+    this.logger.info(`🌊 Using OpenAI native streaming for ${component}`);
+
+    const model = options.model || 'gpt-4o-mini';
+    const response = await this.apiClient.callOpenAIStream(
+      {
+        model,
+        messages: [
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        max_tokens: options.maxTokens || 2000,
+        temperature: options.temperature ?? 0.7
+      },
+      {
+        onToken: options.onToken
+      }
+    );
+
+    if (this.tokenEconomics) {
+      await this.tokenEconomics.recordCost({
+        projectId: options.projectId,
+        taskId: options.taskId || component,
+        agentName: component,
+        model,
+        tokensInput: response.usage.prompt_tokens || Math.ceil(prompt.length / 4),
+        tokensOutput: response.usage.completion_tokens || Math.ceil(response.response.length / 4)
+      });
+    }
+
+    return {
+      text: response.response,
+      model,
+      usage: {
+        promptTokens: response.usage.prompt_tokens || Math.ceil(prompt.length / 4),
+        completionTokens:
+          response.usage.completion_tokens || Math.ceil(response.response.length / 4),
+        totalTokens:
+          response.usage.total_tokens
+          || (response.usage.prompt_tokens || Math.ceil(prompt.length / 4))
+          + (response.usage.completion_tokens || Math.ceil(response.response.length / 4))
+      },
+      fallbackUsed: false,
+      streamUsed: true
+    };
+  }
+
+  async _streamWithAnthropic(prompt, component, options = {}) {
+    this.logger.info(`🌊 Using Anthropic native streaming for ${component}`);
+
+    const model = options.model || 'claude-sonnet-4-5-20250929';
+    const response = await this.apiClient.callAnthropicStream(
+      {
+        model,
+        messages: [
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        max_tokens: options.maxTokens || 4000,
+        temperature: options.temperature ?? 0.3
+      },
+      {
+        onToken: options.onToken
+      }
+    );
+
+    return {
+      text: response.text,
+      model,
+      usage: {
+        promptTokens: response.usage.input_tokens || Math.ceil(prompt.length / 4),
+        completionTokens:
+          response.usage.output_tokens || Math.ceil(response.text.length / 4),
+        totalTokens:
+          response.usage.input_tokens && response.usage.output_tokens
+            ? response.usage.input_tokens + response.usage.output_tokens
+            : Math.ceil(prompt.length / 4) + Math.ceil(response.text.length / 4)
+      },
+      fallbackUsed: false,
+      streamUsed: true
+    };
+  }
+
+  _isOpenAIModel(model) {
+    return typeof model === 'string'
+      && (model.startsWith('gpt-') || model.toLowerCase().includes('openai'));
+  }
+
+  _isAnthropicModel(model) {
+    return typeof model === 'string'
+      && (model.toLowerCase().includes('claude')
+        || model.toLowerCase().includes('anthropic'));
   }
 
   /**

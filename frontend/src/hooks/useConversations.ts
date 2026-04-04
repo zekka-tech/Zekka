@@ -223,6 +223,7 @@ export const useConversationRuntime = (
   } = useConversations(projectId)
 
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
+  const [isDraftConversation, setIsDraftConversation] = useState(false)
   const [optimisticMessages, setOptimisticMessages] = useState<Message[]>([])
   const [sendError, setSendError] = useState<string | null>(null)
   const [isSending, setIsSending] = useState(false)
@@ -231,6 +232,7 @@ export const useConversationRuntime = (
   useEffect(() => {
     if (!projectId) {
       setActiveConversationId(null)
+      setIsDraftConversation(false)
       setOptimisticMessages([])
       setSendError(null)
       return
@@ -240,12 +242,19 @@ export const useConversationRuntime = (
       activeConversationId &&
       conversations.some((conversation) => conversation.id === activeConversationId)
     ) {
+      if (isDraftConversation) {
+        setIsDraftConversation(false)
+      }
+      return
+    }
+
+    if (isDraftConversation) {
       return
     }
 
     setActiveConversationId(conversations[0]?.id ?? null)
     setOptimisticMessages([])
-  }, [activeConversationId, conversations, projectId])
+  }, [activeConversationId, conversations, isDraftConversation, projectId])
 
   const {
     conversation,
@@ -287,6 +296,7 @@ export const useConversationRuntime = (
   }, [messages, optimisticMessages])
 
   const startNewConversation = () => {
+    setIsDraftConversation(true)
     setActiveConversationId(null)
     setOptimisticMessages([])
     setSendError(null)
@@ -323,6 +333,7 @@ export const useConversationRuntime = (
         })
 
         conversationId = createdConversation.id
+        setIsDraftConversation(false)
         setActiveConversationId(conversationId)
       }
 
@@ -334,6 +345,7 @@ export const useConversationRuntime = (
 
       if (streamingEnabled) {
         let streamingAssistantId: string | null = null
+        let streamingAssistantSnapshot: MessageRecord | null = null
 
         await apiService.sendMessageStream(conversationId, content, {
           onEvent: (event) => {
@@ -354,6 +366,7 @@ export const useConversationRuntime = (
             ) {
               const assistantMessage = event.data as MessageRecord
               streamingAssistantId = assistantMessage.id
+              streamingAssistantSnapshot = assistantMessage
               setOptimisticMessages((previous) => [
                 ...previous.filter(
                   (message) =>
@@ -366,6 +379,14 @@ export const useConversationRuntime = (
 
             const deltaContent = getStreamDeltaContent(event)
             if (deltaContent && streamingAssistantId) {
+              streamingAssistantSnapshot = {
+                ...(streamingAssistantSnapshot ?? {
+                  id: streamingAssistantId,
+                  role: 'assistant',
+                  content: ''
+                }),
+                content: `${streamingAssistantSnapshot?.content ?? ''}${deltaContent}`
+              }
               setOptimisticMessages((previous) =>
                 previous.map((message) =>
                   message.id === streamingAssistantId
@@ -387,6 +408,7 @@ export const useConversationRuntime = (
             ) {
               const assistantMessage = event.data as MessageRecord
               streamingAssistantId = assistantMessage.id
+              streamingAssistantSnapshot = assistantMessage
               returnedMessages = upsertMessageRecord(returnedMessages, assistantMessage)
               setOptimisticMessages((previous) => {
                 const nextMessages = previous.filter((message) => message.id !== optimisticId)
@@ -400,6 +422,15 @@ export const useConversationRuntime = (
             }
 
             if (event.type === 'done' && streamingAssistantId) {
+              if (
+                streamingAssistantSnapshot &&
+                !returnedMessages.some((message) => message.id === streamingAssistantSnapshot?.id)
+              ) {
+                returnedMessages = upsertMessageRecord(
+                  returnedMessages,
+                  streamingAssistantSnapshot
+                )
+              }
               setOptimisticMessages((previous) =>
                 previous.map((message) =>
                   message.id === streamingAssistantId
@@ -481,7 +512,10 @@ export const useConversationRuntime = (
     conversations,
     activeConversation,
     activeConversationId,
-    setActiveConversationId,
+    setActiveConversationId: (conversationId: string | null) => {
+      setIsDraftConversation(false)
+      setActiveConversationId(conversationId)
+    },
     messages: allMessages,
     isLoading: Boolean(projectId) && conversationsLoading,
     isConversationLoading: conversationLoading || messagesLoading,

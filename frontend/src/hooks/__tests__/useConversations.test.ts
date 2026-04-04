@@ -144,6 +144,61 @@ describe('useConversationRuntime', () => {
     })
   })
 
+  it('keeps a draft conversation selected until the next message creates it', async () => {
+    vi.mocked(apiService.getConversations).mockResolvedValue([
+      {
+        id: 'conv-existing',
+        title: 'Existing thread',
+        created_at: '2026-04-04T09:00:00.000Z',
+        updated_at: '2026-04-04T09:00:00.000Z'
+      }
+    ])
+    vi.mocked(apiService.getConversation).mockResolvedValue({
+      id: 'conv-existing',
+      title: 'Existing thread',
+      created_at: '2026-04-04T09:00:00.000Z',
+      updated_at: '2026-04-04T09:00:00.000Z'
+    })
+    vi.mocked(apiService.getMessages).mockResolvedValue([])
+    vi.mocked(apiService.createConversation).mockResolvedValue({
+      id: 'conv-draft',
+      title: 'Start fresh',
+      created_at: '2026-04-04T09:10:00.000Z',
+      updated_at: '2026-04-04T09:10:00.000Z'
+    })
+    vi.mocked(apiService.sendMessage).mockResolvedValue({
+      id: 'msg-draft',
+      role: 'user',
+      content: 'Start fresh',
+      created_at: '2026-04-04T09:11:00.000Z'
+    })
+
+    const { result } = renderHook(
+      () => useConversationRuntime('project-1', 'Alpha'),
+      { wrapper: createWrapper() }
+    )
+
+    await waitFor(() => {
+      expect(result.current.activeConversationId).toBe('conv-existing')
+    })
+
+    act(() => {
+      result.current.startNewConversation()
+    })
+
+    expect(result.current.activeConversationId).toBeNull()
+
+    await act(async () => {
+      await result.current.sendMessage('Start fresh')
+    })
+
+    expect(apiService.createConversation).toHaveBeenCalledWith({
+      title: 'Start fresh',
+      projectId: 'project-1'
+    })
+    expect(apiService.sendMessage).toHaveBeenCalledWith('conv-draft', 'Start fresh')
+  })
+
   it('normalizes assistant responses returned with the send-message payload', async () => {
     vi.mocked(apiService.getConversations).mockResolvedValue([
       {
@@ -295,6 +350,94 @@ describe('useConversationRuntime', () => {
       result.current.messages.find((message) => message.id === 'msg-assistant-stream')
     ).toMatchObject({
       content: 'Hello world',
+      status: 'complete'
+    })
+
+    vi.unstubAllEnvs()
+  })
+
+  it('persists a streamed assistant reply when the stream ends without a replayed completion payload', async () => {
+    vi.stubEnv('VITE_CONVERSATION_STREAMING', 'true')
+    vi.mocked(apiService.getConversations).mockResolvedValue([
+      {
+        id: 'conv-5',
+        title: 'Token stream thread',
+        created_at: '2026-04-04T12:00:00.000Z',
+        updated_at: '2026-04-04T12:00:00.000Z'
+      }
+    ])
+    vi.mocked(apiService.getConversation).mockResolvedValue({
+      id: 'conv-5',
+      title: 'Token stream thread',
+      created_at: '2026-04-04T12:00:00.000Z',
+      updated_at: '2026-04-04T12:00:00.000Z'
+    })
+    vi.mocked(apiService.getMessages).mockResolvedValue([])
+    vi.mocked(apiService.sendMessageStream).mockImplementation(
+      async (_conversationId, _content, handlers) => {
+        handlers?.onEvent?.({
+          type: 'userMessage',
+          data: {
+            id: 'msg-user-token-stream',
+            role: 'user',
+            content: 'Token stream only',
+            created_at: '2026-04-04T12:01:00.000Z'
+          }
+        })
+        handlers?.onEvent?.({
+          type: 'assistantMessageStart',
+          data: {
+            id: 'msg-assistant-token-stream',
+            role: 'assistant',
+            content: '',
+            created_at: '2026-04-04T12:01:01.000Z'
+          }
+        })
+        handlers?.onEvent?.({
+          type: 'assistantMessageDelta',
+          data: {
+            id: 'msg-assistant-token-stream',
+            conversationId: 'conv-5',
+            chunk: 'Token '
+          }
+        })
+        handlers?.onEvent?.({
+          type: 'assistantMessageDelta',
+          data: {
+            id: 'msg-assistant-token-stream',
+            conversationId: 'conv-5',
+            chunk: 'stream'
+          }
+        })
+        handlers?.onEvent?.({ type: 'done' })
+      }
+    )
+
+    const { result } = renderHook(
+      () => useConversationRuntime('project-1', 'Alpha'),
+      { wrapper: createWrapper() }
+    )
+
+    await waitFor(() => {
+      expect(result.current.activeConversationId).toBe('conv-5')
+    })
+
+    await act(async () => {
+      await result.current.sendMessage('Token stream only')
+    })
+
+    await waitFor(() => {
+      expect(result.current.messages.map((message) => message.id)).toEqual(
+        expect.arrayContaining(['msg-user-token-stream', 'msg-assistant-token-stream'])
+      )
+    })
+
+    expect(
+      result.current.messages.find(
+        (message) => message.id === 'msg-assistant-token-stream'
+      )
+    ).toMatchObject({
+      content: 'Token stream',
       status: 'complete'
     })
 
