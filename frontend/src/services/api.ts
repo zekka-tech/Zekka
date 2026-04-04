@@ -4,8 +4,23 @@ import type { AxiosInstance } from 'axios'
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000'
 type AuthChangeListener = (isAuthenticated: boolean) => void
 
+export interface ConversationStreamDeltaData {
+  id: string
+  conversationId?: string
+  chunk?: string
+}
+
 export interface ConversationStreamEvent {
-  type: string
+  type:
+    | 'userMessage'
+    | 'assistantMessage'
+    | 'assistantMessageStart'
+    | 'assistantMessageDelta'
+    | 'assistantMessageComplete'
+    | 'content'
+    | 'done'
+    | 'error'
+    | string
   data?: unknown
   message?: string
   error?: string
@@ -202,7 +217,10 @@ class ApiService {
     )
 
     if (!response.ok || !response.body) {
-      const error = new Error('Failed to open conversation stream')
+      const message = await response.text().catch(() => '')
+      const error = new Error(
+        message || response.statusText || 'Failed to open conversation stream'
+      )
       handlers.onError?.(error)
       throw error
     }
@@ -220,8 +238,18 @@ class ApiService {
 
       try {
         const event = JSON.parse(dataLine.slice(5).trim()) as ConversationStreamEvent
+        if (event.type === 'error') {
+          const error = new Error(
+            event.error || event.message || 'Conversation stream failed'
+          )
+          handlers.onError?.(error)
+          throw error
+        }
         handlers.onEvent?.(event)
       } catch (error) {
+        if (error instanceof Error && error.message !== 'Failed to parse stream event') {
+          throw error
+        }
         handlers.onError?.(
           error instanceof Error ? error : new Error('Failed to parse stream event')
         )

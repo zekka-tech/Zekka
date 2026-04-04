@@ -13,49 +13,48 @@
 const conversationService = require('../services/conversation.service');
 
 class ConversationsController {
+  writeSseEvent(res, payload) {
+    res.write(`data: ${JSON.stringify(payload)}\n\n`);
+    if (typeof res.flush === 'function') {
+      res.flush();
+    }
+  }
+
   streamAssistantResponse(res, turnResult) {
     const { userMessage, assistantMessage } = turnResult;
     const content = assistantMessage.content || '';
     const chunkSize = 160;
 
-    res.write(
-      `data: ${JSON.stringify({
-        type: 'userMessage',
-        data: userMessage
-      })}\n\n`
-    );
+    this.writeSseEvent(res, {
+      type: 'userMessage',
+      data: userMessage
+    });
 
-    res.write(
-      `data: ${JSON.stringify({
-        type: 'assistantMessageStart',
-        data: {
-          ...assistantMessage,
-          content: ''
-        }
-      })}\n\n`
-    );
+    this.writeSseEvent(res, {
+      type: 'assistantMessageStart',
+      data: {
+        ...assistantMessage,
+        content: ''
+      }
+    });
 
     for (let index = 0; index < content.length; index += chunkSize) {
-      res.write(
-        `data: ${JSON.stringify({
-          type: 'assistantMessageDelta',
-          data: {
-            id: assistantMessage.id,
-            conversationId: assistantMessage.conversation_id,
-            chunk: content.slice(index, index + chunkSize)
-          }
-        })}\n\n`
-      );
+      this.writeSseEvent(res, {
+        type: 'assistantMessageDelta',
+        data: {
+          id: assistantMessage.id,
+          conversationId: assistantMessage.conversation_id,
+          chunk: content.slice(index, index + chunkSize)
+        }
+      });
     }
 
-    res.write(
-      `data: ${JSON.stringify({
-        type: 'assistantMessageComplete',
-        data: assistantMessage
-      })}\n\n`
-    );
+    this.writeSseEvent(res, {
+      type: 'assistantMessageComplete',
+      data: assistantMessage
+    });
 
-    res.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`);
+    this.writeSseEvent(res, { type: 'done' });
   }
 
   /**
@@ -256,6 +255,9 @@ class ConversationsController {
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
       res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
+      if (typeof res.flushHeaders === 'function') {
+        res.flushHeaders();
+      }
 
       const turnResult = await conversationService.sendMessageTurn(
         id,
@@ -271,14 +273,15 @@ class ConversationsController {
         res.setHeader('Content-Type', 'text/event-stream');
         res.setHeader('Cache-Control', 'no-cache');
         res.setHeader('Connection', 'keep-alive');
+        if (typeof res.flushHeaders === 'function') {
+          res.flushHeaders();
+        }
       }
 
-      res.write(
-        `data: ${JSON.stringify({
-          type: 'error',
-          error: error.message || 'Failed to send message'
-        })}\n\n`
-      );
+      this.writeSseEvent(res, {
+        type: 'error',
+        error: error.message || 'Failed to send message'
+      });
 
       res.end();
     }

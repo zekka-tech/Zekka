@@ -4,6 +4,26 @@ const mockDb = {
 };
 
 jest.mock('../../../src/config/database', () => mockDb);
+jest.mock('../../../src/middleware/websocket', () => ({
+  getIO: jest.fn(() => ({
+    to: jest.fn(() => ({
+      emit: jest.fn()
+    }))
+  }))
+}));
+jest.mock('../../../src/services/model-client', () => {
+  return jest.fn().mockImplementation(() => ({
+    generateOrchestratorResponse: jest.fn()
+  }));
+});
+jest.mock('../../../src/services/analytics.service', () => ({
+  trackTokenUsage: jest.fn().mockResolvedValue(undefined)
+}));
+jest.mock('../../../src/utils/logger', () => ({
+  info: jest.fn(),
+  warn: jest.fn(),
+  error: jest.fn()
+}));
 
 const { ConversationService } = require('../../../src/services/conversation.service');
 
@@ -45,7 +65,7 @@ describe('ConversationService', () => {
 
   it('creates a user message and an assistant reply in one authoritative turn', async () => {
     client.query
-      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({
         rows: [{
           id: 'conv-1',
@@ -67,8 +87,8 @@ describe('ConversationService', () => {
           sources: null
         }]
       })
-      .mockResolvedValueOnce(undefined)
-      .mockResolvedValueOnce(undefined);
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] });
 
     mockDb.query
       .mockResolvedValueOnce({
@@ -102,7 +122,16 @@ describe('ConversationService', () => {
 
     mockDb.getClient.mockResolvedValueOnce(client).mockResolvedValueOnce({
       query: jest.fn()
-        .mockResolvedValueOnce(undefined)
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({
+          rows: [{
+            id: 'conv-1',
+            project_id: 'project-1',
+            title: 'Conversation',
+            metadata: '{}',
+            owner_id: 'user-1'
+          }]
+        })
         .mockResolvedValueOnce({
           rows: [{
             id: 'assistant-msg-1',
@@ -115,8 +144,8 @@ describe('ConversationService', () => {
             sources: null
           }]
         })
-        .mockResolvedValueOnce(undefined)
-        .mockResolvedValueOnce(undefined),
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [] }),
       release: jest.fn()
     });
 
@@ -142,7 +171,7 @@ describe('ConversationService', () => {
 
   it('stores a fallback assistant message when generation fails', async () => {
     client.query
-      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({
         rows: [{
           id: 'conv-1',
@@ -164,8 +193,8 @@ describe('ConversationService', () => {
           sources: null
         }]
       })
-      .mockResolvedValueOnce(undefined)
-      .mockResolvedValueOnce(undefined);
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] });
 
     mockDb.query
       .mockResolvedValueOnce({
@@ -192,7 +221,16 @@ describe('ConversationService', () => {
 
     const assistantClient = {
       query: jest.fn()
-        .mockResolvedValueOnce(undefined)
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({
+          rows: [{
+            id: 'conv-1',
+            project_id: 'project-1',
+            title: 'Conversation',
+            metadata: '{}',
+            owner_id: 'user-1'
+          }]
+        })
         .mockResolvedValueOnce({
           rows: [{
             id: 'assistant-msg-1',
@@ -205,8 +243,8 @@ describe('ConversationService', () => {
             sources: null
           }]
         })
-        .mockResolvedValueOnce(undefined)
-        .mockResolvedValueOnce(undefined),
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [] }),
       release: jest.fn()
     };
 

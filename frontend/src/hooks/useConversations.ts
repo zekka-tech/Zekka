@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { apiService } from '@/services/api'
+import {
+  apiService,
+  type ConversationStreamDeltaData,
+  type ConversationStreamEvent
+} from '@/services/api'
 import type { Conversation, Message } from '@/types/chat.types'
 
 type ConversationRecord = {
@@ -19,6 +23,8 @@ type MessageRecord = {
   created_at?: string
   createdAt?: string
   metadata?: Message['metadata']
+  conversation_id?: string
+  conversationId?: string
 }
 
 type SendMessageResult =
@@ -71,6 +77,28 @@ const normalizeSendMessageResult = (result: SendMessageResult) => {
   }
 
   return [result as MessageRecord]
+}
+
+const upsertMessageRecord = (
+  messages: MessageRecord[],
+  message: MessageRecord
+) => {
+  const nextMessages = messages.filter((entry) => entry.id !== message.id)
+  nextMessages.push(message)
+  return nextMessages
+}
+
+const getStreamDeltaContent = (event: ConversationStreamEvent) => {
+  if (event.type === 'content' && typeof event.data === 'string') {
+    return event.data
+  }
+
+  if (event.type === 'assistantMessageDelta' && event.data) {
+    const delta = event.data as ConversationStreamDeltaData
+    return typeof delta.chunk === 'string' ? delta.chunk : ''
+  }
+
+  return ''
 }
 
 const createConversationTitle = (content: string, projectName?: string) => {
@@ -270,6 +298,7 @@ export const useConversationRuntime = (
     }
 
     setSendError(null)
+    setIsSending(true)
 
     const optimisticId = `optimistic-${Date.now()}`
     const optimisticMessage = toMessage(
@@ -309,32 +338,64 @@ export const useConversationRuntime = (
         await apiService.sendMessageStream(conversationId, content, {
           onEvent: (event) => {
             if (event.type === 'userMessage' && event.data) {
-              returnedMessages = normalizeSendMessageResult(event.data as SendMessageResult)
+              const persistedUserMessage = event.data as MessageRecord
+              returnedMessages = upsertMessageRecord(returnedMessages, persistedUserMessage)
+              setOptimisticMessages((previous) => [
+                ...previous.filter((message) => message.id !== optimisticId),
+                toMessage(persistedUserMessage, 'complete')
+              ])
               return
             }
 
-            if (event.type === 'assistantMessage' && event.data) {
+            if (
+              (event.type === 'assistantMessageStart' ||
+                event.type === 'assistantMessage') &&
+              event.data
+            ) {
               const assistantMessage = event.data as MessageRecord
               streamingAssistantId = assistantMessage.id
               setOptimisticMessages((previous) => [
-                ...previous.filter((message) => message.id !== optimisticId),
+                ...previous.filter(
+                  (message) =>
+                    message.id !== optimisticId && message.id !== assistantMessage.id
+                ),
                 toMessage(assistantMessage, 'streaming')
               ])
               return
             }
 
-            if (event.type === 'content' && typeof event.data === 'string' && streamingAssistantId) {
+            const deltaContent = getStreamDeltaContent(event)
+            if (deltaContent && streamingAssistantId) {
               setOptimisticMessages((previous) =>
                 previous.map((message) =>
                   message.id === streamingAssistantId
                     ? {
                         ...message,
-                        content: `${message.content}${event.data as string}`,
+                        content: `${message.content}${deltaContent}`,
                         status: 'streaming'
                       }
                     : message
                 )
               )
+              return
+            }
+
+            if (
+              (event.type === 'assistantMessageComplete' ||
+                event.type === 'assistantMessage') &&
+              event.data
+            ) {
+              const assistantMessage = event.data as MessageRecord
+              streamingAssistantId = assistantMessage.id
+              returnedMessages = upsertMessageRecord(returnedMessages, assistantMessage)
+              setOptimisticMessages((previous) => {
+                const nextMessages = previous.filter((message) => message.id !== optimisticId)
+
+                return [
+                  ...nextMessages.filter((message) => message.id !== assistantMessage.id),
+                  toMessage(assistantMessage, 'complete')
+                ]
+              })
               return
             }
 
@@ -346,6 +407,11 @@ export const useConversationRuntime = (
                     : message
                 )
               )
+              return
+            }
+
+            if (event.type === 'error') {
+              throw new Error(event.error || event.message || 'Failed to send message')
             }
           }
         })

@@ -11,7 +11,8 @@ vi.mock('@/services/api', () => ({
     createConversation: vi.fn(),
     getConversation: vi.fn(),
     getMessages: vi.fn(),
-    sendMessage: vi.fn()
+    sendMessage: vi.fn(),
+    sendMessageStream: vi.fn()
   }
 }))
 
@@ -31,6 +32,7 @@ const createWrapper = () => {
 describe('useConversationRuntime', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.unstubAllEnvs()
   })
 
   it('loads existing conversations and messages for a project', async () => {
@@ -202,5 +204,100 @@ describe('useConversationRuntime', () => {
         expect.arrayContaining(['msg-user', 'msg-assistant'])
       )
     })
+  })
+
+  it('consumes the backend streaming event contract', async () => {
+    vi.stubEnv('VITE_CONVERSATION_STREAMING', 'true')
+    vi.mocked(apiService.getConversations).mockResolvedValue([
+      {
+        id: 'conv-4',
+        title: 'Streaming thread',
+        created_at: '2026-04-04T11:00:00.000Z',
+        updated_at: '2026-04-04T11:00:00.000Z'
+      }
+    ])
+    vi.mocked(apiService.getConversation).mockResolvedValue({
+      id: 'conv-4',
+      title: 'Streaming thread',
+      created_at: '2026-04-04T11:00:00.000Z',
+      updated_at: '2026-04-04T11:00:00.000Z'
+    })
+    vi.mocked(apiService.getMessages).mockResolvedValue([])
+    vi.mocked(apiService.sendMessageStream).mockImplementation(
+      async (_conversationId, _content, handlers) => {
+        handlers?.onEvent?.({
+          type: 'userMessage',
+          data: {
+            id: 'msg-user-stream',
+            role: 'user',
+            content: 'Stream this reply',
+            created_at: '2026-04-04T11:01:00.000Z'
+          }
+        })
+        handlers?.onEvent?.({
+          type: 'assistantMessageStart',
+          data: {
+            id: 'msg-assistant-stream',
+            role: 'assistant',
+            content: '',
+            created_at: '2026-04-04T11:01:01.000Z'
+          }
+        })
+        handlers?.onEvent?.({
+          type: 'assistantMessageDelta',
+          data: {
+            id: 'msg-assistant-stream',
+            conversationId: 'conv-4',
+            chunk: 'Hello '
+          }
+        })
+        handlers?.onEvent?.({
+          type: 'assistantMessageDelta',
+          data: {
+            id: 'msg-assistant-stream',
+            conversationId: 'conv-4',
+            chunk: 'world'
+          }
+        })
+        handlers?.onEvent?.({
+          type: 'assistantMessageComplete',
+          data: {
+            id: 'msg-assistant-stream',
+            role: 'assistant',
+            content: 'Hello world',
+            created_at: '2026-04-04T11:01:02.000Z'
+          }
+        })
+        handlers?.onEvent?.({ type: 'done' })
+      }
+    )
+
+    const { result } = renderHook(
+      () => useConversationRuntime('project-1', 'Alpha'),
+      { wrapper: createWrapper() }
+    )
+
+    await waitFor(() => {
+      expect(result.current.activeConversationId).toBe('conv-4')
+    })
+
+    await act(async () => {
+      await result.current.sendMessage('Stream this reply')
+    })
+
+    await waitFor(() => {
+      expect(result.current.messages.map((message) => message.id)).toEqual(
+        expect.arrayContaining(['msg-user-stream', 'msg-assistant-stream'])
+      )
+    })
+
+    expect(
+      result.current.messages.find((message) => message.id === 'msg-assistant-stream')
+    ).toMatchObject({
+      content: 'Hello world',
+      status: 'complete'
+    })
+
+    vi.unstubAllEnvs()
   })
 })
