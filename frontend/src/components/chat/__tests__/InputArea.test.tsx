@@ -4,10 +4,10 @@ import userEvent from '@testing-library/user-event'
 import { InputArea } from '../InputArea'
 
 describe('InputArea', () => {
-  let onSubmit: ReturnType<typeof vi.fn>
+  let onSubmit: (message: string, attachments?: File[]) => void
 
   beforeEach(() => {
-    onSubmit = vi.fn()
+    onSubmit = vi.fn<(message: string, attachments?: File[]) => void>()
   })
 
   it('renders the textarea', () => {
@@ -57,8 +57,7 @@ describe('InputArea', () => {
     expect(sendButton).toBeDisabled()
   })
 
-  it('submit button is disabled when isLoading is true', async () => {
-    const user = userEvent.setup()
+  it('submit button is disabled when isLoading is true', () => {
     render(<InputArea onSubmit={onSubmit} isLoading />)
 
     const textarea = screen.getByRole('textbox')

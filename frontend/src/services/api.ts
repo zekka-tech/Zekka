@@ -287,6 +287,17 @@ class ApiService {
     }
   }
 
+  async uploadAttachment(conversationId: string, file: File) {
+    const formData = new FormData()
+    formData.append('file', file)
+    const response = await this.axiosInstance.post(
+      `/api/v1/conversations/${conversationId}/attachments`,
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } }
+    )
+    return response.data.data
+  }
+
   async getMessages(conversationId: string, limit = 50, offset = 0) {
     const response = await this.axiosInstance.get(
       `/api/v1/conversations/${conversationId}/messages`,

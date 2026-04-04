@@ -10,7 +10,13 @@
  * - Authorization integration
  */
 
+const path = require('path');
+const { uploadFile } = require('../utils/file-storage');
 const conversationService = require('../services/conversation.service');
+
+const ALLOWED_MIME_PREFIXES = ['image/', 'text/'];
+const ALLOWED_MIME_EXACT = new Set(['application/pdf', 'application/json']);
+const ALLOWED_EXT = /\.(png|jpe?g|gif|webp|pdf|txt|md|json|yaml|yml|ts|tsx|js|jsx|py|go|rs|java|c|cpp|cs|rb|php)$/i;
 
 class ConversationsController {
   writeSseEvent(res, payload) {
@@ -317,6 +323,54 @@ class ConversationsController {
       });
     } catch (error) {
       next(error);
+    }
+  }
+
+  /**
+   * Upload file attachment for a conversation
+   * POST /api/v1/conversations/:id/attachments
+   */
+  async uploadAttachment(req, res, next) {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ success: false, message: 'No file uploaded' });
+      }
+
+      const { originalname, mimetype, size, buffer } = req.file;
+
+      // Validate MIME type and extension
+      const extOk = ALLOWED_EXT.test(originalname);
+      const mimeOk =
+        ALLOWED_MIME_PREFIXES.some((p) => mimetype.startsWith(p)) ||
+        ALLOWED_MIME_EXACT.has(mimetype);
+
+      if (!extOk || !mimeOk) {
+        return res.status(400).json({ success: false, message: 'File type not allowed' });
+      }
+
+      if (size > 10 * 1024 * 1024) {
+        return res.status(400).json({ success: false, message: 'File exceeds 10MB limit' });
+      }
+
+      const conversationId = req.params.id;
+      const result = await uploadFile(buffer, originalname, {
+        subfolder: `conversations/${conversationId}`,
+        mimeType: mimetype
+      });
+
+      return res.status(201).json({
+        success: true,
+        data: {
+          url: result.url || result.path,
+          key: result.key || result.filename,
+          filename: path.basename(result.filename || originalname),
+          size,
+          mimeType: mimetype
+        },
+        message: 'File uploaded successfully'
+      });
+    } catch (error) {
+      return next(error);
     }
   }
 

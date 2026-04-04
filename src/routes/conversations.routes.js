@@ -16,6 +16,7 @@
  */
 
 const express = require('express');
+const multer = require('multer');
 
 const router = express.Router();
 const conversationsController = require('../controllers/conversations.controller');
@@ -26,6 +27,15 @@ const {
   validateParams
 } = require('../middleware/validate');
 const { authenticate } = require('../middleware/auth');
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+  fileFilter: (_req, file, cb) => {
+    const allowed = /\.(png|jpe?g|gif|webp|pdf|txt|md|json|yaml|yml|ts|tsx|js|jsx|py|go|rs|java|c|cpp|cs|rb|php)$/i;
+    cb(null, allowed.test(file.originalname));
+  }
+});
 
 // Apply authentication to all conversation routes
 router.use(authenticate);
@@ -171,6 +181,20 @@ router.delete(
   '/:id/messages/:msgId',
   validateParams(conversationSchemas.messageId),
   conversationsController.deleteMessage
+);
+
+/**
+ * @route   POST /api/v1/conversations/:id/attachments
+ * @desc    Upload a file attachment for a conversation
+ * @access  Private
+ * @param   {string} id - Conversation UUID
+ * @body    multipart/form-data with 'file' field
+ */
+router.post(
+  '/:id/attachments',
+  validateParams(conversationSchemas.conversationId),
+  upload.single('file'),
+  conversationsController.uploadAttachment
 );
 
 module.exports = router;

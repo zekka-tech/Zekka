@@ -8,7 +8,10 @@ export const useWebSocket = () => {
   useEffect(() => {
     const handleConnected = () => setIsConnected(true)
     const handleDisconnected = () => setIsConnected(false)
-    const handleError = (err: Error) => setError(err)
+    const handleError = (...args: unknown[]) => {
+      const err = args[0]
+      setError(err instanceof Error ? err : new Error(String(err)))
+    }
 
     webSocketService.on('connected', handleConnected)
     webSocketService.on('disconnected', handleDisconnected)

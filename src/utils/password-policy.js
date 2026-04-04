@@ -10,7 +10,7 @@
  * - Breach detection integration
  */
 
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const { getKeyManager } = require('./encryption-key-manager');
 

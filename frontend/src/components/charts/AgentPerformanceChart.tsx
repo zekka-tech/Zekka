@@ -32,7 +32,7 @@ interface TooltipProps {
 const AgentPerformanceTooltip = ({ active, payload }: TooltipProps) => {
   if (!active || !payload || payload.length === 0) return null
 
-  const data = payload[0].payload as AgentMetric
+  const data = payload[0].payload as unknown as AgentMetric
 
   return (
     <div className={cn(
