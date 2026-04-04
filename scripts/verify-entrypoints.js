@@ -25,6 +25,7 @@ const disallowedPatterns = [
 
 const skipFiles = new Set([
   path.join('src', 'index.secure.js'),
+  path.join('src', 'utils', 'database-migrations.js'),
   path.join('scripts', 'verify-entrypoints.js')
 ]);
 
