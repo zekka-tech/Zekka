@@ -1,57 +1,132 @@
-import { useState, useCallback } from 'react'
+import { MessageSquarePlusIcon } from 'lucide-react'
 import { cn } from '@/lib/cn'
-import type { Message } from '@/types/chat.types'
+import { useConversationRuntime } from '@/hooks/useConversations'
 import { MessageList } from './MessageList'
 import { InputArea } from './InputArea'
 
-export const ChatInterface = () => {
-  const [messages, setMessages] = useState<Message[]>([])
-  const [isLoading, setIsLoading] = useState(false)
+interface ChatInterfaceProps {
+  projectId?: string
+  projectName?: string
+}
 
-  const handleSendMessage = useCallback((content: string) => {
-    // Add user message
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      role: 'user',
-      content,
-      timestamp: new Date(),
-      status: 'complete'
-    }
+export const ChatInterface = ({ projectId, projectName }: ChatInterfaceProps) => {
+  const {
+    conversations,
+    activeConversation,
+    activeConversationId,
+    setActiveConversationId,
+    messages,
+    isLoading,
+    isConversationLoading,
+    isSending,
+    error,
+    sendMessage,
+    startNewConversation
+  } = useConversationRuntime(projectId, projectName)
 
-    setMessages(prev => [...prev, userMessage])
-    setIsLoading(true)
-
-    // Simulate API call with streaming response
-    setTimeout(() => {
-      const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: `I received your message: "${content}"\n\nThis is a demo response. In production, this would be connected to the backend AI service with real-time streaming.`,
-        timestamp: new Date(),
-        status: 'complete',
-        metadata: {
-          model: 'claude-sonnet-4.5',
-          tokenUsage: {
-            input: Math.floor(Math.random() * 500) + 50,
-            output: Math.floor(Math.random() * 200) + 50
-          }
-        }
-      }
-      setMessages(prev => [...prev, assistantMessage])
-      setIsLoading(false)
-    }, 1500)
-  }, [])
+  const emptyState = !projectId ? (
+    <div className="max-w-md rounded-xl border border-border bg-card p-6 text-center shadow-sm">
+      <h3 className="text-lg font-semibold text-foreground">
+        Select a project to start chatting
+      </h3>
+      <p className="mt-2 text-sm text-muted-foreground">
+        The dashboard chat now uses the live conversation API and must be scoped to a project before it can create or load threads.
+      </p>
+    </div>
+  ) : (
+    <div className="max-w-md rounded-xl border border-border bg-card p-6 text-center shadow-sm">
+      <h3 className="text-lg font-semibold text-foreground">
+        {activeConversation ? 'No messages in this conversation yet' : 'Start a new conversation'}
+      </h3>
+      <p className="mt-2 text-sm text-muted-foreground">
+        Messages are persisted to the backend conversation runtime for {projectName || 'the selected project'}.
+      </p>
+    </div>
+  )
 
   return (
-    <div className={cn(
-      "flex flex-col h-full w-full",
-      "bg-background"
-    )}>
-      {/* Message List */}
-      <MessageList messages={messages} isLoading={isLoading} />
+    <div className={cn('flex h-full w-full flex-col bg-background')}>
+      <div className="border-b border-border bg-card/80 px-4 py-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <h2 className="text-sm font-semibold text-foreground">
+              Conversation Runtime
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              {projectId
+                ? `Project: ${projectName || 'Selected project'}`
+                : 'Pick a project to load or create a conversation'}
+            </p>
+          </div>
 
-      {/* Input Area */}
-      <InputArea onSubmit={handleSendMessage} isLoading={isLoading} />
+          <select
+            aria-label="Conversation thread"
+            value={activeConversationId ?? ''}
+            onChange={(event) =>
+              setActiveConversationId(event.target.value || null)
+            }
+            disabled={!projectId || isLoading || isConversationLoading || conversations.length === 0 || isSending}
+            className={cn(
+              'min-w-52 rounded-lg border border-border bg-background px-3 py-2 text-sm',
+              'disabled:cursor-not-allowed disabled:opacity-50'
+            )}
+          >
+            <option value="">
+              {conversations.length === 0 ? 'No saved conversations' : 'New conversation'}
+            </option>
+            {conversations.map((conversation) => (
+              <option key={conversation.id} value={conversation.id}>
+                {conversation.title}
+              </option>
+            ))}
+          </select>
+
+          <button
+            type="button"
+            onClick={startNewConversation}
+            disabled={!projectId}
+            className={cn(
+              'inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium',
+              'hover:bg-muted/60 transition-colors',
+              'disabled:cursor-not-allowed disabled:opacity-50'
+            )}
+          >
+            <MessageSquarePlusIcon className="h-4 w-4" />
+            New Thread
+          </button>
+        </div>
+
+        <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
+          Assistant replies are generated by the backend conversation runtime and persisted into the active thread.
+        </div>
+
+        {error && (
+          <div className="mt-3 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+            {error}
+          </div>
+        )}
+      </div>
+
+      <div className="flex-1 overflow-hidden">
+        {isLoading || isConversationLoading ? (
+          <div className="flex h-full items-center justify-center">
+            <p className="text-sm text-muted-foreground">Loading conversations...</p>
+          </div>
+        ) : (
+          <MessageList messages={messages} isLoading={isSending} emptyState={emptyState} />
+        )}
+      </div>
+
+      <InputArea
+        onSubmit={sendMessage}
+        isLoading={isSending}
+        disabled={!projectId}
+        placeholder={
+          projectId
+            ? 'Send a message to the selected conversation...'
+            : 'Select a project to start a conversation'
+        }
+      />
     </div>
   )
 }

@@ -4,6 +4,18 @@ import type { AxiosInstance } from 'axios'
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000'
 type AuthChangeListener = (isAuthenticated: boolean) => void
 
+export interface ConversationStreamEvent {
+  type: string
+  data?: unknown
+  message?: string
+  error?: string
+}
+
+export interface ConversationStreamHandlers {
+  onEvent?: (event: ConversationStreamEvent) => void
+  onError?: (error: Error) => void
+}
+
 class ApiService {
   private axiosInstance: AxiosInstance
   private token: string | null = null
@@ -144,40 +156,106 @@ class ApiService {
 
   // ===== Chat/Conversation APIs =====
 
-  async getConversations() {
-    const response = await this.axiosInstance.get('/api/conversations')
-    return response.data
+  async getConversations(projectId?: string) {
+    const response = await this.axiosInstance.get('/api/v1/conversations', {
+      params: projectId ? { projectId } : undefined
+    })
+    return response.data.data
   }
 
   async getConversation(id: string) {
-    const response = await this.axiosInstance.get(`/api/conversations/${id}`)
-    return response.data
+    const response = await this.axiosInstance.get(`/api/v1/conversations/${id}`)
+    return response.data.data
   }
 
   async createConversation(data: {
-    title?: string
-    projectId?: string
-  } = {}) {
-    const response = await this.axiosInstance.post('/api/conversations', data)
-    return response.data
+    title: string
+    projectId: string
+  }) {
+    const response = await this.axiosInstance.post('/api/v1/conversations', data)
+    return response.data.data
   }
 
   async sendMessage(conversationId: string, content: string) {
     const response = await this.axiosInstance.post(
-      `/api/conversations/${conversationId}/messages`,
+      `/api/v1/conversations/${conversationId}/messages`,
       { content }
     )
-    return response.data
+    return response.data.data
+  }
+
+  async sendMessageStream(
+    conversationId: string,
+    content: string,
+    handlers: ConversationStreamHandlers = {}
+  ) {
+    const response = await fetch(
+      `${API_BASE_URL}/api/v1/conversations/${conversationId}/messages/stream`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(this.token ? { Authorization: `Bearer ${this.token}` } : {})
+        },
+        body: JSON.stringify({ content })
+      }
+    )
+
+    if (!response.ok || !response.body) {
+      const error = new Error('Failed to open conversation stream')
+      handlers.onError?.(error)
+      throw error
+    }
+
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+
+    const emitEvent = (rawEvent: string) => {
+      const dataLine = rawEvent
+        .split('\n')
+        .find((line) => line.startsWith('data:'))
+
+      if (!dataLine) return
+
+      try {
+        const event = JSON.parse(dataLine.slice(5).trim()) as ConversationStreamEvent
+        handlers.onEvent?.(event)
+      } catch (error) {
+        handlers.onError?.(
+          error instanceof Error ? error : new Error('Failed to parse stream event')
+        )
+      }
+    }
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) {
+        break
+      }
+
+      buffer += decoder.decode(value, { stream: true })
+      const events = buffer.split('\n\n')
+      buffer = events.pop() ?? ''
+
+      for (const event of events) {
+        emitEvent(event)
+      }
+    }
+
+    if (buffer.trim()) {
+      emitEvent(buffer)
+    }
   }
 
   async getMessages(conversationId: string, limit = 50, offset = 0) {
     const response = await this.axiosInstance.get(
-      `/api/conversations/${conversationId}/messages`,
+      `/api/v1/conversations/${conversationId}/messages`,
       {
         params: { limit, offset }
       }
     )
-    return response.data
+    return response.data.data
   }
 
   // ===== Agent APIs =====

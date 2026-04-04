@@ -16,6 +16,9 @@ const { AppError } = require('../utils/errors');
 const db = require('../config/database');
 const { getIO } = require('../middleware/websocket');
 const logger = require('../utils/logger');
+const ModelClient = require('./model-client');
+const analyticsService = require('./analytics.service');
+const { calculateCost } = require('../utils/pricing');
 
 // Simple ID generator for compatibility
 const generateId = () => {
@@ -28,6 +31,329 @@ const generateId = () => {
 };
 
 class ConversationService {
+  constructor(options = {}) {
+    this.modelClient = options.modelClient || new ModelClient({ logger });
+    this.analyticsService = options.analyticsService || analyticsService;
+    this.logger = options.logger || logger;
+  }
+
+  parseMetadata(value) {
+    if (!value) {
+      return {};
+    }
+
+    if (typeof value === 'string') {
+      try {
+        return JSON.parse(value);
+      } catch (error) {
+        this.logger.warn('Failed to parse JSON metadata', {
+          error: error.message
+        });
+        return {};
+      }
+    }
+
+    return value;
+  }
+
+  async getConversationAccess(client, conversationId, userId) {
+    const accessQuery = `
+      SELECT c.id, c.project_id, c.title, c.metadata, p.owner_id
+      FROM conversations c
+      JOIN projects p ON c.project_id = p.id
+      LEFT JOIN project_members pm ON p.id = pm.project_id
+      WHERE c.id = $1 AND c.deleted_at IS NULL
+        AND (p.owner_id = $2 OR pm.user_id = $2)
+      LIMIT 1
+    `;
+
+    const accessResult = await client.query(accessQuery, [conversationId, userId]);
+
+    if (accessResult.rows.length === 0) {
+      throw new AppError('Conversation not found or access denied', 404);
+    }
+
+    const conversation = accessResult.rows[0];
+
+    return {
+      ...conversation,
+      metadata: this.parseMetadata(conversation.metadata)
+    };
+  }
+
+  buildStoredMessageMetadata(metadata = {}) {
+    const messageMetadata = { ...metadata };
+    delete messageMetadata.role;
+    delete messageMetadata.model;
+    delete messageMetadata.modelVersion;
+    delete messageMetadata.tokens;
+    delete messageMetadata.tokensUsed;
+    delete messageMetadata.cost;
+    delete messageMetadata.status;
+    delete messageMetadata.errorMessage;
+    delete messageMetadata.parentMessageId;
+    delete messageMetadata.citations;
+    delete messageMetadata.sources;
+    delete messageMetadata.persistUserId;
+
+    return messageMetadata;
+  }
+
+  async createMessageRecord(client, params) {
+    const {
+      conversationId,
+      userId,
+      content,
+      metadata = {}
+    } = params;
+
+    const messageId = generateId();
+    const role = metadata.role || 'user';
+    const messageMetadata = this.buildStoredMessageMetadata(metadata);
+    const tokenUsage = metadata.tokens || {};
+    const citations = metadata.citations || null;
+    const sources = metadata.sources || null;
+    const status = metadata.status || 'sent';
+
+    const messageQuery = `
+      INSERT INTO messages (
+        id,
+        conversation_id,
+        user_id,
+        content,
+        role,
+        model,
+        model_version,
+        tokens_used,
+        cost,
+        status,
+        error_message,
+        parent_message_id,
+        citations,
+        sources,
+        metadata
+      )
+      VALUES (
+        $1, $2, $3, $4, $5,
+        $6, $7, $8, $9, $10,
+        $11, $12, $13, $14, $15
+      )
+      RETURNING *
+    `;
+
+    const messageResult = await client.query(messageQuery, [
+      messageId,
+      conversationId,
+      metadata.persistUserId !== undefined
+        ? metadata.persistUserId
+        : role === 'assistant' || role === 'system' || role === 'tool'
+          ? null
+          : userId,
+      content,
+      role,
+      metadata.model || null,
+      metadata.modelVersion || null,
+      metadata.tokensUsed || tokenUsage.total || null,
+      metadata.cost || null,
+      status,
+      metadata.errorMessage || null,
+      metadata.parentMessageId || null,
+      citations ? JSON.stringify(citations) : null,
+      sources ? JSON.stringify(sources) : null,
+      JSON.stringify(messageMetadata)
+    ]);
+
+    const message = messageResult.rows[0];
+    return {
+      ...message,
+      metadata: this.parseMetadata(message.metadata),
+      citations: this.parseMetadata(message.citations),
+      sources: this.parseMetadata(message.sources)
+    };
+  }
+
+  async touchConversation(client, conversationId) {
+    await client.query(
+      'UPDATE conversations SET updated_at = CURRENT_TIMESTAMP, last_message_at = CURRENT_TIMESTAMP WHERE id = $1',
+      [conversationId]
+    );
+  }
+
+  broadcastMessage(conversationId, projectId, message) {
+    try {
+      const io = getIO();
+      if (!io) {
+        return;
+      }
+
+      io.to(`conversation:${conversationId}`).emit('message:created', {
+        conversationId,
+        projectId,
+        message,
+        timestamp: new Date()
+      });
+    } catch (wsError) {
+      this.logger.error('Failed to broadcast message:', wsError);
+    }
+  }
+
+  async getConversationHistory(conversationId, limit = 20) {
+    const historyQuery = `
+      SELECT id, role, content, model, created_at, metadata
+      FROM messages
+      WHERE conversation_id = $1 AND deleted_at IS NULL
+      ORDER BY created_at DESC
+      LIMIT $2
+    `;
+
+    const historyResult = await db.query(historyQuery, [conversationId, limit]);
+
+    return historyResult.rows
+      .reverse()
+      .map((message) => ({
+        ...message,
+        metadata: this.parseMetadata(message.metadata)
+      }));
+  }
+
+  buildAssistantPrompt(params) {
+    const {
+      conversation,
+      history,
+      userContent,
+      metadata = {}
+    } = params;
+    const systemPrompt = metadata.systemPrompt
+      || conversation.metadata?.systemPrompt
+      || 'You are Zekka, a precise engineering assistant. Answer directly, preserve context, and be explicit about uncertainty.';
+    const projectContext = [
+      conversation.title ? `Conversation title: ${conversation.title}` : null,
+      conversation.project_id ? `Project ID: ${conversation.project_id}` : null
+    ].filter(Boolean).join('\n');
+
+    const historyText = history
+      .map((message) => `${message.role.toUpperCase()}: ${message.content}`)
+      .join('\n\n');
+
+    return [
+      systemPrompt,
+      projectContext,
+      historyText ? `Conversation history:\n${historyText}` : null,
+      `Latest user message:\n${userContent}`,
+      'Respond as the assistant. Keep the answer grounded in the conversation and avoid hallucinating unavailable system state.'
+    ].filter(Boolean).join('\n\n');
+  }
+
+  normalizeUsage(usage = {}, prompt, completion) {
+    const inputTokens = usage.input_tokens
+      || usage.inputTokens
+      || usage.promptTokens
+      || Math.max(1, Math.ceil(prompt.length / 4));
+    const outputTokens = usage.output_tokens
+      || usage.outputTokens
+      || usage.completionTokens
+      || Math.max(1, Math.ceil(completion.length / 4));
+
+    return {
+      input: inputTokens,
+      output: outputTokens,
+      total: usage.totalTokens || inputTokens + outputTokens
+    };
+  }
+
+  async generateAssistantReply(params) {
+    const {
+      conversation,
+      userId,
+      userMessage,
+      metadata = {}
+    } = params;
+    const history = await this.getConversationHistory(conversation.id);
+    const prompt = this.buildAssistantPrompt({
+      conversation,
+      history,
+      userContent: userMessage.content,
+      metadata
+    });
+
+    const response = await this.modelClient.generateOrchestratorResponse(prompt, {
+      projectId: conversation.project_id,
+      taskId: `conversation:${conversation.id}`,
+      temperature: metadata.temperature,
+      maxTokens: metadata.maxTokens,
+      context: {
+        conversationId: conversation.id,
+        userId
+      }
+    });
+
+    const text = (response.text || '').trim();
+    if (!text) {
+      throw new Error('Assistant model returned an empty response');
+    }
+
+    const tokens = this.normalizeUsage(response.usage, prompt, text);
+    const cost = calculateCost(response.model, tokens.input, tokens.output);
+
+    return {
+      content: text,
+      model: response.model,
+      tokens,
+      cost,
+      metadata: {
+        role: 'assistant',
+        model: response.model,
+        tokens,
+        tokensUsed: tokens.total,
+        cost,
+        processingTime: metadata.processingTime || null,
+        generation: {
+          providerPath: response.fallbackUsed ? 'fallback' : 'primary',
+          fallbackUsed: !!response.fallbackUsed
+        }
+      }
+    };
+  }
+
+  buildAssistantFailureMessage(error) {
+    return {
+      content:
+        'I could not generate a response right now. Please retry in a moment.',
+      metadata: {
+        role: 'assistant',
+        status: 'error',
+        errorMessage: error.message,
+        generation: {
+          failed: true
+        }
+      }
+    };
+  }
+
+  async trackAssistantUsage(projectId, conversationId, assistantReply) {
+    const tokens = assistantReply.tokens;
+    if (!tokens || !this.analyticsService) {
+      return;
+    }
+
+    try {
+      await this.analyticsService.trackTokenUsage(
+        projectId,
+        conversationId,
+        'conversation-assistant',
+        assistantReply.model,
+        tokens.input,
+        tokens.output
+      );
+    } catch (error) {
+      this.logger.warn('Failed to track assistant token usage', {
+        error: error.message,
+        conversationId,
+        projectId
+      });
+    }
+  }
+
   /**
    * List conversations for a user in a project
    * @param {string} userId - User ID
@@ -393,79 +719,22 @@ class ConversationService {
         throw new AppError('Message content is required', 400);
       }
 
-      // Verify access to conversation
-      const accessQuery = `
-        SELECT c.id, c.project_id
-        FROM conversations c
-        JOIN projects p ON c.project_id = p.id
-        LEFT JOIN project_members pm ON p.id = pm.project_id
-        WHERE c.id = $1 AND c.deleted_at IS NULL
-          AND (p.owner_id = $2 OR pm.user_id = $2)
-      `;
-
-      const accessResult = await client.query(accessQuery, [
+      const conversation = await this.getConversationAccess(
+        client,
         conversationId,
         userId
-      ]);
+      );
 
-      if (accessResult.rows.length === 0) {
-        throw new AppError('Conversation not found or access denied', 404);
-      }
-
-      // Create message
-      const messageId = generateId();
-      const messageQuery = `
-        INSERT INTO messages (id, conversation_id, user_id, content, role, metadata)
-        VALUES ($1, $2, $3, $4, $5, $6)
-        RETURNING *
-      `;
-
-      const role = metadata.role || 'user';
-      const messageMetadata = { ...metadata };
-      delete messageMetadata.role;
-
-      const messageResult = await client.query(messageQuery, [
-        messageId,
+      const parsedMessage = await this.createMessageRecord(client, {
         conversationId,
         userId,
         content,
-        role,
-        JSON.stringify(messageMetadata)
-      ]);
-
-      // Update conversation updated_at
-      await client.query(
-        'UPDATE conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = $1',
-        [conversationId]
-      );
+        metadata
+      });
+      await this.touchConversation(client, conversationId);
 
       await client.query('COMMIT');
-
-      const message = messageResult.rows[0];
-      const parsedMessage = {
-        ...message,
-        metadata:
-          typeof message.metadata === 'string'
-            ? JSON.parse(message.metadata)
-            : message.metadata
-      };
-
-      // Emit real-time event through WebSocket
-      try {
-        const io = getIO();
-        if (io) {
-          const projectId = accessResult.rows[0].project_id;
-          io.to(`conversation:${conversationId}`).emit('message:created', {
-            conversationId,
-            projectId,
-            message: parsedMessage,
-            timestamp: new Date()
-          });
-        }
-      } catch (wsError) {
-        // Log but don't throw - WebSocket events are optional
-        logger.error('Failed to broadcast message:', wsError);
-      }
+      this.broadcastMessage(conversationId, conversation.project_id, parsedMessage);
 
       return parsedMessage;
     } catch (error) {
@@ -475,6 +744,59 @@ class ConversationService {
     } finally {
       client.release();
     }
+  }
+
+  async sendMessageTurn(conversationId, userId, content, metadata = {}) {
+    const userMessage = await this.sendMessage(conversationId, userId, content, {
+      ...metadata,
+      role: 'user',
+      requestedByUserId: userId
+    });
+
+    const conversation = await this.getConversation(conversationId, userId);
+
+    let assistantReply;
+    try {
+      assistantReply = await this.generateAssistantReply({
+        conversation,
+        userId,
+        userMessage,
+        metadata
+      });
+    } catch (error) {
+      this.logger.error('Assistant generation failed', {
+        conversationId,
+        userId,
+        error: error.message
+      });
+      assistantReply = this.buildAssistantFailureMessage(error);
+    }
+
+    const assistantMessage = await this.sendMessage(
+      conversationId,
+      userId,
+      assistantReply.content,
+      {
+        ...assistantReply.metadata,
+        parentMessageId: userMessage.id,
+        requestedByUserId: userId
+      }
+    );
+
+    if (assistantReply.model && assistantReply.tokens) {
+      await this.trackAssistantUsage(
+        conversation.project_id,
+        conversationId,
+        assistantReply
+      );
+    }
+
+    return {
+      conversationId,
+      projectId: conversation.project_id,
+      userMessage,
+      assistantMessage
+    };
   }
 
   /**
@@ -677,3 +999,5 @@ class ConversationService {
 }
 
 module.exports = new ConversationService();
+module.exports.ConversationService = ConversationService;
+module.exports.ConversationService = ConversationService;

@@ -157,32 +157,14 @@ function setupMessageEvents(io, socket, logger) {
         const userId = getUserId(socket);
 
         try {
-          // Save message to database
-          const messageMetadata = {
-            ...metadata,
-            role: socket.user?.role || 'user'
-          };
-
-          const savedMessage = await conversationService.sendMessage(
+          const turnResult = await conversationService.sendMessageTurn(
             conversationId,
             userId,
             content,
-            messageMetadata
+            metadata || {}
           );
 
-          const message = {
-            id: savedMessage.id,
-            conversationId: savedMessage.conversation_id,
-            userId: savedMessage.user_id,
-            username: socket.user?.username,
-            role: savedMessage.role,
-            content: savedMessage.content,
-            metadata: savedMessage.metadata || {},
-            createdAt: savedMessage.created_at,
-            timestamp: Date.now()
-          };
-
-          logger.info(`Message sent: ${message.id}`, {
+          logger.info(`Conversation turn completed: ${turnResult.assistantMessage.id}`, {
             conversationId,
             userId,
             contentLength: content.length
@@ -191,18 +173,27 @@ function setupMessageEvents(io, socket, logger) {
           // Clear typing indicator
           clearTypingIndicator(conversationId, userId, io);
 
-          // Broadcast to conversation members
-          io.to(`conversation:${conversationId}`).emit(
-            'message:received',
-            message
-          );
+          io.to(`conversation:${conversationId}`).emit('message:received', {
+            id: turnResult.assistantMessage.id,
+            conversationId: turnResult.assistantMessage.conversation_id,
+            userId: turnResult.assistantMessage.user_id,
+            username: socket.user?.username,
+            role: turnResult.assistantMessage.role,
+            content: turnResult.assistantMessage.content,
+            metadata: turnResult.assistantMessage.metadata || {},
+            createdAt: turnResult.assistantMessage.created_at,
+            timestamp: Date.now(),
+            userMessageId: turnResult.userMessage.id,
+            assistantMessageId: turnResult.assistantMessage.id
+          });
 
           // Send acknowledgment to sender
           if (callback) {
             callback(
               createSuccessResponse({
-                messageId: message.id,
-                sent: true
+                sent: true,
+                userMessageId: turnResult.userMessage.id,
+                assistantMessageId: turnResult.assistantMessage.id
               })
             );
           }

@@ -1,0 +1,206 @@
+import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { renderHook, waitFor, act } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { createElement, type ReactNode } from 'react'
+import { useConversationRuntime } from '../useConversations'
+import { apiService } from '@/services/api'
+
+vi.mock('@/services/api', () => ({
+  apiService: {
+    getConversations: vi.fn(),
+    createConversation: vi.fn(),
+    getConversation: vi.fn(),
+    getMessages: vi.fn(),
+    sendMessage: vi.fn()
+  }
+}))
+
+const createWrapper = () => {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+      mutations: { retry: false }
+    }
+  })
+
+  return ({ children }: { children: ReactNode }) => (
+    createElement(QueryClientProvider, { client: queryClient }, children)
+  )
+}
+
+describe('useConversationRuntime', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('loads existing conversations and messages for a project', async () => {
+    vi.mocked(apiService.getConversations).mockResolvedValue([
+      {
+        id: 'conv-1',
+        title: 'Existing thread',
+        created_at: '2026-04-04T08:00:00.000Z',
+        updated_at: '2026-04-04T08:05:00.000Z'
+      }
+    ])
+    vi.mocked(apiService.getConversation).mockResolvedValue({
+      id: 'conv-1',
+      title: 'Existing thread',
+      created_at: '2026-04-04T08:00:00.000Z',
+      updated_at: '2026-04-04T08:05:00.000Z'
+    })
+    vi.mocked(apiService.getMessages).mockResolvedValue([
+      {
+        id: 'msg-1',
+        role: 'user',
+        content: 'Hello runtime',
+        created_at: '2026-04-04T08:06:00.000Z'
+      }
+    ])
+
+    const { result } = renderHook(
+      () => useConversationRuntime('project-1', 'Alpha'),
+      { wrapper: createWrapper() }
+    )
+
+    await waitFor(() => {
+      expect(result.current.activeConversationId).toBe('conv-1')
+    })
+
+    await waitFor(() => {
+      expect(result.current.messages).toHaveLength(1)
+    })
+
+    expect(result.current.messages[0].content).toBe('Hello runtime')
+    expect(apiService.getConversations).toHaveBeenCalledWith('project-1')
+    expect(apiService.getMessages).toHaveBeenCalledWith('conv-1', 50, 0)
+  })
+
+  it('creates a conversation on first send when none exists', async () => {
+    vi.mocked(apiService.getConversations)
+      .mockResolvedValueOnce([])
+      .mockResolvedValue([
+        {
+          id: 'conv-2',
+          title: 'Ship the runtime integration',
+          created_at: '2026-04-04T09:00:00.000Z',
+          updated_at: '2026-04-04T09:00:00.000Z'
+        }
+      ])
+    vi.mocked(apiService.createConversation).mockResolvedValue({
+      id: 'conv-2',
+      title: 'Ship the runtime integration',
+      created_at: '2026-04-04T09:00:00.000Z',
+      updated_at: '2026-04-04T09:00:00.000Z'
+    })
+    vi.mocked(apiService.getConversation).mockResolvedValue({
+      id: 'conv-2',
+      title: 'Ship the runtime integration',
+      created_at: '2026-04-04T09:00:00.000Z',
+      updated_at: '2026-04-04T09:00:00.000Z'
+    })
+    vi.mocked(apiService.getMessages)
+      .mockResolvedValueOnce([])
+      .mockResolvedValue([
+        {
+          id: 'msg-2',
+          role: 'user',
+          content: 'Ship the runtime integration',
+          created_at: '2026-04-04T09:01:00.000Z'
+        }
+      ])
+    vi.mocked(apiService.sendMessage).mockResolvedValue({
+      id: 'msg-2',
+      role: 'user',
+      content: 'Ship the runtime integration',
+      created_at: '2026-04-04T09:01:00.000Z'
+    })
+
+    const { result } = renderHook(
+      () => useConversationRuntime('project-1', 'Alpha'),
+      { wrapper: createWrapper() }
+    )
+
+    await waitFor(() => {
+      expect(apiService.getConversations).toHaveBeenCalledWith('project-1')
+    })
+
+    await act(async () => {
+      await result.current.sendMessage('Ship the runtime integration')
+    })
+
+    expect(apiService.createConversation).toHaveBeenCalledWith({
+      title: 'Ship the runtime integration',
+      projectId: 'project-1'
+    })
+    expect(apiService.sendMessage).toHaveBeenCalledWith(
+      'conv-2',
+      'Ship the runtime integration'
+    )
+
+    await waitFor(() => {
+      expect(result.current.activeConversationId).toBe('conv-2')
+    })
+  })
+
+  it('normalizes assistant responses returned with the send-message payload', async () => {
+    vi.mocked(apiService.getConversations).mockResolvedValue([
+      {
+        id: 'conv-3',
+        title: 'Assistant ready',
+        created_at: '2026-04-04T10:00:00.000Z',
+        updated_at: '2026-04-04T10:00:00.000Z'
+      }
+    ])
+    vi.mocked(apiService.getConversation).mockResolvedValue({
+      id: 'conv-3',
+      title: 'Assistant ready',
+      created_at: '2026-04-04T10:00:00.000Z',
+      updated_at: '2026-04-04T10:00:00.000Z'
+    })
+    vi.mocked(apiService.getMessages).mockResolvedValue([])
+    vi.mocked(apiService.sendMessage).mockResolvedValue({
+      userMessage: {
+        id: 'msg-user',
+        role: 'user',
+        content: 'Explain the patch',
+        created_at: '2026-04-04T10:01:00.000Z'
+      },
+      assistantMessage: {
+        id: 'msg-assistant',
+        role: 'assistant',
+        content: 'Here is the explanation.',
+        created_at: '2026-04-04T10:01:01.000Z',
+        metadata: {
+          codeBlocks: [
+            {
+              id: 'code-1',
+              language: 'typescript',
+              code: 'const answer = 42'
+            }
+          ]
+        }
+      }
+    })
+
+    const { result } = renderHook(
+      () => useConversationRuntime('project-1', 'Alpha'),
+      { wrapper: createWrapper() }
+    )
+
+    await waitFor(() => {
+      expect(result.current.activeConversationId).toBe('conv-3')
+    })
+
+    await act(async () => {
+      await result.current.sendMessage('Explain the patch')
+    })
+
+    expect(apiService.sendMessage).toHaveBeenCalledWith('conv-3', 'Explain the patch')
+
+    await waitFor(() => {
+      expect(result.current.messages.map((message) => message.id)).toEqual(
+        expect.arrayContaining(['msg-user', 'msg-assistant'])
+      )
+    })
+  })
+})

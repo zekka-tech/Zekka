@@ -11,9 +11,53 @@
  */
 
 const conversationService = require('../services/conversation.service');
-const { AppError } = require('../utils/errors');
 
 class ConversationsController {
+  streamAssistantResponse(res, turnResult) {
+    const { userMessage, assistantMessage } = turnResult;
+    const content = assistantMessage.content || '';
+    const chunkSize = 160;
+
+    res.write(
+      `data: ${JSON.stringify({
+        type: 'userMessage',
+        data: userMessage
+      })}\n\n`
+    );
+
+    res.write(
+      `data: ${JSON.stringify({
+        type: 'assistantMessageStart',
+        data: {
+          ...assistantMessage,
+          content: ''
+        }
+      })}\n\n`
+    );
+
+    for (let index = 0; index < content.length; index += chunkSize) {
+      res.write(
+        `data: ${JSON.stringify({
+          type: 'assistantMessageDelta',
+          data: {
+            id: assistantMessage.id,
+            conversationId: assistantMessage.conversation_id,
+            chunk: content.slice(index, index + chunkSize)
+          }
+        })}\n\n`
+      );
+    }
+
+    res.write(
+      `data: ${JSON.stringify({
+        type: 'assistantMessageComplete',
+        data: assistantMessage
+      })}\n\n`
+    );
+
+    res.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`);
+  }
+
   /**
    * List all conversations for the authenticated user
    * GET /api/v1/conversations
@@ -174,23 +218,20 @@ class ConversationsController {
     try {
       const { userId } = req.user;
       const { id } = req.params;
-      const { content, role, metadata } = req.body;
+      const { content, metadata } = req.body;
 
-      const messageMetadata = {
-        ...metadata,
-        role
-      };
-
-      const message = await conversationService.sendMessage(
+      const turnResult = await conversationService.sendMessageTurn(
         id,
         userId,
         content,
-        messageMetadata
+        metadata || {}
       );
 
       res.status(201).json({
         success: true,
-        data: message,
+        data: turnResult,
+        userMessage: turnResult.userMessage,
+        assistantMessage: turnResult.assistantMessage,
         message: 'Message sent successfully'
       });
     } catch (error) {
@@ -208,7 +249,7 @@ class ConversationsController {
     try {
       const { userId } = req.user;
       const { id } = req.params;
-      const { content, role, metadata } = req.body;
+      const { content, metadata } = req.body;
 
       // Set up SSE headers
       res.setHeader('Content-Type', 'text/event-stream');
@@ -216,46 +257,13 @@ class ConversationsController {
       res.setHeader('Connection', 'keep-alive');
       res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
 
-      // Save user message first
-      const messageMetadata = {
-        ...metadata,
-        role: role || 'user'
-      };
-
-      const userMessage = await conversationService.sendMessage(
+      const turnResult = await conversationService.sendMessageTurn(
         id,
         userId,
         content,
-        messageMetadata
+        metadata || {}
       );
-
-      // Send user message confirmation
-      res.write(
-        `data: ${JSON.stringify({
-          type: 'userMessage',
-          data: userMessage
-        })}\n\n`
-      );
-
-      // In a real implementation, this would integrate with AI service
-      // For now, we'll create a placeholder for the streaming logic
-
-      // Example streaming response structure:
-      // The actual AI integration would go here
-      res.write(
-        `data: ${JSON.stringify({
-          type: 'info',
-          message: 'AI streaming integration pending - implement in AI service'
-        })}\n\n`
-      );
-
-      // Send completion event
-      res.write(
-        `data: ${JSON.stringify({
-          type: 'done'
-        })}\n\n`
-      );
-
+      this.streamAssistantResponse(res, turnResult);
       res.end();
     } catch (error) {
       // For streaming, we need to send error in SSE format
