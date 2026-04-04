@@ -75,6 +75,46 @@ class AnalyticsController {
   }
 
   /**
+   * Get user cost summary
+   * GET /api/v1/analytics/costs
+   */
+  async getCosts(req, res, next) {
+    try {
+      const { userId } = req.user;
+      const { period = 'month' } = req.query;
+
+      const costs = await analyticsService.getCosts(userId, period);
+
+      res.status(200).json({
+        success: true,
+        data: costs
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Get user cost timeline breakdown
+   * GET /api/v1/analytics/costs/breakdown
+   */
+  async getCostsBreakdown(req, res, next) {
+    try {
+      const { userId } = req.user;
+      const { period = 'month' } = req.query;
+
+      const costs = await analyticsService.getCostsBreakdown(userId, period);
+
+      res.status(200).json({
+        success: true,
+        data: costs
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
    * Get metrics
    * GET /api/v1/analytics/metrics
    */
@@ -83,7 +123,7 @@ class AnalyticsController {
       const { userId } = req.user;
       const { period = 'month' } = req.query;
 
-      const metrics = await analyticsService.getMetrics(userId, period);
+      const metrics = await analyticsService.getDashboardAnalytics(userId, period);
 
       res.status(200).json({
         success: true,

@@ -1,5 +1,5 @@
-import { useQuery } from '@tanstack/react-query'
-import { apiService } from '@/services/api'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { apiService, type AnalyticsSummaryResponse } from '@/services/api'
 import type { MetricDataPoint } from '@/components/charts/TokenUsageChart'
 import type { ModelBreakdown } from '@/components/charts/CostBreakdownChart'
 import type { AgentMetric } from '@/components/charts/AgentPerformanceChart'
@@ -14,172 +14,95 @@ export interface AnalyticsData {
   combinedMetrics: CombinedMetric[]
   stats: {
     totalTokens: number
+    totalInputTokens: number
+    totalOutputTokens: number
     totalCost: number
     averageCostPerToken: number
+    totalProjects: number
+    totalConversations: number
+    totalMessages: number
+    modelsUsed: number
+    agentsUsed: number
     topAgent?: string
     topModel?: string
   }
 }
 
-// Transform raw metrics data into chart-ready format
-const transformMetricsData = (metrics: any, period: Period): MetricDataPoint[] => {
-  if (!metrics || !metrics.timeline) {
-    return []
+const toNumber = (value: unknown): number => {
+  if (typeof value === 'number') {
+    return value
   }
 
-  return metrics.timeline.map((point: any) => ({
-    date: formatDate(point.timestamp, period),
-    tokens: point.tokens || 0,
-    cost: point.cost || 0
-  }))
-}
-
-// Transform cost data into model breakdown format
-const transformCostBreakdown = (costs: any): ModelBreakdown[] => {
-  if (!costs || !costs.byModel) {
-    return []
+  if (typeof value === 'string') {
+    return Number(value) || 0
   }
 
-  const total = Object.values(costs.byModel).reduce((sum: number, val: any) => sum + (val.cost || 0), 0)
-
-  return Object.entries(costs.byModel).map(([modelName, data]: [string, any]) => ({
-    name: modelName,
-    cost: data.cost || 0,
-    percentage: total > 0 ? ((data.cost || 0) / total) * 100 : 0
-  }))
+  return 0
 }
 
-// Transform metrics into agent performance format
-const transformAgentPerformance = (metrics: any): AgentMetric[] => {
-  if (!metrics || !metrics.byAgent) {
-    return []
-  }
-
-  return Object.entries(metrics.byAgent).map(([agentName, data]: [string, any]) => ({
-    name: agentName,
-    avgExecutionTime: data.avgExecutionTime || 0,
-    totalExecutions: data.totalExecutions || 0,
-    successRate: data.successRate || 0
-  }))
-}
-
-// Combine metrics and costs into a single timeline
-const transformCombinedMetrics = (metrics: any, costs: any): CombinedMetric[] => {
-  if (!metrics || !metrics.timeline || !costs) {
-    return []
-  }
-
-  return metrics.timeline.map((point: any) => ({
-    date: formatDate(point.timestamp, 'day'),
-    tokens: point.tokens || 0,
-    cost: point.cost || 0
-  }))
-}
-
-// Format date based on period
-const formatDate = (timestamp: string | number, period: Period): string => {
-  const date = new Date(timestamp)
-
-  switch (period) {
-    case 'day':
-      return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
-    case 'week':
-      return date.toLocaleDateString('en-US', { weekday: 'short' })
-    case 'month':
-      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-    default:
-      return date.toLocaleDateString()
-  }
-}
-
-// Calculate summary statistics
-const calculateStats = (metrics: any, costs: any) => {
-  const totalTokens = metrics?.totalTokens || 0
-  const totalCost = costs?.totalCost || 0
+const buildAnalyticsData = (summary: AnalyticsSummaryResponse): AnalyticsData => {
+  const totalInputTokens = toNumber(summary.total_input_tokens)
+  const totalOutputTokens = toNumber(summary.total_output_tokens)
+  const totalTokens = totalInputTokens + totalOutputTokens
+  const totalCost = toNumber(summary.total_cost)
   const averageCostPerToken = totalTokens > 0 ? totalCost / totalTokens : 0
 
-  let topAgent = undefined
-  let topModel = undefined
-
-  if (metrics?.byAgent) {
-    const agents = Object.entries(metrics.byAgent)
-    if (agents.length > 0) {
-      const top = agents.reduce((max: any, entry: [string, any]) => {
-        const [name, data] = entry
-        return (data.totalExecutions > (max.executions || 0))
-          ? { name, executions: data.totalExecutions }
-          : max
-      }, { name: null, executions: 0 })
-      topAgent = top.name
-    }
-  }
-
-  if (costs?.byModel) {
-    const models = Object.entries(costs.byModel)
-    if (models.length > 0) {
-      const top = models.reduce((max: any, entry: [string, any]) => {
-        const [name, data] = entry
-        return (data.cost > (max.cost || 0))
-          ? { name, cost: data.cost }
-          : max
-      }, { name: null, cost: 0 })
-      topModel = top.name
-    }
-  }
-
   return {
-    totalTokens,
-    totalCost,
-    averageCostPerToken,
-    topAgent,
-    topModel
+    tokenUsage: [],
+    costBreakdown: [],
+    agentPerformance: [],
+    combinedMetrics: [],
+    stats: {
+      totalTokens,
+      totalInputTokens,
+      totalOutputTokens,
+      totalCost,
+      averageCostPerToken,
+      totalProjects: toNumber(summary.total_projects),
+      totalConversations: toNumber(summary.total_conversations),
+      totalMessages: toNumber(summary.total_messages),
+      modelsUsed: toNumber(summary.models_used),
+      agentsUsed: toNumber(summary.agents_used)
+    }
   }
 }
 
 export const useAnalytics = (period: Period = 'week') => {
-  // Fetch metrics
-  const { data: metricsData, isLoading: metricsLoading, error: metricsError } = useQuery({
-    queryKey: ['analytics', 'metrics', period],
-    queryFn: () => apiService.getMetrics(),
-    staleTime: 30 * 1000, // 30 seconds for real-time updates
+  const queryClient = useQueryClient()
+
+  const { data: summaryData, isLoading, error } = useQuery({
+    queryKey: ['analytics', 'summary', period],
+    queryFn: () => apiService.getAnalyticsMetrics(period),
+    staleTime: 30 * 1000,
     refetchInterval: 30 * 1000 // Refetch every 30 seconds
   })
 
-  // Fetch costs
-  const { data: costsData, isLoading: costsLoading, error: costsError } = useQuery({
-    queryKey: ['analytics', 'costs', period],
-    queryFn: () => apiService.getCosts(),
-    staleTime: 30 * 1000,
-    refetchInterval: 30 * 1000
-  })
+  const analyticsData = summaryData ? buildAnalyticsData(summaryData) : null
+  const isSummaryEmpty = !summaryData || (
+    toNumber(summaryData.total_projects) === 0
+    && toNumber(summaryData.total_conversations) === 0
+    && toNumber(summaryData.total_messages) === 0
+    && toNumber(summaryData.total_input_tokens) === 0
+    && toNumber(summaryData.total_output_tokens) === 0
+    && toNumber(summaryData.total_cost) === 0
+  )
 
-  // Fetch cost breakdown
-  const { data: breakdownData, isLoading: breakdownLoading } = useQuery({
-    queryKey: ['analytics', 'breakdown', period],
-    queryFn: () => apiService.getCostsBreakdown(),
-    staleTime: 30 * 1000,
-    refetchInterval: 30 * 1000
-  })
-
-  // Transform and combine data
-  const analyticsData: AnalyticsData | null = metricsData && costsData
-    ? {
-      tokenUsage: transformMetricsData(metricsData, period),
-      costBreakdown: transformCostBreakdown(breakdownData || costsData),
-      agentPerformance: transformAgentPerformance(metricsData),
-      combinedMetrics: transformCombinedMetrics(metricsData, costsData),
-      stats: calculateStats(metricsData, costsData)
-    }
-    : null
+  const isEmpty =
+    !isLoading &&
+    !error &&
+    isSummaryEmpty
 
   return {
     data: analyticsData,
-    isLoading: metricsLoading || costsLoading || breakdownLoading,
-    error: metricsError || costsError,
+    isLoading,
+    error,
+    isEmpty,
     period,
     refetch: async () => {
-      // Refetch all queries
-      // This is handled by React Query automatically
+      await queryClient.refetchQueries({
+        queryKey: ['analytics', 'summary', period],
+        exact: true
+      })
     }
   }
 }

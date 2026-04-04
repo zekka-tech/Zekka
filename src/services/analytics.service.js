@@ -11,6 +11,24 @@ const { cache, CACHE_KEYS, TTL } = require('../config/redis');
 const logger = require('../utils/logger');
 
 class AnalyticsService {
+  normalizeSummaryMetrics(metrics = {}) {
+    const totalInputTokens = parseInt(metrics.total_input_tokens, 10) || 0;
+    const totalOutputTokens = parseInt(metrics.total_output_tokens, 10) || 0;
+    const totalCost = parseFloat(metrics.total_cost) || 0;
+
+    return {
+      totalProjects: parseInt(metrics.total_projects, 10) || 0,
+      totalConversations: parseInt(metrics.total_conversations, 10) || 0,
+      totalMessages: parseInt(metrics.total_messages, 10) || 0,
+      totalInputTokens,
+      totalOutputTokens,
+      totalTokens: totalInputTokens + totalOutputTokens,
+      totalCost,
+      modelsUsed: parseInt(metrics.models_used, 10) || 0,
+      agentsUsed: parseInt(metrics.agents_used, 10) || 0
+    };
+  }
+
   /**
    * Get metrics for a user's projects
    * @param {number} userId - User ID
@@ -61,6 +79,62 @@ class AnalyticsService {
     await cache.set(cacheKey, metrics, TTL.SHORT);
 
     return metrics;
+  }
+
+  async getDashboardAnalytics(userId, period = 'month') {
+    const cacheKey = CACHE_KEYS.CACHE(`dashboard-analytics:user:${userId}:${period}`);
+    const cached = await cache.get(cacheKey);
+    if (cached) return cached;
+
+    const [metrics, costs, tokenUsage, agentPerformance] = await Promise.all([
+      this.getMetrics(userId, period),
+      this.getCosts(userId, period),
+      this.getTokenUsage(userId, period),
+      this.getAgentPerformance(userId, period)
+    ]);
+
+    const summary = this.normalizeSummaryMetrics(metrics);
+    const timeline = tokenUsage.map((row) => {
+      const inputTokens = parseInt(row.input_tokens, 10) || 0;
+      const outputTokens = parseInt(row.output_tokens, 10) || 0;
+
+      return {
+        timestamp: row.time_bucket,
+        inputTokens,
+        outputTokens,
+        tokens: inputTokens + outputTokens,
+        cost: parseFloat(row.cost) || 0,
+        requestCount: parseInt(row.request_count, 10) || 0
+      };
+    });
+
+    const byAgent = agentPerformance.reduce((accumulator, agent) => {
+      accumulator[agent.name] = {
+        avgExecutionTime: agent.avgExecutionTime,
+        totalExecutions: agent.totalExecutions,
+        successRate: agent.successRate
+      };
+      return accumulator;
+    }, {});
+
+    const dashboard = {
+      period,
+      ...metrics,
+      total_tokens: summary.totalTokens,
+      total_cost: summary.totalCost,
+      timeline,
+      byModel: costs.byModel,
+      byAgent,
+      summary,
+      costs: {
+        total: costs.total,
+        byModel: costs.byModel,
+        byAgent: costs.byAgent
+      }
+    };
+
+    await cache.set(cacheKey, dashboard, TTL.SHORT);
+    return dashboard;
   }
 
   /**
@@ -153,7 +227,8 @@ class AnalyticsService {
    * @param {number} userId - User ID
    * @returns {Promise<object>} Detailed cost breakdown
    */
-  async getCostsBreakdown(userId) {
+  async getCostsBreakdown(userId, period = 'month') {
+    const timeFilter = this._getTimeFilter(period);
     const query = `
       SELECT
         DATE(tu.created_at) as date,
@@ -166,7 +241,7 @@ class AnalyticsService {
       JOIN conversations c ON c.id = tu.conversation_id
       JOIN projects p ON p.id = c.project_id
       WHERE p.user_id = $1
-        AND tu.created_at >= NOW() - INTERVAL '30 days'
+        ${timeFilter ? `AND tu.created_at >= ${timeFilter}` : ''}
       GROUP BY DATE(tu.created_at), tu.model, tu.agent_id
       ORDER BY date DESC, cost DESC
     `;
@@ -268,6 +343,67 @@ class AnalyticsService {
     };
 
     await cache.set(cacheKey, metrics, TTL.MEDIUM);
+    return metrics;
+  }
+
+  async getAgentPerformance(userId, period = 'month') {
+    const timeFilter = this._getTimeFilter(period);
+    const cacheKey = CACHE_KEYS.CACHE(`agent-performance:user:${userId}:${period}`);
+    const cached = await cache.get(cacheKey);
+
+    if (cached) {
+      return cached;
+    }
+
+    const query = `
+      SELECT
+        aa.agent_id,
+        COUNT(*)::integer as total_executions,
+        AVG(
+          CASE
+            WHEN aa.metadata->>'durationMs' ~ '^[0-9]+(\\.[0-9]+)?$'
+              THEN (aa.metadata->>'durationMs')::numeric / 1000
+            WHEN aa.metadata->>'duration_ms' ~ '^[0-9]+(\\.[0-9]+)?$'
+              THEN (aa.metadata->>'duration_ms')::numeric / 1000
+            WHEN aa.metadata->>'duration' ~ '^[0-9]+(\\.[0-9]+)?$'
+              THEN (aa.metadata->>'duration')::numeric
+            ELSE NULL
+          END
+        ) as avg_execution_time,
+        COUNT(
+          CASE WHEN aa.action ILIKE '%fail%' THEN 1 END
+        )::integer as failed_actions,
+        COUNT(
+          CASE
+            WHEN aa.action ILIKE '%complete%'
+              OR aa.action ILIKE '%success%'
+              OR aa.action ILIKE '%done%'
+            THEN 1
+          END
+        )::integer as successful_actions
+      FROM agent_activities aa
+      JOIN projects p ON p.id = aa.project_id
+      WHERE p.user_id = $1
+        ${timeFilter ? `AND aa.timestamp >= ${timeFilter}` : ''}
+      GROUP BY aa.agent_id
+      ORDER BY total_executions DESC, aa.agent_id ASC
+    `;
+
+    const result = await pool.query(query, [userId]);
+    const metrics = result.rows.map((row) => {
+      const successes = parseInt(row.successful_actions, 10) || 0;
+      const failures = parseInt(row.failed_actions, 10) || 0;
+      const measuredRuns = successes + failures;
+
+      return {
+        name: row.agent_id,
+        avgExecutionTime: parseFloat(row.avg_execution_time) || 0,
+        totalExecutions: parseInt(row.total_executions, 10) || 0,
+        successRate: measuredRuns > 0 ? successes / measuredRuns : undefined
+      };
+    });
+
+    await cache.set(cacheKey, metrics, TTL.SHORT);
     return metrics;
   }
 
@@ -430,7 +566,9 @@ class AnalyticsService {
   async _invalidateCaches(projectId, agentId) {
     const patterns = [
       'zekka:cache:metrics:*',
+      'zekka:cache:dashboard-analytics:*',
       'zekka:cache:costs:*',
+      'zekka:cache:agent-performance:*',
       `zekka:cache:project-analytics:${projectId}:*`,
       agentId ? `zekka:cache:agent-metrics:${agentId}:*` : null
     ].filter(Boolean);

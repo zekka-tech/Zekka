@@ -20,6 +20,20 @@ router.use(authenticate);
 router.get('/metrics', analyticsController.getMetrics);
 
 /**
+ * @route   GET /api/v1/analytics/costs
+ * @desc    Get user cost summary
+ * @access  Private
+ */
+router.get('/costs', analyticsController.getCosts);
+
+/**
+ * @route   GET /api/v1/analytics/costs/breakdown
+ * @desc    Get user cost timeline breakdown
+ * @access  Private
+ */
+router.get('/costs/breakdown', analyticsController.getCostsBreakdown);
+
+/**
  * @route   GET /api/v1/analytics/:projectId
  * @desc    Get project analytics
  * @access  Private

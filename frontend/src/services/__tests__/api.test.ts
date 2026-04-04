@@ -1,11 +1,13 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { apiService } from '../api'
 
+const getMock = vi.hoisted(() => vi.fn())
+
 // Mock axios
 vi.mock('axios', () => ({
   default: {
     create: vi.fn(() => ({
-      get: vi.fn(),
+      get: getMock,
       post: vi.fn(),
       put: vi.fn(),
       delete: vi.fn(),
@@ -44,5 +46,29 @@ describe('ApiService', () => {
     // Should use environment variable or default
     const url = import.meta.env.VITE_API_URL || 'http://localhost:3000'
     expect(url).toBeDefined()
+  })
+
+  it('requests analytics summary from the v1 contract with period filtering', async () => {
+    getMock.mockResolvedValueOnce({
+      data: {
+        data: {
+          total_projects: 2,
+          total_conversations: 4,
+          total_messages: 8,
+          total_input_tokens: 100,
+          total_output_tokens: 25,
+          total_cost: 1.25,
+          models_used: 2,
+          agents_used: 1
+        }
+      }
+    })
+
+    const summary = await apiService.getAnalyticsMetrics('month')
+
+    expect(getMock).toHaveBeenCalledWith('/api/v1/analytics/metrics', {
+      params: { period: 'month' }
+    })
+    expect(summary?.total_projects).toBe(2)
   })
 })

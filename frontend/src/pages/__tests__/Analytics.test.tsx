@@ -47,9 +47,15 @@ describe('Analytics Page', () => {
     ],
     stats: {
       totalTokens: 1000000,
+      totalInputTokens: 750000,
+      totalOutputTokens: 250000,
       totalCost: 50,
       averageCostPerToken: 0.00005,
-      topAgent: 'Agent 1'
+      totalProjects: 8,
+      totalConversations: 40,
+      totalMessages: 128,
+      modelsUsed: 5,
+      agentsUsed: 3
     }
   }
 
@@ -60,6 +66,7 @@ describe('Analytics Page', () => {
       data: mockAnalyticsData as any,
       isLoading: false,
       error: null,
+      isEmpty: false,
       period: 'week',
       refetch: vi.fn()
     } as any)
@@ -82,7 +89,7 @@ describe('Analytics Page', () => {
     expect(getByText('Total Tokens')).toBeInTheDocument()
     expect(getByText('Total Cost')).toBeInTheDocument()
     expect(getByText('Cost/Token')).toBeInTheDocument()
-    expect(getByText('Top Agent')).toBeInTheDocument()
+    expect(getByText('Models Used')).toBeInTheDocument()
   })
 
   it('renders all chart components', async () => {
@@ -108,6 +115,7 @@ describe('Analytics Page', () => {
       data: null,
       isLoading: true,
       error: null,
+      isEmpty: false,
       period: 'week',
       refetch: vi.fn()
     } as any)
@@ -122,6 +130,7 @@ describe('Analytics Page', () => {
       data: null,
       isLoading: false,
       error: new Error(errorMessage),
+      isEmpty: false,
       period: 'week',
       refetch: vi.fn()
     } as any)
@@ -137,6 +146,7 @@ describe('Analytics Page', () => {
       data: mockAnalyticsData as any,
       isLoading: false,
       error: null,
+      isEmpty: false,
       period: 'week',
       refetch: vi.fn()
     } as any)
@@ -145,8 +155,8 @@ describe('Analytics Page', () => {
     const monthButton = getByText('Month')
     fireEvent.click(monthButton)
 
-    // Verify that useAnalytics was called with 'month'
-    expect(useAnalyticsMock).toHaveBeenCalled()
+    expect(useAnalyticsMock).toHaveBeenCalledWith('week')
+    expect(useAnalyticsMock).toHaveBeenLastCalledWith('month')
   })
 
   it('displays correct KPI values', () => {
@@ -172,5 +182,40 @@ describe('Analytics Page', () => {
   it('displays last updated timestamp', () => {
     const { getByText } = render(<Analytics />)
     expect(getByText(/Last updated:/)).toBeInTheDocument()
+  })
+
+  it('shows an empty state when analytics data is unavailable', () => {
+    vi.mocked(useAnalyticsModule.useAnalytics).mockReturnValue({
+      data: null,
+      isLoading: false,
+      error: null,
+      isEmpty: true,
+      period: 'week',
+      refetch: vi.fn()
+    } as any)
+
+    const { getByText } = render(<Analytics />)
+    expect(getByText('No analytics data available')).toBeInTheDocument()
+    expect(getByText('Refresh data')).toBeInTheDocument()
+  })
+
+  it('refetches analytics data when refresh is clicked', async () => {
+    const refetch = vi.fn().mockResolvedValue(undefined)
+    vi.mocked(useAnalyticsModule.useAnalytics).mockReturnValue({
+      data: mockAnalyticsData as any,
+      isLoading: false,
+      error: null,
+      isEmpty: false,
+      period: 'week',
+      refetch
+    } as any)
+
+    const { getByTitle } = render(<Analytics />)
+
+    await act(async () => {
+      fireEvent.click(getByTitle('Refresh data'))
+    })
+
+    expect(refetch).toHaveBeenCalledTimes(1)
   })
 })

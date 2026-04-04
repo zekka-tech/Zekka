@@ -31,6 +31,17 @@ export interface ConversationStreamHandlers {
   onError?: (error: Error) => void
 }
 
+export interface AnalyticsSummaryResponse {
+  total_projects?: number | string
+  total_conversations?: number | string
+  total_messages?: number | string
+  total_input_tokens?: number | string
+  total_output_tokens?: number | string
+  total_cost?: number | string
+  models_used?: number | string
+  agents_used?: number | string
+}
+
 class ApiService {
   private axiosInstance: AxiosInstance
   private token: string | null = null
@@ -306,6 +317,15 @@ class ApiService {
   async getAgentActivity(id: string) {
     const response = await this.axiosInstance.get(`/api/agents/${id}/activity`)
     return response.data
+  }
+
+  // ===== Analytics APIs =====
+
+  async getAnalyticsMetrics(period: 'day' | 'week' | 'month' = 'week') {
+    const response = await this.axiosInstance.get('/api/v1/analytics/metrics', {
+      params: { period }
+    })
+    return response.data.data as AnalyticsSummaryResponse | null
   }
 
   // ===== Metrics APIs =====

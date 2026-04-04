@@ -72,16 +72,17 @@ const DeferredChart = ({
 
 export const Analytics = () => {
   const [period, setPeriod] = useState<Period>('week')
-  const { data, isLoading, error, refetch } = useAnalytics(period)
+  const { data, isLoading, error, refetch, isEmpty } = useAnalytics(period)
   const [lastUpdated, setLastUpdated] = useState(new Date())
+  const showEmptyState = isEmpty && !isLoading && !error
 
   const handleRefresh = async () => {
-    setLastUpdated(new Date())
     await refetch?.()
+    setLastUpdated(new Date())
   }
 
   const handleExport = (format: 'csv' | 'json') => {
-    if (!data) return
+    if (!data || showEmptyState) return
 
     const exportData = {
       period,
@@ -110,9 +111,16 @@ export const Analytics = () => {
 
     // Stats section
     csv += 'Summary Statistics\n'
+    csv += `Total Projects,${data.data.stats.totalProjects}\n`
+    csv += `Total Conversations,${data.data.stats.totalConversations}\n`
+    csv += `Total Messages,${data.data.stats.totalMessages}\n`
     csv += `Total Tokens,${data.data.stats.totalTokens}\n`
+    csv += `Input Tokens,${data.data.stats.totalInputTokens}\n`
+    csv += `Output Tokens,${data.data.stats.totalOutputTokens}\n`
     csv += `Total Cost,${data.data.stats.totalCost}\n`
     csv += `Avg Cost/Token,${data.data.stats.averageCostPerToken}\n\n`
+    csv += `Models Used,${data.data.stats.modelsUsed}\n`
+    csv += `Agents Used,${data.data.stats.agentsUsed}\n\n`
 
     // Token usage
     csv += 'Token Usage\n'
@@ -134,6 +142,30 @@ export const Analytics = () => {
       style={{ height }}
     >
       <p className="text-muted-foreground">{message}</p>
+    </div>
+  )
+
+  const emptyState = (
+    <div className={cn(
+      'rounded-xl border border-dashed border-border',
+      'bg-muted/20 p-8 text-center'
+    )}>
+      <h2 className="text-lg font-semibold text-foreground mb-2">
+        No analytics data available
+      </h2>
+      <p className="text-sm text-muted-foreground max-w-lg mx-auto">
+        The analytics queries returned no records yet. Connect the backend metrics pipeline, then refresh to populate charts and exportable reports.
+      </p>
+      <button
+        onClick={handleRefresh}
+        className={cn(
+          'mt-4 px-4 py-2 rounded-lg',
+          'bg-primary text-primary-foreground',
+          'hover:opacity-90 transition-opacity'
+        )}
+      >
+        Refresh data
+      </button>
     </div>
   )
 
@@ -224,13 +256,13 @@ export const Analytics = () => {
         <div className="flex items-center gap-2">
           <button
             onClick={() => handleExport('csv')}
-            disabled={!data}
+            disabled={!data || showEmptyState}
             className={cn(
               'px-3 py-1.5 rounded-lg text-sm',
               'flex items-center gap-2',
               'bg-muted text-muted-foreground',
               'hover:bg-muted/80 transition-colors',
-              !data && 'opacity-50 cursor-not-allowed'
+              (!data || showEmptyState) && 'opacity-50 cursor-not-allowed'
             )}
           >
             <DownloadIcon className="w-4 h-4" />
@@ -238,13 +270,13 @@ export const Analytics = () => {
           </button>
           <button
             onClick={() => handleExport('json')}
-            disabled={!data}
+            disabled={!data || showEmptyState}
             className={cn(
               'px-3 py-1.5 rounded-lg text-sm',
               'flex items-center gap-2',
               'bg-muted text-muted-foreground',
               'hover:bg-muted/80 transition-colors',
-              !data && 'opacity-50 cursor-not-allowed'
+              (!data || showEmptyState) && 'opacity-50 cursor-not-allowed'
             )}
           >
             <DownloadIcon className="w-4 h-4" />
@@ -254,7 +286,7 @@ export const Analytics = () => {
       </div>
 
       {/* KPI Cards */}
-      {data && (
+      {data && !showEmptyState && (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           {/* Total Tokens */}
           <div className={cn(
@@ -307,29 +339,30 @@ export const Analytics = () => {
             </p>
           </div>
 
-          {/* Top Agent */}
+          {/* Models Used */}
           <div className={cn(
             'p-4 rounded-lg border border-border',
             'bg-card'
           )}>
             <div className="flex items-start justify-between mb-2">
-              <span className="text-xs text-muted-foreground font-medium">Top Agent</span>
+              <span className="text-xs text-muted-foreground font-medium">Models Used</span>
               <BarChart3Icon className="w-5 h-5 text-orange-500" />
             </div>
-            <p className="text-lg font-bold text-foreground truncate">
-              {data.stats.topAgent || 'N/A'}
+            <p className="text-2xl font-bold text-foreground">
+              {data.stats.modelsUsed.toLocaleString()}
             </p>
             <p className="text-xs text-orange-600 dark:text-orange-400 mt-2">
-              Most executions
+              Unique models this period
             </p>
           </div>
         </div>
       )}
 
+      {showEmptyState && emptyState}
+
       {/* Charts Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Token Usage */}
-        {data ? (
+      {data && !showEmptyState && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <DeferredChart
             eager={true}
             fallback={chartFallback('Loading token usage chart...', 350)}
@@ -343,12 +376,7 @@ export const Analytics = () => {
               />
             </Suspense>
           </DeferredChart>
-        ) : (
-          chartFallback('Loading chart...', 350)
-        )}
 
-        {/* Combined Metrics */}
-        {data ? (
           <DeferredChart
             eager={true}
             fallback={chartFallback('Loading combined metrics chart...', 350)}
@@ -360,12 +388,7 @@ export const Analytics = () => {
               />
             </Suspense>
           </DeferredChart>
-        ) : (
-          chartFallback('Loading chart...', 350)
-        )}
 
-        {/* Cost Breakdown */}
-        {data ? (
           <DeferredChart fallback={chartFallback('Loading cost breakdown chart...', 350)}>
             <Suspense fallback={chartFallback('Loading cost breakdown chart...', 350)}>
               <CostBreakdownChart
@@ -374,12 +397,7 @@ export const Analytics = () => {
               />
             </Suspense>
           </DeferredChart>
-        ) : (
-          chartFallback('Loading chart...', 350)
-        )}
 
-        {/* Agent Performance */}
-        {data ? (
           <DeferredChart fallback={chartFallback('Loading agent performance chart...', 350)}>
             <Suspense fallback={chartFallback('Loading agent performance chart...', 350)}>
               <AgentPerformanceChart
@@ -388,10 +406,15 @@ export const Analytics = () => {
               />
             </Suspense>
           </DeferredChart>
-        ) : (
-          chartFallback('Loading chart...', 350)
-        )}
-      </div>
+        </div>
+      )}
+
+      {!data && !showEmptyState && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {chartFallback('Loading analytics data...', 350)}
+          {chartFallback('Loading analytics data...', 350)}
+        </div>
+      )}
 
       {/* Loading State */}
       {isLoading && (
