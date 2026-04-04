@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { cn } from '@/lib/cn'
 import type { Agent, Activity } from '@/types/agent.types'
 import { AgentCard } from './AgentCard'
+import { useAgents } from '@/hooks/useAgents'
 import { Clock } from 'lucide-react'
 
 interface AgentDashboardProps {
@@ -10,84 +11,67 @@ interface AgentDashboardProps {
 }
 
 export const AgentDashboard = ({
-  agents = [],
+  agents,
   activities = []
 }: AgentDashboardProps) => {
-  // Mock data for demo
-  const mockAgents: Agent[] = agents.length > 0 ? agents : [
-    {
-      id: '1',
-      name: 'Pydantic AI',
-      type: 'strategic',
-      status: 'active',
-      progress: 75,
-      currentTask: {
-        id: 't1',
-        description: 'Analyzing project architecture and requirements',
-        stage: 2,
-        priority: 'critical',
-        startedAt: new Date(Date.now() - 300000)
-      },
-      tokenUsage: {
-        input: 2450,
-        output: 1820,
-        cost: 0.145
-      }
-    },
-    {
-      id: '2',
-      name: 'Astron Agent',
-      type: 'implementation',
-      status: 'processing',
-      progress: 45,
-      currentTask: {
-        id: 't2',
-        description: 'Implementing core features and components',
-        stage: 3,
-        priority: 'high',
-        startedAt: new Date(Date.now() - 600000)
-      },
-      tokenUsage: {
-        input: 1890,
-        output: 1240,
-        cost: 0.098
-      }
-    },
-    {
-      id: '3',
-      name: 'CodeRabbit',
-      type: 'specialized',
-      status: 'idle',
-      tokenUsage: {
-        input: 850,
-        output: 520,
-        cost: 0.043
-      }
-    },
-    {
-      id: '4',
-      name: 'SonarCube',
-      type: 'specialized',
-      status: 'waiting',
-      tokenUsage: {
-        input: 620,
-        output: 340,
-        cost: 0.032
-      }
-    }
-  ]
+  const { agents: liveAgents, isLoading, error } = useAgents()
+  const resolvedAgents = (agents ?? liveAgents) as Agent[]
+  const isUsingLiveAgents = agents === undefined
 
   const stats = useMemo(() => {
-    const activeCount = mockAgents.filter(a => a.status === 'active' || a.status === 'processing').length
-    const totalCost = mockAgents.reduce((sum, a) => sum + (a.tokenUsage?.cost || 0), 0)
-    const successRate = 92
+    const activeCount = resolvedAgents.filter((agent: Agent) => agent.status === 'active' || agent.status === 'processing').length
+    const totalCost = resolvedAgents.reduce((sum: number, agent: Agent) => sum + (agent.tokenUsage?.cost || 0), 0)
 
     return {
       activeCount,
       totalCost,
-      successRate
+      activityCount: activities.length
     }
-  }, [mockAgents])
+  }, [activities.length, resolvedAgents])
+
+  const renderAgents = () => {
+    if (isUsingLiveAgents && isLoading) {
+      return (
+        <div className="flex items-center justify-center min-h-[220px]">
+          <p className="text-sm text-muted-foreground">Loading agents...</p>
+        </div>
+      )
+    }
+
+    if (isUsingLiveAgents && error) {
+      return (
+        <div className="flex flex-col items-center justify-center min-h-[220px] text-center">
+          <p className="text-sm font-medium text-foreground mb-1">
+            Unable to load agents
+          </p>
+          <p className="text-xs text-muted-foreground max-w-xs">
+            Agent telemetry is unavailable until the backend orchestration service is reachable.
+          </p>
+        </div>
+      )
+    }
+
+    if (resolvedAgents.length === 0) {
+      return (
+        <div className="flex flex-col items-center justify-center min-h-[220px] text-center">
+          <p className="text-sm font-medium text-foreground mb-1">
+            No agents connected
+          </p>
+          <p className="text-xs text-muted-foreground max-w-xs">
+            Connect the orchestration backend to surface live agent activity, token usage, and execution status.
+          </p>
+        </div>
+      )
+    }
+
+    return (
+      <div className="grid gap-3">
+        {resolvedAgents.map((agent: Agent) => (
+          <AgentCard key={agent.id} agent={agent} />
+        ))}
+      </div>
+    )
+  }
 
   return (
     <div className={cn(
@@ -118,8 +102,8 @@ export const AgentDashboard = ({
           <div className={cn(
             "p-2 rounded-lg bg-muted/50"
           )}>
-            <p className="text-xs text-muted-foreground">Success Rate</p>
-            <p className="text-lg font-semibold">{stats.successRate}%</p>
+            <p className="text-xs text-muted-foreground">Events</p>
+            <p className="text-lg font-semibold">{stats.activityCount}</p>
           </div>
         </div>
       </div>
@@ -129,11 +113,7 @@ export const AgentDashboard = ({
         "flex-1 overflow-y-auto p-4",
         "space-y-3"
       )}>
-        <div className="grid gap-3">
-          {mockAgents.map(agent => (
-            <AgentCard key={agent.id} agent={agent} />
-          ))}
-        </div>
+        {renderAgents()}
       </div>
 
       {/* Activity Timeline */}

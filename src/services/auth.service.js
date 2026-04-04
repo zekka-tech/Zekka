@@ -452,9 +452,7 @@ class AuthService {
       });
 
       return {
-        message: 'If the email exists, a reset link will be sent',
-        // In production, don't return token - send via email
-        resetToken
+        message: 'If the email exists, a reset link will be sent'
       };
     } catch (error) {
       throw new AppError(

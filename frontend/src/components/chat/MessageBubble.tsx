@@ -2,6 +2,7 @@ import { memo } from 'react'
 import { cn } from '@/lib/cn'
 import type { Message } from '@/types/chat.types'
 import { InlineCitation } from './InlineCitation'
+import { CodeBlock } from './CodeBlock'
 import { Loader } from 'lucide-react'
 
 interface MessageBubbleProps {
@@ -29,6 +30,19 @@ const MessageBubbleComponent = ({ message }: MessageBubbleProps) => {
         )}>
           {message.content}
         </p>
+
+        {message.metadata?.codeBlocks && message.metadata.codeBlocks.length > 0 && (
+          <div className="mt-3">
+            {message.metadata.codeBlocks.map((codeBlock) => (
+              <CodeBlock
+                key={codeBlock.id}
+                code={codeBlock.code}
+                language={codeBlock.language}
+                filename={codeBlock.filename}
+              />
+            ))}
+          </div>
+        )}
 
         {/* Citations */}
         {message.metadata?.citations && message.metadata.citations.length > 0 && (

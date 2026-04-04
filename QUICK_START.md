@@ -24,6 +24,7 @@ If you just want the packaged application, open `http://localhost:3000` after st
 ## 3. Check the backend
 
 - Health: `http://localhost:3000/health`
+- CSRF token: `http://localhost:3000/api/csrf-token`
 - Swagger: `http://localhost:3000/api/docs`
 - Prometheus: `http://localhost:9090`
 - Grafana: `http://localhost:3001`
@@ -31,8 +32,10 @@ If you just want the packaged application, open `http://localhost:3000` after st
 ## Required config files
 
 - Backend compose stack: `.env.production`
-- Local secure backend runtime: `.env` from `.env.example.secure` when running the Node app directly
+- Local backend runtime: `.env` with `SESSION_SECRET`, `JWT_SECRET`, `DATABASE_URL`, and the other required secrets
 - Frontend env: optional `frontend/.env.development` or `VITE_*` variables
+
+`src/index.secure.js` is now a deprecated compatibility shim. Use `src/index.js` for the active backend runtime.
 
 ## Verification commands
 

@@ -57,7 +57,10 @@ After `docker compose up -d --build`, open:
 
 - App UI: `http://localhost:3000`
 - API health: `http://localhost:3000/health`
+- CSRF token endpoint: `http://localhost:3000/api/csrf-token`
 - Swagger: `http://localhost:3000/api/docs`
+
+Browser-session requests on `/api` use the CSRF session cookie plus the `/api/csrf-token` endpoint for token issuance and validation. Bearer-token API calls continue to work without a CSRF header.
 
 ## Verification
 
@@ -88,6 +91,7 @@ npm run build
 - `frontend/dist` can still be deployed separately when you want an independent static frontend deployment.
 - `docker-compose.prod.yml` contains the production-oriented backend stack.
 - `setup.sh` is the current local bootstrap script for the backend stack.
+- the old `auth.secure` runtime modules have been removed from `src/`; `src/index.secure.js` remains only as a deprecation shim to `src/index.js`.
 
 ## Documentation Priority
 

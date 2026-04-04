@@ -10,8 +10,8 @@ test.describe('Authentication', () => {
   test('should show login form when not authenticated', async ({ page }) => {
     await page.goto('/')
 
-    // Should redirect to auth page
-    await expect(page).toHaveURL(/.*auth/)
+    // The root app shell renders the auth screen directly.
+    await expect(page).toHaveURL(/\/$/)
 
     // Should show login form elements
     await expect(page.locator('input[type="email"]')).toBeVisible()

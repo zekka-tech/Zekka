@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { cn } from '@/lib/cn'
 import type { Message } from '@/types/chat.types'
 import { MessageBubble } from './MessageBubble'
@@ -6,14 +6,17 @@ import { MessageBubble } from './MessageBubble'
 interface MessageListProps {
   messages: Message[]
   isLoading?: boolean
+  emptyState?: ReactNode
 }
 
-export const MessageList = ({ messages, isLoading }: MessageListProps) => {
+export const MessageList = ({ messages, isLoading, emptyState }: MessageListProps) => {
   const scrollEndRef = useRef<HTMLDivElement>(null)
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
-    scrollEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (typeof scrollEndRef.current?.scrollIntoView === 'function') {
+      scrollEndRef.current.scrollIntoView({ behavior: 'smooth' })
+    }
   }, [messages])
 
   return (
@@ -24,14 +27,16 @@ export const MessageList = ({ messages, isLoading }: MessageListProps) => {
       <div className="flex-1 px-4 py-6">
         {messages.length === 0 ? (
           <div className="h-full flex items-center justify-center">
-            <div className="text-center">
-              <h3 className="text-lg font-semibold mb-2">
-                Start a conversation
-              </h3>
-              <p className="text-muted-foreground text-sm">
-                Ask me anything about your project
-              </p>
-            </div>
+            {emptyState ?? (
+              <div className="text-center">
+                <h3 className="text-lg font-semibold mb-2">
+                  Start a conversation
+                </h3>
+                <p className="text-muted-foreground text-sm">
+                  Ask me anything about your project
+                </p>
+              </div>
+            )}
           </div>
         ) : (
           <>

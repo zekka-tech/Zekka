@@ -5,19 +5,21 @@ import { cn } from '@/lib/cn'
 interface InputAreaProps {
   onSubmit: (message: string) => void
   isLoading?: boolean
+  disabled?: boolean
   placeholder?: string
 }
 
 export const InputArea = ({
   onSubmit,
   isLoading = false,
+  disabled = false,
   placeholder = 'Type your message...'
 }: InputAreaProps) => {
   const [message, setMessage] = useState('')
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (message.trim() && !isLoading) {
+    if (message.trim() && !isLoading && !disabled) {
       onSubmit(message)
       setMessage('')
     }
@@ -49,7 +51,7 @@ export const InputArea = ({
               "text-muted-foreground hover:text-foreground"
             )}
             title="Attach file"
-            disabled={isLoading}
+            disabled={isLoading || disabled}
           >
             <Paperclip className="w-5 h-5" />
           </button>
@@ -62,7 +64,7 @@ export const InputArea = ({
               "text-muted-foreground hover:text-foreground"
             )}
             title="Voice input"
-            disabled={isLoading}
+            disabled={isLoading || disabled}
           >
             <Mic className="w-5 h-5" />
           </button>
@@ -74,7 +76,7 @@ export const InputArea = ({
           onChange={(e) => setMessage(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
-          disabled={isLoading}
+          disabled={isLoading || disabled}
           className={cn(
             "flex-1 px-4 py-2 rounded-lg",
             "bg-muted border border-border",
@@ -89,7 +91,7 @@ export const InputArea = ({
         {/* Send button */}
         <button
           type="submit"
-          disabled={isLoading || !message.trim()}
+          disabled={isLoading || disabled || !message.trim()}
           className={cn(
             "p-2 rounded-lg",
             "bg-primary text-primary-foreground",

@@ -4,11 +4,14 @@ const fs = require('fs');
 const http = require('http');
 const path = require('path');
 const cors = require('cors');
+const session = require('express-session');
+const RedisStoreFactory = require('connect-redis');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const { createLogger, format, transports } = require('winston');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./swagger');
+const redisClient = require('./config/redis');
 
 const ContextBus = require('./shared/context-bus');
 const TokenEconomics = require('./shared/token-economics');
@@ -33,6 +36,8 @@ const {
 } = require('./middleware/metrics');
 const websocket = require('./middleware/websocket');
 const { csrfTokenGenerator, csrfTokenValidator } = require('./middleware/csrf');
+const { createCsrfRouteGuard } = require('./middleware/csrf-route-guard');
+const RedisStore = RedisStoreFactory(session);
 
 // API Routes
 const projectsRoutes = require('./routes/projects.routes');
@@ -60,10 +65,39 @@ const logger = createLogger({
 const app = express();
 const server = http.createServer(app);
 const PORT = process.env.PORT || 3000;
+const sessionSecret = process.env.SESSION_SECRET;
+
+if (!sessionSecret) {
+  throw new Error('SESSION_SECRET is required for CSRF session protection');
+}
+
+const sessionStore = new RedisStore({
+  client: redisClient,
+  prefix: 'zekka:session:'
+});
 
 // Middleware
+app.set('trust proxy', 1);
 app.use(helmet());
 app.use(cors());
+app.use(
+  session({
+    store: sessionStore,
+    name: 'zekka.sid',
+    secret: sessionSecret,
+    resave: false,
+    saveUninitialized: false,
+    rolling: true,
+    proxy: true,
+    cookie: {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: parseInt(process.env.SESSION_TIMEOUT, 10) || 60 * 60 * 1000,
+      path: '/api'
+    }
+  })
+);
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(
@@ -72,8 +106,8 @@ app.use(
 app.use(metricsMiddleware);
 
 // CSRF Protection
-app.use(csrfTokenGenerator); // Generate CSRF tokens
-// CSRF validation for state-changing requests (applied to API routes below)
+app.use('/api', csrfTokenGenerator); // Generate CSRF tokens for API requests
+app.use('/api', createCsrfRouteGuard(csrfTokenValidator));
 
 // Initialize core services
 let contextBus;
@@ -148,6 +182,11 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.get('/api/docs.json', (req, res) => {
   res.setHeader('Content-Type', 'application/json');
   res.send(swaggerSpec);
+});
+
+app.get('/api/csrf-token', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json({ csrfToken: res.locals.csrfToken });
 });
 
 // Prometheus Metrics

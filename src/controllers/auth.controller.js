@@ -106,7 +106,7 @@ class AuthController {
       }
 
       const result = await this.authService.requestPasswordReset(email);
-      return res.json(result);
+      return res.json({ message: result.message });
     } catch (error) {
       return next(error);
     }

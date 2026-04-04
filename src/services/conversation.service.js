@@ -83,6 +83,7 @@ class ConversationService {
 
   buildStoredMessageMetadata(metadata = {}) {
     const messageMetadata = { ...metadata };
+    delete messageMetadata.messageId;
     delete messageMetadata.role;
     delete messageMetadata.model;
     delete messageMetadata.modelVersion;
@@ -107,7 +108,7 @@ class ConversationService {
       metadata = {}
     } = params;
 
-    const messageId = generateId();
+    const messageId = metadata.messageId || generateId();
     const role = metadata.role || 'user';
     const messageMetadata = this.buildStoredMessageMetadata(metadata);
     const tokenUsage = metadata.tokens || {};
@@ -244,6 +245,37 @@ class ConversationService {
     ].filter(Boolean).join('\n\n');
   }
 
+  prepareAssistantGeneration(params) {
+    const {
+      conversation,
+      userId,
+      userMessage,
+      metadata = {}
+    } = params;
+    const prompt = this.buildAssistantPrompt({
+      conversation,
+      history: params.history,
+      userContent: userMessage.content,
+      metadata
+    });
+
+    return {
+      prompt,
+      options: {
+        projectId: conversation.project_id,
+        taskId: `conversation:${conversation.id}`,
+        temperature: metadata.temperature,
+        maxTokens: metadata.maxTokens,
+        model: metadata.model || metadata.aiModel,
+        aiModel: metadata.aiModel,
+        context: {
+          conversationId: conversation.id,
+          userId
+        }
+      }
+    };
+  }
+
   normalizeUsage(usage = {}, prompt, completion) {
     const inputTokens = usage.input_tokens
       || usage.inputTokens
@@ -269,30 +301,25 @@ class ConversationService {
       metadata = {}
     } = params;
     const history = await this.getConversationHistory(conversation.id);
-    const prompt = this.buildAssistantPrompt({
+    const generation = this.prepareAssistantGeneration({
       conversation,
-      history,
-      userContent: userMessage.content,
-      metadata
+      userId,
+      userMessage,
+      metadata,
+      history
     });
 
-    const response = await this.modelClient.generateOrchestratorResponse(prompt, {
-      projectId: conversation.project_id,
-      taskId: `conversation:${conversation.id}`,
-      temperature: metadata.temperature,
-      maxTokens: metadata.maxTokens,
-      context: {
-        conversationId: conversation.id,
-        userId
-      }
-    });
+    const response = await this.modelClient.generateOrchestratorResponse(
+      generation.prompt,
+      generation.options
+    );
 
     const text = (response.text || '').trim();
     if (!text) {
       throw new Error('Assistant model returned an empty response');
     }
 
-    const tokens = this.normalizeUsage(response.usage, prompt, text);
+    const tokens = this.normalizeUsage(response.usage, generation.prompt, text);
     const cost = calculateCost(response.model, tokens.input, tokens.output);
 
     return {
@@ -310,6 +337,64 @@ class ConversationService {
         generation: {
           providerPath: response.fallbackUsed ? 'fallback' : 'primary',
           fallbackUsed: !!response.fallbackUsed
+        }
+      }
+    };
+  }
+
+  async generateAssistantReplyStream(params, hooks = {}) {
+    const {
+      conversation,
+      userId,
+      userMessage,
+      metadata = {}
+    } = params;
+    const history = await this.getConversationHistory(conversation.id);
+    const generation = this.prepareAssistantGeneration({
+      conversation,
+      userId,
+      userMessage,
+      metadata,
+      history
+    });
+
+    const response = await this.modelClient.generateOrchestratorResponseStream(
+      generation.prompt,
+      {
+        ...generation.options,
+        onToken: async (chunk, details) => {
+          if (typeof hooks.onToken === 'function') {
+            await hooks.onToken(chunk, details);
+          }
+        }
+      }
+    );
+
+    const text = (response.text || '').trim();
+    if (!text) {
+      throw new Error('Assistant model returned an empty response');
+    }
+
+    const tokens = this.normalizeUsage(response.usage, generation.prompt, text);
+    const cost = calculateCost(response.model, tokens.input, tokens.output);
+
+    return {
+      content: text,
+      model: response.model,
+      tokens,
+      cost,
+      metadata: {
+        role: 'assistant',
+        model: response.model,
+        tokens,
+        tokensUsed: tokens.total,
+        cost,
+        processingTime: metadata.processingTime || null,
+        generation: {
+          providerPath: response.fallbackUsed ? 'fallback' : 'primary',
+          fallbackUsed: !!response.fallbackUsed,
+          streamUsed: !!response.streamUsed,
+          bufferedStream: !!response.bufferedStream
         }
       }
     };
@@ -747,6 +832,22 @@ class ConversationService {
   }
 
   async sendMessageTurn(conversationId, userId, content, metadata = {}) {
+    return await this.completeAssistantTurn(
+      conversationId,
+      userId,
+      content,
+      metadata,
+      (params) => this.generateAssistantReply(params)
+    );
+  }
+
+  async completeAssistantTurn(
+    conversationId,
+    userId,
+    content,
+    metadata,
+    generateAssistant
+  ) {
     const userMessage = await this.sendMessage(conversationId, userId, content, {
       ...metadata,
       role: 'user',
@@ -757,7 +858,7 @@ class ConversationService {
 
     let assistantReply;
     try {
-      assistantReply = await this.generateAssistantReply({
+      assistantReply = await generateAssistant({
         conversation,
         userId,
         userMessage,
@@ -782,6 +883,98 @@ class ConversationService {
         requestedByUserId: userId
       }
     );
+
+    if (assistantReply.model && assistantReply.tokens) {
+      await this.trackAssistantUsage(
+        conversation.project_id,
+        conversationId,
+        assistantReply
+      );
+    }
+
+    return {
+      conversationId,
+      projectId: conversation.project_id,
+      userMessage,
+      assistantMessage
+    };
+  }
+
+  async sendMessageTurnStream(
+    conversationId,
+    userId,
+    content,
+    metadata = {},
+    handlers = {}
+  ) {
+    const userMessage = await this.sendMessage(conversationId, userId, content, {
+      ...metadata,
+      role: 'user',
+      requestedByUserId: userId
+    });
+
+    const conversation = await this.getConversation(conversationId, userId);
+    const assistantMessageId = generateId();
+
+    if (handlers.onUserMessage) {
+      await handlers.onUserMessage(userMessage);
+    }
+
+    if (handlers.onAssistantStart) {
+      await handlers.onAssistantStart({
+        id: assistantMessageId,
+        conversation_id: conversationId,
+        role: 'assistant',
+        content: ''
+      });
+    }
+
+    let assistantReply;
+    try {
+      assistantReply = await this.generateAssistantReplyStream(
+        {
+          conversation,
+          userId,
+          userMessage,
+          metadata
+        }
+        ,
+        {
+          onToken: async (chunk) => {
+            if (handlers.onAssistantDelta) {
+              await handlers.onAssistantDelta({
+                id: assistantMessageId,
+                conversationId,
+                chunk
+              });
+            }
+          }
+        }
+      );
+    } catch (error) {
+      this.logger.error('Assistant streaming generation failed', {
+        conversationId,
+        userId,
+        error: error.message
+      });
+      assistantReply = this.buildAssistantFailureMessage(error);
+    }
+
+    const assistantMessage = await this.sendMessage(
+      conversationId,
+      userId,
+      assistantReply.content,
+      {
+        ...assistantReply.metadata,
+        messageId: assistantMessageId,
+        parentMessageId: userMessage.id,
+        requestedByUserId: userId
+      }
+    );
+
+    if (handlers.onAssistantComplete) {
+      await handlers.onAssistantComplete(assistantMessage);
+    }
 
     if (assistantReply.model && assistantReply.tokens) {
       await this.trackAssistantUsage(

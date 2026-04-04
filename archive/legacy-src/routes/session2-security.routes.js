@@ -2,15 +2,15 @@
  * Archived legacy route module.
  *
  * This file is intentionally kept outside `src/` because it depends on the
- * retired Session 2 security service layer (`auth-service.js` and related ESM
- * modules) and is not mounted by the active runtime.
+ * retired Session 2 security service layer (`archive/legacy-src/services/auth-service.js`
+ * and related ESM modules) and is not mounted by the active runtime.
  *
  * Archived on 2026-04-03 after the backend auth path was consolidated around
  * `src/services/auth.service.js` and `src/routes/auth.routes.js`.
  */
 
 import express from 'express';
-import authService from '../../../src/services/auth-service.js';
+import authService from '../services/auth-service.js';
 import auditService from '../../../src/services/audit-service.js';
 import encryptionService from '../../../src/services/encryption-service.js';
 import passwordService from '../../../src/services/password-service.js';

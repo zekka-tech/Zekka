@@ -70,6 +70,8 @@ tests/
     └── analytics.flow.test.js
 ```
 
+Legacy Session 2 security and pre-consolidation auth test artifacts are archived under `archive/legacy-tests/` and are not part of the active Jest suite.
+
 ## Running Tests
 
 ### All Tests

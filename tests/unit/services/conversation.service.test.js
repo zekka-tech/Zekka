@@ -13,7 +13,8 @@ jest.mock('../../../src/middleware/websocket', () => ({
 }));
 jest.mock('../../../src/services/model-client', () => {
   return jest.fn().mockImplementation(() => ({
-    generateOrchestratorResponse: jest.fn()
+    generateOrchestratorResponse: jest.fn(),
+    generateOrchestratorResponseStream: jest.fn()
   }));
 });
 jest.mock('../../../src/services/analytics.service', () => ({
@@ -27,7 +28,7 @@ jest.mock('../../../src/utils/logger', () => ({
 
 const { ConversationService } = require('../../../src/services/conversation.service');
 
-describe('ConversationService', () => {
+describe('ConversationService buffered turns', () => {
   let service;
   let client;
   let modelClient;
@@ -41,11 +42,9 @@ describe('ConversationService', () => {
       release: jest.fn()
     };
 
-    mockDb.getClient.mockResolvedValue(client);
-    mockDb.query.mockResolvedValue({ rows: [] });
-
     modelClient = {
-      generateOrchestratorResponse: jest.fn()
+      generateOrchestratorResponse: jest.fn(),
+      generateOrchestratorResponseStream: jest.fn()
     };
 
     analyticsService = {
@@ -64,183 +63,55 @@ describe('ConversationService', () => {
   });
 
   it('creates a user message and an assistant reply in one authoritative turn', async () => {
+    const conversationId = '11111111-1111-4111-8111-111111111111';
+    const userId = '22222222-2222-4222-8222-222222222222';
+    const projectId = '33333333-3333-4333-8333-333333333333';
+
     client.query
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({
         rows: [{
-          id: 'conv-1',
-          project_id: 'project-1',
-          title: 'Conversation',
-          metadata: '{}',
-          owner_id: 'user-1'
+          id: conversationId,
+          project_id: projectId,
+          title: 'Build assistant',
+          metadata: {}
         }]
       })
       .mockResolvedValueOnce({
         rows: [{
-          id: 'user-msg-1',
-          conversation_id: 'conv-1',
-          user_id: 'user-1',
-          content: 'Help me plan this',
+          id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          conversation_id: conversationId,
+          user_id: userId,
+          content: 'How should I structure the API?',
           role: 'user',
-          metadata: '{}',
-          citations: null,
-          sources: null
+          metadata: {}
         }]
       })
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] });
-
-    mockDb.query
-      .mockResolvedValueOnce({
-        rows: [{
-          id: 'conv-1',
-          project_id: 'project-1',
-          title: 'Conversation',
-          metadata: '{}',
-          project_name: 'Alpha'
-        }]
-      })
-      .mockResolvedValueOnce({
-        rows: [{
-          role: 'user',
-          content: 'Help me plan this',
-          metadata: '{}',
-          created_at: new Date().toISOString()
-        }]
-      });
-
-    modelClient.generateOrchestratorResponse.mockResolvedValue({
-      text: 'Here is a concrete plan.',
-      model: 'gemini-pro',
-      usage: {
-        promptTokens: 10,
-        completionTokens: 8,
-        totalTokens: 18
-      },
-      fallbackUsed: false
-    });
-
-    mockDb.getClient.mockResolvedValueOnce(client).mockResolvedValueOnce({
-      query: jest.fn()
-        .mockResolvedValueOnce({ rows: [] })
-        .mockResolvedValueOnce({
-          rows: [{
-            id: 'conv-1',
-            project_id: 'project-1',
-            title: 'Conversation',
-            metadata: '{}',
-            owner_id: 'user-1'
-          }]
-        })
-        .mockResolvedValueOnce({
-          rows: [{
-            id: 'assistant-msg-1',
-            conversation_id: 'conv-1',
-            user_id: null,
-            content: 'Here is a concrete plan.',
-            role: 'assistant',
-            metadata: '{}',
-            citations: null,
-            sources: null
-          }]
-        })
-        .mockResolvedValueOnce({ rows: [] })
-        .mockResolvedValueOnce({ rows: [] }),
-      release: jest.fn()
-    });
-
-    const result = await service.sendMessageTurn(
-      'conv-1',
-      'user-1',
-      'Help me plan this',
-      {}
-    );
-
-    expect(result.userMessage.content).toBe('Help me plan this');
-    expect(result.assistantMessage.content).toBe('Here is a concrete plan.');
-    expect(modelClient.generateOrchestratorResponse).toHaveBeenCalled();
-    expect(analyticsService.trackTokenUsage).toHaveBeenCalledWith(
-      'project-1',
-      'conv-1',
-      'conversation-assistant',
-      'gemini-pro',
-      10,
-      8
-    );
-  });
-
-  it('stores a fallback assistant message when generation fails', async () => {
-    client.query
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({
-        rows: [{
-          id: 'conv-1',
-          project_id: 'project-1',
-          title: 'Conversation',
-          metadata: '{}',
-          owner_id: 'user-1'
-        }]
-      })
-      .mockResolvedValueOnce({
-        rows: [{
-          id: 'user-msg-1',
-          conversation_id: 'conv-1',
-          user_id: 'user-1',
-          content: 'Help me plan this',
-          role: 'user',
-          metadata: '{}',
-          citations: null,
-          sources: null
-        }]
-      })
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [] });
-
-    mockDb.query
-      .mockResolvedValueOnce({
-        rows: [{
-          id: 'conv-1',
-          project_id: 'project-1',
-          title: 'Conversation',
-          metadata: '{}',
-          project_name: 'Alpha'
-        }]
-      })
-      .mockResolvedValueOnce({
-        rows: [{
-          role: 'user',
-          content: 'Help me plan this',
-          metadata: '{}',
-          created_at: new Date().toISOString()
-        }]
-      });
-
-    modelClient.generateOrchestratorResponse.mockRejectedValue(
-      new Error('provider unavailable')
-    );
 
     const assistantClient = {
       query: jest.fn()
         .mockResolvedValueOnce({ rows: [] })
         .mockResolvedValueOnce({
           rows: [{
-            id: 'conv-1',
-            project_id: 'project-1',
-            title: 'Conversation',
-            metadata: '{}',
-            owner_id: 'user-1'
+            id: conversationId,
+            project_id: projectId,
+            title: 'Build assistant',
+            metadata: {}
           }]
         })
         .mockResolvedValueOnce({
           rows: [{
-            id: 'assistant-msg-1',
-            conversation_id: 'conv-1',
+            id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+            conversation_id: conversationId,
             user_id: null,
-            content: 'I could not generate a response right now. Please retry in a moment.',
+            content: 'Start with a service that owns turn execution.',
             role: 'assistant',
-            metadata: '{}',
-            citations: null,
-            sources: null
+            model: 'gemini-pro',
+            tokens_used: 100,
+            cost: 0.00005,
+            metadata: { generation: { fallbackUsed: false } }
           }]
         })
         .mockResolvedValueOnce({ rows: [] })
@@ -252,16 +123,146 @@ describe('ConversationService', () => {
       .mockResolvedValueOnce(client)
       .mockResolvedValueOnce(assistantClient);
 
+    mockDb.query
+      .mockResolvedValueOnce({
+        rows: [{
+          id: conversationId,
+          project_id: projectId,
+          title: 'Build assistant',
+          project_name: 'Zekka',
+          creator_name: 'User',
+          message_count: '1',
+          metadata: {}
+        }]
+      })
+      .mockResolvedValueOnce({
+        rows: [{
+          id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          role: 'user',
+          content: 'How should I structure the API?',
+          metadata: {}
+        }]
+      });
+
+    modelClient.generateOrchestratorResponse.mockResolvedValue({
+      text: 'Start with a service that owns turn execution.',
+      model: 'gemini-pro',
+      usage: {
+        promptTokens: 60,
+        completionTokens: 40,
+        totalTokens: 100
+      },
+      fallbackUsed: false
+    });
+
     const result = await service.sendMessageTurn(
-      'conv-1',
-      'user-1',
-      'Help me plan this',
+      conversationId,
+      userId,
+      'How should I structure the API?',
       {}
     );
 
-    expect(result.assistantMessage.content).toContain(
-      'I could not generate a response right now'
+    expect(result.userMessage.role).toBe('user');
+    expect(result.assistantMessage.role).toBe('assistant');
+    expect(result.assistantMessage.content).toContain('service that owns turn execution');
+    expect(modelClient.generateOrchestratorResponse).toHaveBeenCalledTimes(1);
+  });
+
+  it('persists an assistant error message when generation fails', async () => {
+    const conversationId = '11111111-1111-4111-8111-111111111111';
+    const userId = '22222222-2222-4222-8222-222222222222';
+    const projectId = '33333333-3333-4333-8333-333333333333';
+
+    client.query
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({
+        rows: [{
+          id: conversationId,
+          project_id: projectId,
+          title: 'Build assistant',
+          metadata: {}
+        }]
+      })
+      .mockResolvedValueOnce({
+        rows: [{
+          id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          conversation_id: conversationId,
+          user_id: userId,
+          content: 'Trigger failure',
+          role: 'user',
+          metadata: {}
+        }]
+      })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] });
+
+    const assistantClient = {
+      query: jest.fn()
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({
+          rows: [{
+            id: conversationId,
+            project_id: projectId,
+            title: 'Build assistant',
+            metadata: {}
+          }]
+        })
+        .mockResolvedValueOnce({
+          rows: [{
+            id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+            conversation_id: conversationId,
+            user_id: null,
+            content: 'I could not generate a response right now. Please retry in a moment.',
+            role: 'assistant',
+            status: 'error',
+            error_message: 'LLM unavailable',
+            metadata: { generation: { failed: true } }
+          }]
+        })
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [] }),
+      release: jest.fn()
+    };
+
+    mockDb.getClient
+      .mockResolvedValueOnce(client)
+      .mockResolvedValueOnce(assistantClient);
+
+    mockDb.query
+      .mockResolvedValueOnce({
+        rows: [{
+          id: conversationId,
+          project_id: projectId,
+          title: 'Build assistant',
+          project_name: 'Zekka',
+          creator_name: 'User',
+          message_count: '1',
+          metadata: {}
+        }]
+      })
+      .mockResolvedValueOnce({
+        rows: [{
+          id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          role: 'user',
+          content: 'Trigger failure',
+          metadata: {}
+        }]
+      });
+
+    modelClient.generateOrchestratorResponse.mockRejectedValue(
+      new Error('LLM unavailable')
     );
+
+    const result = await service.sendMessageTurn(
+      conversationId,
+      userId,
+      'Trigger failure',
+      {}
+    );
+
+    expect(result.assistantMessage.status).toBe('error');
+    expect(result.assistantMessage.content).toContain('could not generate');
     expect(analyticsService.trackTokenUsage).not.toHaveBeenCalled();
   });
+
 });

@@ -223,6 +223,106 @@ class ExternalAPIClient {
     });
   }
 
+  async callAnthropicStream(payload, options = {}) {
+    return await this.breakers.anthropic.execute(async () => {
+      const startTime = Date.now();
+      let content = '';
+      let finalUsage = null;
+
+      try {
+        const response = await axios({
+          url: 'https://api.anthropic.com/v1/messages',
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': process.env.ANTHROPIC_API_KEY,
+            'anthropic-version': '2023-06-01',
+            ...options.headers
+          },
+          data: {
+            ...payload,
+            stream: true
+          },
+          timeout: 60000,
+          responseType: 'stream',
+          ...options
+        });
+
+        for await (const event of this._iterateSseStream(response.data)) {
+          if (event.type === 'content_block_delta' && event.delta?.text) {
+            content += event.delta.text;
+            if (typeof options.onToken === 'function') {
+              await options.onToken(event.delta.text, event);
+            }
+          }
+
+          if (event.type === 'message_delta' && event.usage) {
+            finalUsage = event.usage;
+          }
+        }
+
+        this.requestCount.anthropic++;
+        const duration = Date.now() - startTime;
+        await this._logAPICall('anthropic', 'messages_stream', 'success', {
+          duration,
+          model: payload.model,
+          tokens: finalUsage
+        });
+
+        return {
+          text: content,
+          usage: finalUsage || {}
+        };
+      } catch (error) {
+        const duration = Date.now() - startTime;
+        await this._logAPICall('anthropic', 'messages_stream', 'error', {
+          duration,
+          error: error.message
+        });
+        throw error;
+      }
+    });
+  }
+
+  /**
+   * Call OpenAI API with native streaming
+   * @param {Object} payload - Request payload
+   * @param {Object} options - Request options
+   * @param {Function} options.onToken - Token callback invoked with streamed text deltas
+   * @returns {Promise<any>} Aggregated API response
+   */
+  async callOpenAIStream(payload, options = {}) {
+    let aggregatedResponse = '';
+    let finalChunk = null;
+    let usage = null;
+
+    for await (const event of this._iterateOpenAIStream(payload, options)) {
+      if (event.type === 'delta') {
+        aggregatedResponse += event.text;
+
+        if (typeof options.onToken === 'function') {
+          await options.onToken(event.text, event.raw);
+        }
+      }
+
+      if (event.type === 'complete') {
+        finalChunk = event.data;
+        usage = event.data?.usage || usage;
+      }
+    }
+
+    return {
+      response: aggregatedResponse,
+      model: payload.model,
+      usage: usage || {
+        prompt_tokens: 0,
+        completion_tokens: Math.ceil(aggregatedResponse.length / 4),
+        total_tokens: Math.ceil(aggregatedResponse.length / 4)
+      },
+      raw: finalChunk
+    };
+  }
+
   /**
    * Call Ollama API
    * @param {Object} payload - Request payload
@@ -266,6 +366,287 @@ class ExternalAPIClient {
         throw error;
       }
     });
+  }
+
+  /**
+   * Call Ollama API with native streaming
+   * @param {Object} payload - Request payload
+   * @param {Object} options - Request options
+   * @param {Function} options.onToken - Token callback invoked with each streamed text chunk
+   * @returns {Promise<any>} Aggregated API response
+   */
+  async callOllamaStream(payload, options = {}) {
+    let aggregatedResponse = '';
+    let finalChunk = null;
+
+    for await (const event of this._iterateOllamaStream(payload, options)) {
+      if (event.type === 'delta') {
+        aggregatedResponse += event.text;
+
+        if (typeof options.onToken === 'function') {
+          await options.onToken(event.text, event.raw);
+        }
+      }
+
+      if (event.type === 'complete') {
+        finalChunk = event.data;
+      }
+    }
+
+    return {
+      response: aggregatedResponse,
+      model: payload.model,
+      prompt_eval_count: finalChunk?.prompt_eval_count || 0,
+      eval_count: finalChunk?.eval_count || Math.ceil(aggregatedResponse.length / 4),
+      done: true,
+      raw: finalChunk
+    };
+  }
+
+  /**
+   * Stream Ollama API responses as incremental deltas.
+   * @param {Object} payload - Request payload
+   * @param {Object} options - Request options
+   * @yields {{type: 'delta', text: string} | {type: 'complete', data: Object}}
+   */
+  async *streamOllama(payload, options = {}) {
+    yield * this._iterateOllamaStream(payload, options);
+  }
+
+  async *_iterateOllamaStream(payload, options = {}) {
+    const ollamaHost = process.env.OLLAMA_HOST || 'http://localhost:11434';
+    const startTime = Date.now();
+    let streamedResponse;
+
+    try {
+      streamedResponse = await this.breakers.ollama.execute(async () => axios({
+        url: `${ollamaHost}/api/generate`,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...options.headers
+        },
+        data: {
+          ...payload,
+          stream: true
+        },
+        timeout: 120000,
+        responseType: 'stream',
+        ...options
+      }));
+
+      this.requestCount.ollama++;
+      let buffer = '';
+
+      for await (const chunk of streamedResponse.data) {
+        buffer += chunk.toString('utf8');
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (!line.trim()) {
+            continue;
+          }
+
+          const event = JSON.parse(line);
+
+          if (event.response) {
+            yield {
+              type: 'delta',
+              text: event.response,
+              raw: event
+            };
+          }
+
+          if (event.done) {
+            await this._logAPICall('ollama', 'generate_stream', 'success', {
+              duration: Date.now() - startTime,
+              model: payload.model
+            });
+            yield {
+              type: 'complete',
+              data: event
+            };
+          }
+        }
+      }
+
+      if (buffer.trim()) {
+        const event = JSON.parse(buffer);
+        if (event.response) {
+          yield {
+            type: 'delta',
+            text: event.response,
+            raw: event
+          };
+        }
+        if (event.done) {
+          await this._logAPICall('ollama', 'generate_stream', 'success', {
+            duration: Date.now() - startTime,
+            model: payload.model
+          });
+          yield {
+            type: 'complete',
+            data: event
+          };
+        }
+      }
+    } catch (error) {
+      await this._logAPICall('ollama', 'generate_stream', 'error', {
+        duration: Date.now() - startTime,
+        error: error.message
+      });
+      throw error;
+    }
+  }
+
+  async *_iterateSseStream(stream) {
+    let buffer = '';
+    let eventName = null;
+
+    const flushEvent = async (lines) => {
+      if (lines.length === 0) {
+        return null;
+      }
+
+      const data = lines.join('\n').trim();
+      if (!data || data === '[DONE]') {
+        return null;
+      }
+
+      const parsed = JSON.parse(data);
+      if (eventName) {
+        parsed.type = parsed.type || eventName;
+      }
+      return parsed;
+    };
+
+    let dataLines = [];
+
+    for await (const chunk of stream) {
+      buffer += chunk.toString('utf8');
+
+      let newlineIndex = buffer.indexOf('\n');
+      while (newlineIndex !== -1) {
+        const line = buffer.slice(0, newlineIndex).replace(/\r$/, '');
+        buffer = buffer.slice(newlineIndex + 1);
+
+        if (!line) {
+          const parsed = await flushEvent(dataLines);
+          if (parsed) {
+            yield parsed;
+          }
+          dataLines = [];
+          eventName = null;
+        } else if (line.startsWith('event:')) {
+          eventName = line.slice(6).trim();
+        } else if (line.startsWith('data:')) {
+          dataLines.push(line.slice(5).trim());
+        }
+
+        newlineIndex = buffer.indexOf('\n');
+      }
+    }
+
+    if (buffer.trim()) {
+      if (buffer.startsWith('data:')) {
+        dataLines.push(buffer.slice(5).trim());
+      } else {
+        dataLines.push(buffer.trim());
+      }
+    }
+
+    const parsed = await flushEvent(dataLines);
+    if (parsed) {
+      yield parsed;
+    }
+  }
+
+  async *_iterateOpenAIStream(payload, options = {}) {
+    const startTime = Date.now();
+    let responseStream;
+    let lastEvent = null;
+
+    try {
+      responseStream = await this.breakers.openai.execute(async () => axios({
+        url: 'https://api.openai.com/v1/chat/completions',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+          ...options.headers
+        },
+        data: {
+          ...payload,
+          stream: true,
+          stream_options: {
+            include_usage: true,
+            ...(payload.stream_options || {})
+          }
+        },
+        timeout: 60000,
+        responseType: 'stream',
+        ...options
+      }));
+
+      this.requestCount.openai++;
+      let buffer = '';
+
+      for await (const chunk of responseStream.data) {
+        buffer += chunk.toString('utf8');
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed || !trimmed.startsWith('data:')) {
+            continue;
+          }
+
+          const data = trimmed.slice(5).trim();
+          if (data === '[DONE]') {
+            await this._logAPICall('openai', 'chat/completions_stream', 'success', {
+              duration: Date.now() - startTime,
+              model: payload.model
+            });
+
+            yield {
+              type: 'complete',
+              data: lastEvent
+            };
+            return;
+          }
+
+          const event = JSON.parse(data);
+          lastEvent = event;
+          const text = event.choices?.[0]?.delta?.content || '';
+
+          if (text) {
+            yield {
+              type: 'delta',
+              text,
+              raw: event
+            };
+          }
+        }
+      }
+
+      await this._logAPICall('openai', 'chat/completions_stream', 'success', {
+        duration: Date.now() - startTime,
+        model: payload.model
+      });
+
+      yield {
+        type: 'complete',
+        data: lastEvent
+      };
+    } catch (error) {
+      await this._logAPICall('openai', 'chat/completions_stream', 'error', {
+        duration: Date.now() - startTime,
+        error: error.message
+      });
+      throw error;
+    }
   }
 
   /**

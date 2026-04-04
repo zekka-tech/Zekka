@@ -259,13 +259,44 @@ class ConversationsController {
         res.flushHeaders();
       }
 
-      const turnResult = await conversationService.sendMessageTurn(
+      if (typeof res.flushHeaders === 'function') {
+        res.flushHeaders();
+      }
+
+      await conversationService.sendMessageTurnStream(
         id,
         userId,
         content,
-        metadata || {}
+        metadata || {},
+        {
+          onUserMessage: async (userMessage) => {
+            this.writeSseEvent(res, {
+              type: 'userMessage',
+              data: userMessage
+            });
+          },
+          onAssistantStart: async (assistantMessage) => {
+            this.writeSseEvent(res, {
+              type: 'assistantMessageStart',
+              data: assistantMessage
+            });
+          },
+          onAssistantDelta: async (delta) => {
+            this.writeSseEvent(res, {
+              type: 'assistantMessageDelta',
+              data: delta
+            });
+          },
+          onAssistantComplete: async (assistantMessage) => {
+            this.writeSseEvent(res, {
+              type: 'assistantMessageComplete',
+              data: assistantMessage
+            });
+          }
+        }
       );
-      this.streamAssistantResponse(res, turnResult);
+
+      this.writeSseEvent(res, { type: 'done' });
       res.end();
     } catch (error) {
       // For streaming, we need to send error in SSE format

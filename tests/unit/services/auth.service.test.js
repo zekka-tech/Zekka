@@ -286,6 +286,34 @@ describe('AuthService', () => {
     });
   });
 
+  describe('requestPasswordReset', () => {
+    it('returns a generic response for unknown accounts', async () => {
+      mockUserRepository.findByEmail.mockResolvedValue(null);
+
+      await expect(
+        authService.requestPasswordReset('unknown@example.com')
+      ).resolves.toEqual({
+        message: 'If the email exists, a reset link will be sent'
+      });
+    });
+
+    it('does not return the reset token to the caller', async () => {
+      const user = createRandomUser({ email: 'known@example.com' });
+      mockUserRepository.findByEmail.mockResolvedValue(user);
+      mockUserRepository.storeResetToken.mockResolvedValue(true);
+
+      const result = await authService.requestPasswordReset(user.email);
+
+      expect(result).toEqual({
+        message: 'If the email exists, a reset link will be sent'
+      });
+      expect(mockUserRepository.storeResetToken).toHaveBeenCalledWith(
+        user.id,
+        expect.any(String)
+      );
+    });
+  });
+
   describe('verifyToken', () => {
     it('should verify valid token', async () => {
       const userId = 'test-user-id';

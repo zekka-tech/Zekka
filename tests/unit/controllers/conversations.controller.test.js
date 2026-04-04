@@ -1,5 +1,6 @@
 jest.mock('../../../src/services/conversation.service', () => ({
-  sendMessageTurn: jest.fn()
+  sendMessageTurn: jest.fn(),
+  sendMessageTurnStream: jest.fn()
 }));
 
 const conversationService = require('../../../src/services/conversation.service');
@@ -50,15 +51,31 @@ describe('ConversationsController', () => {
   });
 
   it('streams a stable SSE event sequence derived from the authoritative turn result', async () => {
-    conversationService.sendMessageTurn.mockResolvedValue({
-      conversationId: 'conv-1',
-      userMessage: { id: 'user-msg-1', content: 'Hello' },
-      assistantMessage: {
-        id: 'assistant-msg-1',
-        conversation_id: 'conv-1',
-        content: 'Hi there with a bounded response'
+    conversationService.sendMessageTurnStream.mockImplementation(
+      async (_conversationId, _userId, _content, _metadata, handlers) => {
+        await handlers.onUserMessage({ id: 'user-msg-1', content: 'Hello' });
+        await handlers.onAssistantStart({
+          id: 'assistant-msg-1',
+          conversation_id: 'conv-1',
+          content: ''
+        });
+        await handlers.onAssistantDelta({
+          id: 'assistant-msg-1',
+          conversationId: 'conv-1',
+          chunk: 'Hi there '
+        });
+        await handlers.onAssistantDelta({
+          id: 'assistant-msg-1',
+          conversationId: 'conv-1',
+          chunk: 'with a bounded response'
+        });
+        await handlers.onAssistantComplete({
+          id: 'assistant-msg-1',
+          conversation_id: 'conv-1',
+          content: 'Hi there with a bounded response'
+        });
       }
-    });
+    );
 
     const req = {
       user: { userId: 'user-1' },
@@ -87,7 +104,9 @@ describe('ConversationsController', () => {
     expect(res.end).toHaveBeenCalled();
     expect(next).not.toHaveBeenCalled();
 
-    const payloads = writes.map((chunk) => JSON.parse(chunk.replace(/^data: /, '').trim()));
+    const payloads = writes.map((chunk) =>
+      JSON.parse(chunk.replace(/^data: /, '').trim())
+    );
 
     expect(payloads[0]).toEqual({
       type: 'userMessage',
@@ -111,20 +130,31 @@ describe('ConversationsController', () => {
     });
     expect(payloads[payloads.length - 1]).toEqual({ type: 'done' });
 
-    const deltaPayloads = payloads.filter((payload) => payload.type === 'assistantMessageDelta');
-    expect(deltaPayloads.length).toBe(1);
-    expect(deltaPayloads[0]).toEqual({
-      type: 'assistantMessageDelta',
-      data: {
-        id: 'assistant-msg-1',
-        conversationId: 'conv-1',
-        chunk: 'Hi there with a bounded response'
+    const deltaPayloads = payloads.filter(
+      (payload) => payload.type === 'assistantMessageDelta'
+    );
+    expect(deltaPayloads).toEqual([
+      {
+        type: 'assistantMessageDelta',
+        data: {
+          id: 'assistant-msg-1',
+          conversationId: 'conv-1',
+          chunk: 'Hi there '
+        }
+      },
+      {
+        type: 'assistantMessageDelta',
+        data: {
+          id: 'assistant-msg-1',
+          conversationId: 'conv-1',
+          chunk: 'with a bounded response'
+        }
       }
-    });
+    ]);
   });
 
   it('writes an SSE error event when streaming generation fails', async () => {
-    conversationService.sendMessageTurn.mockRejectedValue(
+    conversationService.sendMessageTurnStream.mockRejectedValue(
       new Error('stream failed')
     );
 

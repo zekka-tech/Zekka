@@ -58,6 +58,11 @@ Any static hosting platform that can serve a Vite `dist/` directory will work, f
 - Vercel
 - Nginx serving the built assets
 
+Because the app uses `BrowserRouter`, every static deployment also needs an SPA
+rewrite fallback to `index.html`. Without that rewrite, direct requests to
+`/dashboard`, `/projects`, `/analytics`, or `/settings` will return a 404 on
+refresh.
+
 ## Verification
 
 Run these before deployment:

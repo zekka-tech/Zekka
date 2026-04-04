@@ -29,6 +29,7 @@ Service URLs:
 
 - App UI: `http://localhost:3000`
 - API: `http://localhost:3000/api`
+- CSRF token: `http://localhost:3000/api/csrf-token`
 - Swagger: `http://localhost:3000/api/docs`
 - Prometheus: `http://localhost:9090`
 - Grafana: `http://localhost:3001`
@@ -72,4 +73,7 @@ The packaged Docker image already embeds this bundle for the primary shipped UI.
 - Root Docker Compose does not include an `ollama` service.
 - Local frontend development still runs separately with Vite on `5173`.
 - The current backend health endpoint is `/health`.
+- `/api` uses the CSRF session cookie plus `/api/csrf-token` for browser-session CSRF protection.
+- Bearer-token API requests remain valid without a CSRF header.
+- The only supported backend entrypoint is `src/index.js`; the old `auth.secure` stack has been removed from the active source tree.
 - Grafana uses port `3001`, so that port is not available for another app service in the default stack.
