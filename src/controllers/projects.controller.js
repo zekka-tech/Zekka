@@ -137,6 +137,25 @@ class ProjectsController {
   }
 
   /**
+   * Archive a project (owner/admin only)
+   * PATCH /api/v1/projects/:id/archive
+   */
+  async archiveProject(req, res, next) {
+    try {
+      const { userId } = req.user;
+      const { id } = req.params;
+      const project = await projectService.archiveProject(id, userId);
+      res.status(200).json({
+        success: true,
+        data: project,
+        message: 'Project archived successfully'
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
    * Get project statistics
    * GET /api/v1/projects/:id/stats
    */

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { cn } from '@/lib/cn'
 import { Eye, EyeOff, Loader } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
+import type { AxiosError } from 'axios'
 
 interface LoginFormProps {
   onSuccess?: () => void
@@ -27,8 +28,10 @@ export const LoginForm = ({
     try {
       await loginAsync({ email, password })
       onSuccess?.()
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Login failed')
+    } catch (err: unknown) {
+      const axiosErr = err as AxiosError<{ error?: string }>
+      const message = axiosErr.response?.data?.error ?? (err instanceof Error ? err.message : 'Login failed')
+      setError(message)
     } finally {
       setIsLoading(false)
     }

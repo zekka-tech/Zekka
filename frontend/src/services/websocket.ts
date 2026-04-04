@@ -1,6 +1,6 @@
 import { io, Socket } from 'socket.io-client'
 
-type EventCallback = (...args: any[]) => void
+type EventCallback = (...args: unknown[]) => void
 
 interface WebSocketServiceOptions {
   url?: string
@@ -15,7 +15,7 @@ interface WebSocketServiceOptions {
 class WebSocketService {
   private socket: Socket | null = null
   private callbacks: Map<string, EventCallback[]> = new Map()
-  private socketListeners: Map<string, (...args: any[]) => void> = new Map()
+  private socketListeners: Map<string, (...args: unknown[]) => void> = new Map()
   private isConnecting = false
   private isConnected = false
 
@@ -85,7 +85,7 @@ class WebSocketService {
     }
   }
 
-  private dispatchLocalEvent(event: string, ...args: any[]): void {
+  private dispatchLocalEvent(event: string, ...args: unknown[]): void {
     const callbacks = this.callbacks.get(event) || []
     callbacks.forEach(cb => cb(...args))
   }
@@ -95,7 +95,7 @@ class WebSocketService {
       return
     }
 
-    const listener = (...args: any[]) => {
+    const listener = (...args: unknown[]) => {
       this.dispatchLocalEvent(event, ...args)
     }
 
@@ -152,7 +152,7 @@ class WebSocketService {
     }
   }
 
-  emit(event: string, ...args: any[]): void {
+  emit(event: string, ...args: unknown[]): void {
     if (this.socket && this.isConnected) {
       this.socket.emit(event, ...args)
       return

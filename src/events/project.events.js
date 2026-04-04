@@ -191,7 +191,14 @@ function setupProjectEvents(io, socket, logger) {
         const userId = getUserId(socket);
         const room = 'projects:all';
 
-        // TODO: Add role check for admin
+        // Restrict all-project subscription to admin roles only
+        const userRole = socket.data && socket.data.role;
+        if (!userRole || !['admin', 'super_admin'].includes(userRole)) {
+          if (callback) {
+            callback(createErrorResponse('Admin access required', 'FORBIDDEN'));
+          }
+          return;
+        }
         socket.join(room);
         trackRoom(socket.id, room);
 

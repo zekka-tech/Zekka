@@ -13,12 +13,12 @@
  * - Audit logging
  */
 
-import jwt from 'jsonwebtoken';
-import pool from '../config/database.js';
-import redis from '../config/redis.js';
-import auditService from '../services/audit-service.js';
-import passwordService from '../services/password-service.js';
-import logger from '../utils/logger.js';
+const jwt = require('jsonwebtoken');
+const pool = require('../config/database');
+const redis = require('../config/redis');
+const auditService = require('../services/audit-service');
+const passwordService = require('../services/password-service');
+const logger = require('../utils/logger');
 
 const { JWT_SECRET } = process.env;
 
@@ -31,7 +31,7 @@ if (!JWT_SECRET) {
 /**
  * Authenticate JWT token
  */
-export const authenticate = async (req, res, next) => {
+const authenticate = async (req, res, next) => {
   try {
     // Get token from header
     const authHeader = req.headers.authorization;
@@ -101,7 +101,7 @@ export const authenticate = async (req, res, next) => {
 /**
  * Require specific role(s)
  */
-export const requireRole = (...roles) => (req, res, next) => {
+const requireRole = (...roles) => (req, res, next) => {
   if (!req.user) {
     return res.status(401).json({
       success: false,
@@ -137,7 +137,7 @@ export const requireRole = (...roles) => (req, res, next) => {
 /**
  * Check if password is expired
  */
-export const checkPasswordExpiration = async (req, res, next) => {
+const checkPasswordExpiration = async (req, res, next) => {
   try {
     if (!req.user) {
       return next();
@@ -184,7 +184,7 @@ export const checkPasswordExpiration = async (req, res, next) => {
 /**
  * Check if force password reset is required
  */
-export const checkForcePasswordReset = async (req, res, next) => {
+const checkForcePasswordReset = async (req, res, next) => {
   try {
     if (!req.user) {
       return next();
@@ -219,7 +219,7 @@ export const checkForcePasswordReset = async (req, res, next) => {
  */
 const rateLimitStore = new Map();
 
-export const rateLimitByUser = (maxRequests = 100, windowMs = 60000) => async (req, res, next) => {
+const rateLimitByUser = (maxRequests = 100, windowMs = 60000) => async (req, res, next) => {
   try {
     const userId = req.user?.id || req.ip;
     const key = `ratelimit:${userId}`;
@@ -268,7 +268,7 @@ export const rateLimitByUser = (maxRequests = 100, windowMs = 60000) => async (r
 /**
  * IP-based rate limiting
  */
-export const rateLimitByIP = (maxRequests = 100, windowMs = 60000) => async (req, res, next) => {
+const rateLimitByIP = (maxRequests = 100, windowMs = 60000) => async (req, res, next) => {
   try {
     const key = `ratelimit:ip:${req.ip}`;
 
@@ -311,7 +311,7 @@ export const rateLimitByIP = (maxRequests = 100, windowMs = 60000) => async (req
 /**
  * Audit middleware - log all requests
  */
-export const auditMiddleware = async (req, res, next) => {
+const auditMiddleware = async (req, res, next) => {
   const startTime = Date.now();
 
   // Capture response
@@ -363,7 +363,7 @@ export const auditMiddleware = async (req, res, next) => {
 /**
  * Validate request body against schema
  */
-export const validateBody = (schema) => (req, res, next) => {
+const validateBody = (schema) => (req, res, next) => {
   const { error, value } = schema.validate(req.body, {
     abortEarly: false,
     stripUnknown: true
@@ -389,7 +389,7 @@ export const validateBody = (schema) => (req, res, next) => {
 /**
  * Sanitize request inputs
  */
-export const sanitizeInputs = (req, res, next) => {
+const sanitizeInputs = (req, res, next) => {
   // Sanitize body
   if (req.body) {
     req.body = sanitizeObject(req.body);
@@ -446,7 +446,7 @@ function sanitizeValue(value) {
 /**
  * Add password warning to response
  */
-export const addPasswordWarning = (req, res, next) => {
+const addPasswordWarning = (req, res, next) => {
   const originalJson = res.json;
 
   res.json = function (data) {
@@ -462,7 +462,7 @@ export const addPasswordWarning = (req, res, next) => {
 /**
  * CORS configuration
  */
-export const corsOptions = {
+const corsOptions = {
   origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
@@ -474,7 +474,7 @@ export const corsOptions = {
 /**
  * Security headers
  */
-export const securityHeaders = (req, res, next) => {
+const securityHeaders = (req, res, next) => {
   // Prevent clickjacking
   res.setHeader('X-Frame-Options', 'DENY');
 
@@ -507,7 +507,7 @@ export const securityHeaders = (req, res, next) => {
 /**
  * Optional authentication (doesn't fail if no token)
  */
-export const optionalAuth = async (req, res, next) => {
+const optionalAuth = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
 
@@ -537,7 +537,7 @@ export const optionalAuth = async (req, res, next) => {
 /**
  * Check IP whitelist
  */
-export const checkIPWhitelist = (whitelist = []) => (req, res, next) => {
+const checkIPWhitelist = (whitelist = []) => (req, res, next) => {
   if (whitelist.length === 0) {
     return next();
   }
@@ -568,7 +568,7 @@ export const checkIPWhitelist = (whitelist = []) => (req, res, next) => {
 /**
  * Maintenance mode check
  */
-export const checkMaintenance = async (req, res, next) => {
+const checkMaintenance = async (req, res, next) => {
   try {
     const maintenanceMode = await redis.get('maintenance_mode');
 
@@ -594,7 +594,7 @@ export const checkMaintenance = async (req, res, next) => {
   }
 };
 
-export default {
+module.exports = {
   authenticate,
   requireRole,
   checkPasswordExpiration,

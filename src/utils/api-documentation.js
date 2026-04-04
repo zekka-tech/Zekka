@@ -12,6 +12,7 @@
 
 const swaggerJsdoc = require('swagger-jsdoc');
 const swaggerUi = require('swagger-ui-express');
+const logger = require('./logger');
 
 /**
  * Swagger/OpenAPI configuration
@@ -401,7 +402,7 @@ function setupApiDocs(app) {
     res.send(swaggerSpec);
   });
 
-  console.log('📚 API Documentation available at: /api-docs');
+  logger.info('API Documentation available at: /api-docs');
 }
 
 /**

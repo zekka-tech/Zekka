@@ -102,8 +102,8 @@ router.get('/inference/health', async (req, res) => {
   try {
     const health = {
       local_alama: orchestrator.isAlamaAvailable(),
-      elastic_gpu: true, // TODO: Implement actual health check
-      premium_api: true, // TODO: Implement actual health check
+      elastic_gpu: null, // null = unknown; requires external GPU service integration
+      premium_api: null, // null = unknown; requires external premium API integration
       orchestrator: 'healthy'
     };
 

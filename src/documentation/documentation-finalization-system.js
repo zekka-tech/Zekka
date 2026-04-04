@@ -17,6 +17,7 @@
 
 const EventEmitter = require('events');
 const crypto = require('crypto');
+const logger = require('../utils/logger');
 
 class DocumentationFinalizationSystem extends EventEmitter {
   constructor(config = {}) {
@@ -43,7 +44,7 @@ class DocumentationFinalizationSystem extends EventEmitter {
       tutorials: 0
     };
 
-    console.log('Documentation Finalization System initialized');
+    logger.info('Documentation Finalization System initialized');
   }
 
   /**
@@ -106,7 +107,7 @@ class DocumentationFinalizationSystem extends EventEmitter {
    * Generate complete documentation
    */
   async generateCompleteDocumentation() {
-    console.log('Generating complete documentation suite...');
+    logger.info('Generating complete documentation suite...');
 
     const docs = {
       id: crypto.randomUUID(),
@@ -135,7 +136,7 @@ class DocumentationFinalizationSystem extends EventEmitter {
 
     this.emit('documentation.generated', docs);
 
-    console.log(`Generated ${docs.documents.length} documentation files`);
+    logger.info(`Generated ${docs.documents.length} documentation files`);
 
     return docs;
   }
@@ -545,7 +546,7 @@ Contact: support@zekka.tech
    * Cleanup
    */
   cleanup() {
-    console.log('Documentation Finalization System cleaned up');
+    logger.info('Documentation Finalization System cleaned up');
   }
 }
 

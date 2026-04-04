@@ -88,6 +88,14 @@ router.put(
 );
 
 /**
+ * @route   PATCH /api/v1/projects/:id/archive
+ * @desc    Archive a project (owner/admin only)
+ * @access  Private
+ * @param   {string} id - Project UUID
+ */
+router.patch('/:id/archive', authenticate, projectsController.archiveProject);
+
+/**
  * @route   DELETE /api/v1/projects/:id
  * @desc    Delete a project (soft delete, owner only)
  * @access  Private

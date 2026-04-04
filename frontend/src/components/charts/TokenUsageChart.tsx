@@ -26,6 +26,35 @@ interface TokenUsageChartProps {
   height?: number
 }
 
+interface TooltipProps {
+  active?: boolean
+  payload?: Array<{ value: number; name?: string; payload?: Record<string, unknown> }>
+  label?: string
+}
+
+const TokenUsageTooltip = ({ active, payload }: TooltipProps) => {
+  if (!active || !payload || payload.length === 0) return null
+
+  const point = payload[0].payload as { date?: string; cost?: number }
+
+  return (
+    <div className={cn(
+      'bg-card border border-border rounded-lg p-2 shadow-lg',
+      'text-xs'
+    )}>
+      <p className="text-muted-foreground">{point.date}</p>
+      <p className="text-foreground font-semibold">
+        {(payload[0].value / 1000).toFixed(1)}K tokens
+      </p>
+      {point.cost && (
+        <p className="text-muted-foreground">
+          ${point.cost.toFixed(2)}
+        </p>
+      )}
+    </div>
+  )
+}
+
 export const TokenUsageChart = ({
   data,
   showArea = true,
@@ -41,27 +70,6 @@ export const TokenUsageChart = ({
       cost: point.cost || 0
     }))
   }, [data])
-
-  const CustomTooltip = ({ active, payload }: any) => {
-    if (!active || !payload || payload.length === 0) return null
-
-    return (
-      <div className={cn(
-        'bg-card border border-border rounded-lg p-2 shadow-lg',
-        'text-xs'
-      )}>
-        <p className="text-muted-foreground">{payload[0].payload.date}</p>
-        <p className="text-foreground font-semibold">
-          {(payload[0].value / 1000).toFixed(1)}K tokens
-        </p>
-        {payload[0].payload.cost && (
-          <p className="text-muted-foreground">
-            ${payload[0].payload.cost.toFixed(2)}
-          </p>
-        )}
-      </div>
-    )
-  }
 
   if (chartData.length === 0) {
     return (
@@ -109,7 +117,7 @@ export const TokenUsageChart = ({
               style={{ fontSize: '12px' }}
               tickFormatter={(value) => `${(value / 1000).toFixed(0)}K`}
             />
-            <Tooltip content={<CustomTooltip />} />
+            <Tooltip content={<TokenUsageTooltip />} />
             <Area
               type="monotone"
               dataKey="tokens"
@@ -137,7 +145,7 @@ export const TokenUsageChart = ({
               style={{ fontSize: '12px' }}
               tickFormatter={(value) => `${(value / 1000).toFixed(0)}K`}
             />
-            <Tooltip content={<CustomTooltip />} />
+            <Tooltip content={<TokenUsageTooltip />} />
             <Legend
               wrapperStyle={{ paddingTop: '20px' }}
               iconType="circle"

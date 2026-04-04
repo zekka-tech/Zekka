@@ -1,4 +1,3 @@
-import { useMemo } from 'react'
 import { cn } from '@/lib/cn'
 import {
   TrendingUpIcon,
@@ -7,38 +6,36 @@ import {
   BarChart3Icon
 } from 'lucide-react'
 
+// Demo metrics for visualization
+const mockMetrics = {
+  totalTokensToday: 45230,
+  totalTokensThisMonth: 1250340,
+  costToday: 2.84,
+  costThisMonth: 85.32,
+  averageCostPerToken: 0.000068,
+  models: [
+    { name: 'Claude 3.5 Sonnet', tokens: 28500, cost: 1.71, percentage: 63 },
+    { name: 'GPT-4', tokens: 12000, cost: 0.84, percentage: 26 },
+    { name: 'Gemini Pro', tokens: 4730, cost: 0.29, percentage: 11 }
+  ],
+  trends: [
+    { date: 'Mon', tokens: 38000, cost: 2.28 },
+    { date: 'Tue', tokens: 42000, cost: 2.52 },
+    { date: 'Wed', tokens: 35000, cost: 2.10 },
+    { date: 'Thu', tokens: 48000, cost: 2.88 },
+    { date: 'Fri', tokens: 45230, cost: 2.84 }
+  ]
+}
+
 export const TokenUsagePanel = () => {
 
-  // Demo metrics for visualization
-  const mockMetrics = {
-    totalTokensToday: 45230,
-    totalTokensThisMonth: 1250340,
-    costToday: 2.84,
-    costThisMonth: 85.32,
-    averageCostPerToken: 0.000068,
-    models: [
-      { name: 'Claude 3.5 Sonnet', tokens: 28500, cost: 1.71, percentage: 63 },
-      { name: 'GPT-4', tokens: 12000, cost: 0.84, percentage: 26 },
-      { name: 'Gemini Pro', tokens: 4730, cost: 0.29, percentage: 11 }
-    ],
-    trends: [
-      { date: 'Mon', tokens: 38000, cost: 2.28 },
-      { date: 'Tue', tokens: 42000, cost: 2.52 },
-      { date: 'Wed', tokens: 35000, cost: 2.10 },
-      { date: 'Thu', tokens: 48000, cost: 2.88 },
-      { date: 'Fri', tokens: 45230, cost: 2.84 }
-    ]
+  const stats = {
+    todayTokens: mockMetrics.totalTokensToday,
+    todayCost: mockMetrics.costToday,
+    monthTokens: mockMetrics.totalTokensThisMonth,
+    monthCost: mockMetrics.costThisMonth,
+    costPerToken: mockMetrics.averageCostPerToken
   }
-
-  const stats = useMemo(() => {
-    return {
-      todayTokens: mockMetrics.totalTokensToday,
-      todayCost: mockMetrics.costToday,
-      monthTokens: mockMetrics.totalTokensThisMonth,
-      monthCost: mockMetrics.costThisMonth,
-      costPerToken: mockMetrics.averageCostPerToken
-    }
-  }, [])
 
   return (
     <div className={cn(

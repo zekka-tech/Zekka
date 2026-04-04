@@ -67,8 +67,8 @@ class ConversationsController {
       const { projectId, limit, offset } = req.query;
 
       const pagination = {
-        limit: parseInt(limit) || 20,
-        offset: parseInt(offset) || 0
+        limit: Math.min(Math.max(parseInt(limit) || 20, 1), 100),
+        offset: Math.max(parseInt(offset) || 0, 0)
       };
 
       const result = await conversationService.listConversations(
@@ -195,8 +195,8 @@ class ConversationsController {
       const result = await conversationService.getMessages(
         id,
         userId,
-        parseInt(limit) || 50,
-        parseInt(offset) || 0
+        Math.min(Math.max(parseInt(limit) || 50, 1), 200),
+        Math.max(parseInt(offset) || 0, 0)
       );
 
       res.status(200).json({
@@ -245,23 +245,20 @@ class ConversationsController {
    * This endpoint supports Server-Sent Events (SSE) for streaming AI responses
    */
   async sendMessageStream(req, res, next) {
+    // Commit SSE headers synchronously before any async work so the catch
+    // block can always write an error event without hitting "headers already sent"
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    if (typeof res.flushHeaders === 'function') {
+      res.flushHeaders();
+    }
+
     try {
       const { userId } = req.user;
       const { id } = req.params;
       const { content, metadata } = req.body;
-
-      // Set up SSE headers
-      res.setHeader('Content-Type', 'text/event-stream');
-      res.setHeader('Cache-Control', 'no-cache');
-      res.setHeader('Connection', 'keep-alive');
-      res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
-      if (typeof res.flushHeaders === 'function') {
-        res.flushHeaders();
-      }
-
-      if (typeof res.flushHeaders === 'function') {
-        res.flushHeaders();
-      }
 
       await conversationService.sendMessageTurnStream(
         id,
@@ -270,28 +267,16 @@ class ConversationsController {
         metadata || {},
         {
           onUserMessage: async (userMessage) => {
-            this.writeSseEvent(res, {
-              type: 'userMessage',
-              data: userMessage
-            });
+            this.writeSseEvent(res, { type: 'userMessage', data: userMessage });
           },
           onAssistantStart: async (assistantMessage) => {
-            this.writeSseEvent(res, {
-              type: 'assistantMessageStart',
-              data: assistantMessage
-            });
+            this.writeSseEvent(res, { type: 'assistantMessageStart', data: assistantMessage });
           },
           onAssistantDelta: async (delta) => {
-            this.writeSseEvent(res, {
-              type: 'assistantMessageDelta',
-              data: delta
-            });
+            this.writeSseEvent(res, { type: 'assistantMessageDelta', data: delta });
           },
           onAssistantComplete: async (assistantMessage) => {
-            this.writeSseEvent(res, {
-              type: 'assistantMessageComplete',
-              data: assistantMessage
-            });
+            this.writeSseEvent(res, { type: 'assistantMessageComplete', data: assistantMessage });
           }
         }
       );
@@ -299,21 +284,11 @@ class ConversationsController {
       this.writeSseEvent(res, { type: 'done' });
       res.end();
     } catch (error) {
-      // For streaming, we need to send error in SSE format
-      if (!res.headersSent) {
-        res.setHeader('Content-Type', 'text/event-stream');
-        res.setHeader('Cache-Control', 'no-cache');
-        res.setHeader('Connection', 'keep-alive');
-        if (typeof res.flushHeaders === 'function') {
-          res.flushHeaders();
-        }
-      }
-
+      // Headers already committed — must send error as SSE event, not HTTP status
       this.writeSseEvent(res, {
         type: 'error',
         error: error.message || 'Failed to send message'
       });
-
       res.end();
     }
   }

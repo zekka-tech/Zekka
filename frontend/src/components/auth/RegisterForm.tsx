@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { cn } from '@/lib/cn'
 import { Eye, EyeOff, Loader, Check } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
+import type { AxiosError } from 'axios'
 
 interface RegisterFormProps {
   onSuccess?: () => void
@@ -48,8 +49,10 @@ export const RegisterForm = ({
     try {
       await registerAsync({ email, password, name })
       onSuccess?.()
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Registration failed')
+    } catch (err: unknown) {
+      const axiosErr = err as AxiosError<{ error?: string }>
+      const message = axiosErr.response?.data?.error ?? (err instanceof Error ? err.message : 'Registration failed')
+      setError(message)
     }
   }
 

@@ -25,10 +25,10 @@
  * - SOC 2 Type II
  */
 
-import pool from '../config/database.js';
-import auditService from './audit-service.js';
-import securityMonitor from './security-monitor.js';
-import logger from '../utils/logger.js';
+const pool = require('../config/database');
+const auditService = require('./audit-service');
+const securityMonitor = require('./security-monitor');
+const logger = require('../utils/logger');
 
 class SOC2ComplianceService {
   /**
@@ -40,15 +40,15 @@ class SOC2ComplianceService {
     try {
       // Failed login attempts
       const failedLogins = await pool.query(
-        `SELECT COUNT(*) as count FROM audit_logs 
-         WHERE action = 'login_failed' 
+        `SELECT COUNT(*) as count FROM audit_logs
+         WHERE action = 'login_failed'
          AND timestamp > NOW() - INTERVAL '30 days'`
       );
 
       // Unauthorized access attempts
       const unauthorizedAccess = await pool.query(
-        `SELECT COUNT(*) as count FROM audit_logs 
-         WHERE action LIKE '%unauthorized%' 
+        `SELECT COUNT(*) as count FROM audit_logs
+         WHERE action LIKE '%unauthorized%'
          AND timestamp > NOW() - INTERVAL '30 days'`
       );
 
@@ -63,8 +63,8 @@ class SOC2ComplianceService {
 
       // Privilege escalation attempts
       const privilegeEscalation = await pool.query(
-        `SELECT COUNT(*) as count FROM audit_logs 
-         WHERE action = 'privilege_escalation' 
+        `SELECT COUNT(*) as count FROM audit_logs
+         WHERE action = 'privilege_escalation'
          AND timestamp > NOW() - INTERVAL '30 days'`
       );
 
@@ -114,13 +114,13 @@ class SOC2ComplianceService {
 
       // Error rate
       const errors = await pool.query(
-        `SELECT COUNT(*) as count FROM audit_logs 
-         WHERE success = false 
+        `SELECT COUNT(*) as count FROM audit_logs
+         WHERE success = false
          AND timestamp > NOW() - INTERVAL '24 hours'`
       );
 
       const totalRequests = await pool.query(
-        `SELECT COUNT(*) as count FROM audit_logs 
+        `SELECT COUNT(*) as count FROM audit_logs
          WHERE timestamp > NOW() - INTERVAL '24 hours'`
       );
 
@@ -175,24 +175,24 @@ class SOC2ComplianceService {
     try {
       // Data validation errors
       const validationErrors = await pool.query(
-        `SELECT COUNT(*) as count FROM audit_logs 
-         WHERE action LIKE '%validation%' 
-         AND success = false 
+        `SELECT COUNT(*) as count FROM audit_logs
+         WHERE action LIKE '%validation%'
+         AND success = false
          AND timestamp > NOW() - INTERVAL '30 days'`
       );
 
       // Database integrity checks
       const constraintViolations = await pool.query(
-        `SELECT COUNT(*) as count FROM audit_logs 
-         WHERE error_message LIKE '%constraint%' 
+        `SELECT COUNT(*) as count FROM audit_logs
+         WHERE error_message LIKE '%constraint%'
          AND timestamp > NOW() - INTERVAL '30 days'`
       );
 
       // Transaction failures
       const transactionFailures = await pool.query(
-        `SELECT COUNT(*) as count FROM audit_logs 
-         WHERE action LIKE '%transaction%' 
-         AND success = false 
+        `SELECT COUNT(*) as count FROM audit_logs
+         WHERE action LIKE '%transaction%'
+         AND success = false
          AND timestamp > NOW() - INTERVAL '30 days'`
       );
 
@@ -236,15 +236,15 @@ class SOC2ComplianceService {
 
       // Data export events
       const dataExports = await pool.query(
-        `SELECT COUNT(*) as count FROM audit_logs 
-         WHERE action LIKE '%export%' 
+        `SELECT COUNT(*) as count FROM audit_logs
+         WHERE action LIKE '%export%'
          AND timestamp > NOW() - INTERVAL '30 days'`
       );
 
       // Unauthorized data access
       const unauthorizedDataAccess = await pool.query(
-        `SELECT COUNT(*) as count FROM audit_logs 
-         WHERE action = 'unauthorized_data_access' 
+        `SELECT COUNT(*) as count FROM audit_logs
+         WHERE action = 'unauthorized_data_access'
          AND timestamp > NOW() - INTERVAL '30 days'`
       );
 
@@ -284,20 +284,20 @@ class SOC2ComplianceService {
     try {
       // Privacy notices provided
       const privacyNotices = await pool.query(
-        `SELECT COUNT(DISTINCT user_id) as count FROM user_consents 
+        `SELECT COUNT(DISTINCT user_id) as count FROM user_consents
          WHERE consent_type = 'privacy_policy'`
       );
 
       // Data deletion requests
       const deletionRequests = await pool.query(
-        `SELECT COUNT(*) as count FROM data_deletion_requests 
+        `SELECT COUNT(*) as count FROM data_deletion_requests
          WHERE deletion_date > NOW() - INTERVAL '30 days'`
       );
 
       // Consent withdrawals
       const consentWithdrawals = await pool.query(
-        `SELECT COUNT(*) as count FROM user_consents 
-         WHERE granted = false 
+        `SELECT COUNT(*) as count FROM user_consents
+         WHERE granted = false
          AND granted_at > NOW() - INTERVAL '30 days'`
       );
 
@@ -534,4 +534,4 @@ class SOC2ComplianceService {
 
 // Export singleton
 const soc2Compliance = new SOC2ComplianceService();
-export default soc2Compliance;
+module.exports = soc2Compliance;

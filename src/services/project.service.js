@@ -411,6 +411,64 @@ class ProjectService {
   }
 
   /**
+   * Archive a project (owner/admin only)
+   * @param {string} projectId - Project ID
+   * @param {string} userId - User ID
+   * @returns {Promise<Object>} Updated project
+   */
+  async archiveProject(projectId, userId) {
+    try {
+      // Check if user is owner or admin
+      const authQuery = `
+        SELECT pm.role, p.owner_id
+        FROM projects p
+        LEFT JOIN project_members pm ON p.id = pm.project_id AND pm.user_id = $2
+        WHERE p.id = $1 AND p.deleted_at IS NULL
+      `;
+
+      const authResult = await db.query(authQuery, [projectId, userId]);
+
+      if (authResult.rows.length === 0) {
+        throw new AppError('Project not found', 404);
+      }
+
+      const { role, owner_id } = authResult.rows[0];
+      const isOwner = owner_id === userId;
+      const isAdmin = role === 'owner' || role === 'editor';
+
+      if (!isOwner && !isAdmin) {
+        throw new AppError('Insufficient permissions to archive project', 403);
+      }
+
+      const query = `
+        UPDATE projects
+        SET status = 'archived', updated_at = CURRENT_TIMESTAMP
+        WHERE id = $1 AND deleted_at IS NULL
+        RETURNING *
+      `;
+
+      const result = await db.query(query, [projectId]);
+
+      if (result.rows.length === 0) {
+        throw new AppError('Failed to archive project', 500);
+      }
+
+      const project = result.rows[0];
+
+      return {
+        ...project,
+        settings:
+          typeof project.settings === 'string'
+            ? JSON.parse(project.settings)
+            : project.settings
+      };
+    } catch (error) {
+      if (error instanceof AppError) throw error;
+      throw new AppError(`Failed to archive project: ${error.message}`, 500);
+    }
+  }
+
+  /**
    * Get project statistics
    * @param {string} projectId - Project ID
    * @param {string} userId - User ID (for authorization)

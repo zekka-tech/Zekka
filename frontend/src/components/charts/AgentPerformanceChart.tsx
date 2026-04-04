@@ -23,6 +23,38 @@ interface AgentPerformanceChartProps {
   height?: number
 }
 
+interface TooltipProps {
+  active?: boolean
+  payload?: Array<{ value: number; name?: string; payload?: Record<string, unknown> }>
+  label?: string
+}
+
+const AgentPerformanceTooltip = ({ active, payload }: TooltipProps) => {
+  if (!active || !payload || payload.length === 0) return null
+
+  const data = payload[0].payload as AgentMetric
+
+  return (
+    <div className={cn(
+      'bg-card border border-border rounded-lg p-2 shadow-lg',
+      'text-xs'
+    )}>
+      <p className="text-muted-foreground">{data.name}</p>
+      <p className="text-foreground font-semibold">
+        Avg: {data.avgExecutionTime.toFixed(2)}s
+      </p>
+      <p className="text-muted-foreground">
+        Runs: {data.totalExecutions}
+      </p>
+      {data.successRate !== undefined && (
+        <p className="text-muted-foreground">
+          Success: {(data.successRate * 100).toFixed(1)}%
+        </p>
+      )}
+    </div>
+  )
+}
+
 export const AgentPerformanceChart = ({
   data,
   height = 300
@@ -50,32 +82,6 @@ export const AgentPerformanceChart = ({
     if (percentage < 33) return 'hsl(140, 100%, 50%)' // Green
     if (percentage < 66) return 'hsl(30, 100%, 50%)'  // Orange
     return 'hsl(0, 100%, 50%)'                        // Red
-  }
-
-  const CustomTooltip = ({ active, payload }: any) => {
-    if (!active || !payload || payload.length === 0) return null
-
-    const data = payload[0].payload
-
-    return (
-      <div className={cn(
-        'bg-card border border-border rounded-lg p-2 shadow-lg',
-        'text-xs'
-      )}>
-        <p className="text-muted-foreground">{data.name}</p>
-        <p className="text-foreground font-semibold">
-          Avg: {data.avgExecutionTime.toFixed(2)}s
-        </p>
-        <p className="text-muted-foreground">
-          Runs: {data.totalExecutions}
-        </p>
-        {data.successRate !== undefined && (
-          <p className="text-muted-foreground">
-            Success: {(data.successRate * 100).toFixed(1)}%
-          </p>
-        )}
-      </div>
-    )
   }
 
   if (chartData.length === 0) {
@@ -130,7 +136,7 @@ export const AgentPerformanceChart = ({
             style={{ fontSize: '12px' }}
             label={{ value: 'Time (seconds)', angle: -90, position: 'insideLeft' }}
           />
-          <Tooltip content={<CustomTooltip />} />
+          <Tooltip content={<AgentPerformanceTooltip />} />
           <Bar
             dataKey="avgExecutionTime"
             fill="hsl(var(--primary))"

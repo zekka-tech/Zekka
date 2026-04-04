@@ -23,6 +23,33 @@ interface CombinedMetricsChartProps {
   height?: number
 }
 
+interface TooltipProps {
+  active?: boolean
+  payload?: Array<{ value: number; name?: string; color?: string; payload?: Record<string, unknown> }>
+  label?: string
+}
+
+const CombinedMetricsTooltip = ({ active, payload }: TooltipProps) => {
+  if (!active || !payload || payload.length === 0) return null
+
+  return (
+    <div className={cn(
+      'bg-card border border-border rounded-lg p-3 shadow-lg',
+      'text-xs space-y-1'
+    )}>
+      <p className="text-muted-foreground font-medium">{(payload[0].payload as { date?: string }).date}</p>
+      {payload.map((item, index: number) => (
+        <p key={index} style={{ color: item.color }}>
+          {item.name}: {item.name === 'Cost'
+            ? `$${item.value.toFixed(2)}`
+            : `${(item.value / 1000).toFixed(1)}K`
+          }
+        </p>
+      ))}
+    </div>
+  )
+}
+
 export const CombinedMetricsChart = ({
   data,
   height = 300
@@ -49,27 +76,6 @@ export const CombinedMetricsChart = ({
 
     return { totalTokens, totalCost, avgCostPerToken }
   }, [chartData])
-
-  const CustomTooltip = ({ active, payload }: any) => {
-    if (!active || !payload || payload.length === 0) return null
-
-    return (
-      <div className={cn(
-        'bg-card border border-border rounded-lg p-3 shadow-lg',
-        'text-xs space-y-1'
-      )}>
-        <p className="text-muted-foreground font-medium">{payload[0].payload.date}</p>
-        {payload.map((item: any, index: number) => (
-          <p key={index} style={{ color: item.color }}>
-            {item.name}: {item.name === 'Cost'
-              ? `$${item.value.toFixed(2)}`
-              : `${(item.value / 1000).toFixed(1)}K`
-            }
-          </p>
-        ))}
-      </div>
-    )
-  }
 
   if (chartData.length === 0) {
     return (
@@ -169,7 +175,7 @@ export const CombinedMetricsChart = ({
             style={{ fontSize: '12px' }}
             tickFormatter={(value) => `$${value.toFixed(0)}`}
           />
-          <Tooltip content={<CustomTooltip />} />
+          <Tooltip content={<CombinedMetricsTooltip />} />
           <Legend
             wrapperStyle={{ paddingTop: '20px' }}
             iconType="line"

@@ -15,10 +15,10 @@
  * Compliance: OWASP, SOC 2, PCI DSS, GDPR
  */
 
-import pool from '../config/database.js';
-import redis from '../config/redis.js';
-import auditService from './audit-service.js';
-import logger from '../utils/logger.js';
+const pool = require('../config/database');
+const redis = require('../config/redis');
+const auditService = require('./audit-service');
+const logger = require('../utils/logger');
 
 // Alert thresholds
 const THRESHOLDS = {
@@ -92,7 +92,7 @@ class SecurityMonitor {
     try {
       const threshold = THRESHOLDS.failedLogins;
       const query = `
-        SELECT 
+        SELECT
           ip_address,
           COUNT(*) as attempt_count,
           array_agg(username) as usernames,
@@ -137,7 +137,7 @@ class SecurityMonitor {
     try {
       const threshold = THRESHOLDS.suspiciousActivity;
       const query = `
-        SELECT 
+        SELECT
           user_id,
           username,
           ip_address,
@@ -186,7 +186,7 @@ class SecurityMonitor {
     try {
       const threshold = THRESHOLDS.unauthorizedAccess;
       const query = `
-        SELECT 
+        SELECT
           user_id,
           username,
           ip_address,
@@ -235,7 +235,7 @@ class SecurityMonitor {
     try {
       const threshold = THRESHOLDS.dataExfiltration;
       const query = `
-        SELECT 
+        SELECT
           user_id,
           username,
           ip_address,
@@ -317,7 +317,7 @@ class SecurityMonitor {
       // Check if similar alert already exists (deduplicate)
       const existingAlert = await pool.query(
         `SELECT id FROM security_alerts
-         WHERE type = $1 
+         WHERE type = $1
            AND status = 'open'
            AND metadata->>'ipAddress' = $2
            AND created_at > NOW() - INTERVAL '1 hour'
@@ -328,7 +328,7 @@ class SecurityMonitor {
       if (existingAlert.rows.length > 0) {
         // Update existing alert count
         await pool.query(
-          `UPDATE security_alerts 
+          `UPDATE security_alerts
            SET occurrence_count = occurrence_count + 1,
                updated_at = NOW()
            WHERE id = $1`,
@@ -397,6 +397,38 @@ class SecurityMonitor {
    */
   registerAlertHandler(handler) {
     this.alertHandlers.push(handler);
+  }
+
+  /**
+   * Send security alert notification (email + structured log)
+   */
+  async sendAlert(alert) {
+    // Log the alert via structured logger (always)
+    logger.warn('SECURITY ALERT', { alert });
+
+    // Email notification (requires SMTP config)
+    if (process.env.SMTP_HOST && process.env.ALERT_EMAIL_TO) {
+      try {
+        const nodemailer = require('nodemailer');
+        const transporter = nodemailer.createTransport({
+          host: process.env.SMTP_HOST,
+          port: parseInt(process.env.SMTP_PORT) || 587,
+          secure: process.env.SMTP_SECURE === 'true',
+          auth: process.env.SMTP_USER ? {
+            user: process.env.SMTP_USER,
+            pass: process.env.SMTP_PASS
+          } : undefined
+        });
+        await transporter.sendMail({
+          from: process.env.ALERT_EMAIL_FROM || 'alerts@zekka.tech',
+          to: process.env.ALERT_EMAIL_TO,
+          subject: `[SECURITY ALERT] ${alert.severity?.toUpperCase()}: ${alert.type}`,
+          text: JSON.stringify(alert, null, 2)
+        });
+      } catch (emailErr) {
+        logger.error('Security alert email failed:', emailErr.message);
+      }
+    }
   }
 
   /**
@@ -527,7 +559,7 @@ class SecurityMonitor {
       }
 
       const query = `
-        SELECT 
+        SELECT
           COUNT(*) as total_events,
           COUNT(*) FILTER (WHERE success = false) as failed_events,
           COUNT(*) FILTER (WHERE is_suspicious = true) as suspicious_events,
@@ -545,7 +577,7 @@ class SecurityMonitor {
       const auditResult = await pool.query(query);
 
       const alertsQuery = `
-        SELECT 
+        SELECT
           COUNT(*) as total_alerts,
           COUNT(*) FILTER (WHERE severity = 'critical') as critical_alerts,
           COUNT(*) FILTER (WHERE severity = 'high') as high_alerts,
@@ -679,8 +711,8 @@ class SecurityMonitor {
   async getRecentSecurityEvents(limit = 50) {
     try {
       const result = await pool.query(
-        `SELECT 
-          id, user_id, username, action, resource_type, 
+        `SELECT
+          id, user_id, username, action, resource_type,
           ip_address, success, is_suspicious, risk_level, timestamp
          FROM audit_logs
          WHERE is_suspicious = true OR risk_level IN ('high', 'critical')
@@ -727,13 +759,13 @@ class SecurityMonitor {
     try {
       const query = `
         WITH latest_passwords AS (
-          SELECT 
+          SELECT
             user_id,
             MAX(changed_at) as last_changed
           FROM password_history
           GROUP BY user_id
         )
-        SELECT 
+        SELECT
           u.id,
           u.email,
           u.name,
@@ -781,7 +813,7 @@ class SecurityMonitor {
   async generateReport(startDate, endDate, format = 'json') {
     try {
       const query = `
-        SELECT 
+        SELECT
           DATE(timestamp) as date,
           COUNT(*) as total_events,
           COUNT(*) FILTER (WHERE success = false) as failed_events,
@@ -868,4 +900,4 @@ class SecurityMonitor {
 
 // Export singleton instance
 const securityMonitor = new SecurityMonitor();
-export default securityMonitor;
+module.exports = securityMonitor;
