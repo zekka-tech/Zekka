@@ -532,6 +532,38 @@ class SessionManager {
   }
 
   /**
+   * Create a refresh-token session record for rotation/revocation.
+   */
+  async createRefreshSession({ userId, refreshToken, metadata = {} }) {
+    const sessionId = crypto.randomUUID();
+    const sessionData = {
+      userId,
+      refreshToken,
+      metadata,
+      createdAt: Date.now(),
+      lastActivity: Date.now()
+    };
+
+    if (!this.redisClient) {
+      this.memorySessions.set(`refresh:${sessionId}`, sessionData);
+      return sessionId;
+    }
+
+    await this.redisClient.set(
+      `auth:refresh:${sessionId}`,
+      JSON.stringify(sessionData),
+      { EX: Math.floor(this.options.sessionMaxAge / 1000) }
+    );
+    await this.redisClient.hSet(
+      `auth:user:${userId}:refresh`,
+      sessionId,
+      refreshToken
+    );
+
+    return sessionId;
+  }
+
+  /**
    * Validate a token-based auth session for a user.
    */
   async validateSession(userId, token) {
@@ -570,6 +602,44 @@ class SessionManager {
   }
 
   /**
+   * Validate a refresh-token session for a user.
+   */
+  async validateRefreshSession(userId, refreshToken) {
+    if (!this.redisClient) {
+      return Array.from(this.memorySessions.values()).some(
+        (session) => session.userId === userId && session.refreshToken === refreshToken
+      );
+    }
+
+    const sessions = await this.redisClient.hGetAll(`auth:user:${userId}:refresh`);
+    return Object.values(sessions).includes(refreshToken);
+  }
+
+  /**
+   * Invalidate a single refresh-token session.
+   */
+  async invalidateRefreshSession(userId, refreshToken) {
+    if (!this.redisClient) {
+      for (const [sessionId, session] of this.memorySessions.entries()) {
+        if (session.userId === userId && session.refreshToken === refreshToken) {
+          this.memorySessions.delete(sessionId);
+        }
+      }
+      return;
+    }
+
+    const key = `auth:user:${userId}:refresh`;
+    const sessions = await this.redisClient.hGetAll(key);
+
+    for (const [sessionId, storedRefreshToken] of Object.entries(sessions)) {
+      if (storedRefreshToken === refreshToken) {
+        await this.redisClient.del(`auth:refresh:${sessionId}`);
+        await this.redisClient.hDel(key, sessionId);
+      }
+    }
+  }
+
+  /**
    * Invalidate all token-based auth sessions for a user.
    */
   async invalidateAllUserSessions(userId) {
@@ -590,6 +660,15 @@ class SessionManager {
     }
 
     await this.redisClient.del(key);
+
+    const refreshKey = `auth:user:${userId}:refresh`;
+    const refreshSessions = await this.redisClient.hGetAll(refreshKey);
+
+    for (const sessionId of Object.keys(refreshSessions)) {
+      await this.redisClient.del(`auth:refresh:${sessionId}`);
+    }
+
+    await this.redisClient.del(refreshKey);
   }
 
   /**

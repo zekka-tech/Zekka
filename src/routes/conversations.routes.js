@@ -17,6 +17,7 @@
 
 const express = require('express');
 const multer = require('multer');
+const path = require('path');
 
 const router = express.Router();
 const conversationsController = require('../controllers/conversations.controller');
@@ -27,13 +28,20 @@ const {
   validateParams
 } = require('../middleware/validate');
 const { authenticate } = require('../middleware/auth');
+const {
+  ALLOWED_EXTENSIONS,
+  ALLOWED_MIME_TYPES,
+  validateUploadedFile
+} = require('../utils/upload-validation');
 
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
   fileFilter: (_req, file, cb) => {
-    const allowed = /\.(png|jpe?g|gif|webp|pdf|txt|md|json|yaml|yml|ts|tsx|js|jsx|py|go|rs|java|c|cpp|cs|rb|php)$/i;
-    cb(null, allowed.test(file.originalname));
+    const extension = path.extname(file.originalname || '').toLowerCase();
+    const isAllowed = ALLOWED_EXTENSIONS.has(extension)
+      && ALLOWED_MIME_TYPES.has(file.mimetype);
+    cb(null, isAllowed);
   }
 });
 
@@ -194,6 +202,16 @@ router.post(
   '/:id/attachments',
   validateParams(conversationSchemas.conversationId),
   upload.single('file'),
+  async (req, res, next) => {
+    try {
+      if (req.file) {
+        await validateUploadedFile(req.file);
+      }
+      next();
+    } catch (error) {
+      next(error);
+    }
+  },
   conversationsController.uploadAttachment
 );
 

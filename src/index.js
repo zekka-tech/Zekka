@@ -12,11 +12,14 @@ const { createLogger, format, transports } = require('winston');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./swagger');
 const redisClient = require('./config/redis');
+const config = require('./config');
+const { healthCheck: databaseHealthCheck } = require('./config/database');
+const { healthCheck: redisHealthCheck, closeRedis } = require('./config/redis');
+const { initVault, shutdownVault } = require('./config/vault');
 
 const ContextBus = require('./shared/context-bus');
 const TokenEconomics = require('./shared/token-economics');
 const ZekkaOrchestrator = require('./orchestrator/orchestrator');
-const { initVault } = require('./config/vault');
 
 // Middleware
 const {
@@ -24,19 +27,18 @@ const {
   createProjectLimiter
 } = require('./middleware/rateLimit');
 const {
-  authenticate,
   optionalAuth
 } = require('./middleware/auth');
 const {
   metricsMiddleware,
   getMetrics,
-  trackProject,
-  trackAgent,
-  trackCost
+  trackProject
 } = require('./middleware/metrics');
+
 const websocket = require('./middleware/websocket');
 const { csrfTokenGenerator, csrfTokenValidator } = require('./middleware/csrf');
 const { createCsrfRouteGuard } = require('./middleware/csrf-route-guard');
+
 const RedisStore = RedisStoreFactory(session);
 
 // API Routes
@@ -47,6 +49,7 @@ const agentsRoutes = require('./routes/agents.routes');
 const sourcesRoutes = require('./routes/sources.routes');
 const preferencesRoutes = require('./routes/preferences.routes');
 const authRoutes = require('./routes/auth.routes');
+const usersRoutes = require('./routes/users.routes');
 
 // Logger setup
 const logger = createLogger({
@@ -79,7 +82,20 @@ const sessionStore = new RedisStore({
 // Middleware
 app.set('trust proxy', 1);
 app.use(helmet());
-app.use(cors());
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin) {
+      return callback(null, true);
+    }
+
+    if (config.cors.origins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    return callback(new Error('Origin not allowed by CORS'));
+  },
+  credentials: true
+}));
 app.use(
   session({
     store: sessionStore,
@@ -138,7 +154,7 @@ async function initializeServices() {
     // Initialize Context Bus (Redis) with password authentication
     contextBus = new ContextBus({
       host: process.env.REDIS_HOST || 'localhost',
-      port: parseInt(process.env.REDIS_PORT) || 6379,
+      port: parseInt(process.env.REDIS_PORT, 10) || 6379,
       password: process.env.REDIS_PASSWORD || ''
     });
     await contextBus.connect();
@@ -162,7 +178,7 @@ async function initializeServices() {
         anthropicKey: process.env.ANTHROPIC_API_KEY,
         openaiKey: process.env.OPENAI_API_KEY,
         ollamaHost: process.env.OLLAMA_HOST || 'http://localhost:11434',
-        maxConcurrentAgents: parseInt(process.env.MAX_CONCURRENT_AGENTS) || 10,
+        maxConcurrentAgents: parseInt(process.env.MAX_CONCURRENT_AGENTS, 10) || 10,
         defaultModel: process.env.DEFAULT_MODEL || 'ollama'
       }
     });
@@ -201,6 +217,23 @@ app.get('/metrics', async (req, res) => {
   }
 });
 
+function buildHealthPayload(checks) {
+  const allHealthy = Object.values(checks).every((service) => service === true);
+
+  return {
+    status: allHealthy ? 'healthy' : 'unhealthy',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    services: checks
+  };
+}
+
+async function respondWithHealth(res, checksPromise) {
+  const checks = await checksPromise;
+  const health = buildHealthPayload(checks);
+  res.status(health.status === 'healthy' ? 200 : 503).json(health);
+}
+
 // Health check endpoint
 /**
  * @swagger
@@ -218,42 +251,44 @@ app.get('/metrics', async (req, res) => {
  *       503:
  *         description: System is unhealthy
  */
-app.get('/health', (req, res) => {
-  const health = {
+app.get('/livez', (_req, res) => {
+  res.status(200).json({
     status: 'healthy',
     timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    services: {
-      contextBus: contextBus?.isConnected() || false,
-      orchestrator: orchestrator?.isReady() || false
-    }
-  };
-
-  const allHealthy = Object.values(health.services).every((s) => s === true);
-  const statusCode = allHealthy ? 200 : 503;
-
-  res.status(statusCode).json(health);
+    uptime: process.uptime()
+  });
 });
-app.get('/api/health', (req, res) => {
-  const health = {
-    status: 'healthy',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    services: {
-      contextBus: contextBus?.isConnected() || false,
-      orchestrator: orchestrator?.isReady() || false
-    }
-  };
 
-  const allHealthy = Object.values(health.services).every((s) => s === true);
-  const statusCode = allHealthy ? 200 : 503;
+app.get('/readyz', async (_req, res) => {
+  await respondWithHealth(res, Promise.all([
+    databaseHealthCheck(),
+    redisHealthCheck()
+  ]).then(([database, redis]) => ({
+    database,
+    redis,
+    contextBus: contextBus?.isConnected() || false,
+    orchestrator: orchestrator?.isReady() || false
+  })));
+});
 
-  res.status(statusCode).json(health);
+app.get('/health', async (_req, res) => {
+  await respondWithHealth(res, Promise.resolve({
+    contextBus: contextBus?.isConnected() || false,
+    orchestrator: orchestrator?.isReady() || false
+  }));
+});
+
+app.get('/api/health', async (_req, res) => {
+  await respondWithHealth(res, Promise.resolve({
+    contextBus: contextBus?.isConnected() || false,
+    orchestrator: orchestrator?.isReady() || false
+  }));
 });
 
 // API Routes
 
 app.use('/api/auth', authRoutes);
+app.use('/api/users', usersRoutes);
 
 // Create new project
 /**
@@ -541,7 +576,7 @@ app.use((req, res) => {
 });
 
 // Error handler
-app.use((err, req, res, next) => {
+app.use((err, req, res, _next) => {
   logger.error('Unhandled error:', err);
   res.status(500).json({
     error: 'Internal server error',
@@ -550,17 +585,55 @@ app.use((err, req, res, next) => {
 });
 
 // Graceful shutdown
-process.on('SIGTERM', async () => {
-  logger.info('SIGTERM received, shutting down gracefully...');
+let isShuttingDown = false;
 
-  if (vault) {
-    const { shutdownVault } = require('./config/vault');
-    await shutdownVault();
+async function shutdown(signal) {
+  if (isShuttingDown) {
+    return;
   }
-  if (contextBus) await contextBus.disconnect();
-  if (orchestrator) await orchestrator.shutdown();
 
-  process.exit(0);
+  isShuttingDown = true;
+  logger.info(`${signal} received, shutting down gracefully...`);
+
+  const timeoutMs = parseInt(process.env.SHUTDOWN_TIMEOUT_MS || '10000', 10);
+  const forceExit = setTimeout(() => {
+    logger.error(`Graceful shutdown timed out after ${timeoutMs}ms`);
+    process.exit(1);
+  }, timeoutMs);
+
+  try {
+    await new Promise((resolve, reject) => {
+      server.close((error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        resolve();
+      });
+    });
+
+    if (vault) {
+      await shutdownVault();
+    }
+    if (contextBus) await contextBus.disconnect();
+    if (orchestrator) await orchestrator.shutdown();
+    await closeRedis();
+
+    clearTimeout(forceExit);
+    process.exit(0);
+  } catch (error) {
+    clearTimeout(forceExit);
+    logger.error('Graceful shutdown failed:', error);
+    process.exit(1);
+  }
+}
+
+process.on('SIGTERM', () => {
+  shutdown('SIGTERM');
+});
+
+process.on('SIGINT', () => {
+  shutdown('SIGINT');
 });
 
 // Start server
