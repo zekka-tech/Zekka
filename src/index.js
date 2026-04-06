@@ -1,4 +1,29 @@
 require('dotenv').config();
+
+// ── Sentry / OpenTelemetry (optional) ─────────────────────────────────────────
+// Must be initialised before any other require so instrumentation patches work.
+if (process.env.SENTRY_DSN) {
+  try {
+    const Sentry = require('@sentry/node');
+    Sentry.init({
+      dsn: process.env.SENTRY_DSN,
+      environment: process.env.NODE_ENV || 'production',
+      tracesSampleRate: parseFloat(process.env.SENTRY_TRACES_SAMPLE_RATE || '0.1'),
+      // Attach request context to every event
+      integrations: [
+        new Sentry.Integrations.Http({ tracing: true }),
+        new Sentry.Integrations.Express({ app: undefined }) // wired below
+      ]
+    });
+    // Expose on global so route error handlers can call Sentry.captureException
+    global.Sentry = Sentry;
+  } catch (sentryErr) {
+    // @sentry/node not installed — continue without error reporting
+    console.warn('[Sentry] Package not installed, skipping init:', sentryErr.message);
+  }
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 const express = require('express');
 const fs = require('fs');
 const http = require('http');
@@ -81,6 +106,13 @@ const sessionStore = new RedisStore({
 
 // Middleware
 app.set('trust proxy', 1);
+
+// Sentry request handler must come before any other middleware
+if (global.Sentry) {
+  app.use(global.Sentry.Handlers.requestHandler());
+  app.use(global.Sentry.Handlers.tracingHandler());
+}
+
 app.use(helmet());
 app.use(cors({
   origin(origin, callback) {
@@ -590,6 +622,11 @@ app.get(/^\/(?!api|metrics).*/, (req, res, next) => {
 app.use((req, res) => {
   res.status(404).json({ error: 'Not found' });
 });
+
+// Sentry error handler must come before the generic error handler
+if (global.Sentry) {
+  app.use(global.Sentry.Handlers.errorHandler());
+}
 
 // Error handler
 app.use((err, req, res, _next) => {
