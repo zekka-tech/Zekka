@@ -246,7 +246,7 @@ function generateToken(userId, email, additionalClaims = {}) {
       iat: Math.floor(Date.now() / 1000)
     },
     JWT_SECRET,
-    { expiresIn: JWT_EXPIRATION }
+    { expiresIn: JWT_EXPIRATION, algorithm: 'HS256' }
   );
 }
 
@@ -264,7 +264,7 @@ function generateToken(userId, email, additionalClaims = {}) {
  */
 function verifyToken(token) {
   try {
-    return jwt.verify(token, JWT_SECRET);
+    return jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
   } catch (error) {
     // Log for debugging but don't expose details
     if (error.name === 'TokenExpiredError') {

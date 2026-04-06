@@ -145,7 +145,7 @@ class AuthService {
       const verificationToken = jwt.sign(
         { userId: user.id, purpose: 'email-verification' },
         this.config.jwtSecret,
-        { expiresIn: '24h' }
+        { expiresIn: '24h', algorithm: 'HS256' }
       );
       await this.userRepository.storeVerificationToken(user.id, verificationToken);
       await emailService.sendVerificationEmail(user.email, verificationToken);
@@ -460,7 +460,7 @@ class AuthService {
       const resetToken = jwt.sign(
         { userId: user.id, purpose: 'password-reset' },
         this.config.jwtSecret,
-        { expiresIn: '1h' }
+        { expiresIn: '1h', algorithm: 'HS256' }
       );
 
       // Store reset token (in production, store in database)
@@ -491,7 +491,7 @@ class AuthService {
 
   async resetPassword(token, newPassword) {
     try {
-      const decoded = jwt.verify(token, this.config.jwtSecret);
+      const decoded = jwt.verify(token, this.config.jwtSecret, { algorithms: ['HS256'] });
       if (decoded.purpose !== 'password-reset') {
         throw new AppError('Invalid reset token', 400, ErrorCodes.INVALID_TOKEN);
       }
@@ -559,7 +559,7 @@ class AuthService {
 
   async verifyEmail(token) {
     try {
-      const decoded = jwt.verify(token, this.config.jwtSecret);
+      const decoded = jwt.verify(token, this.config.jwtSecret, { algorithms: ['HS256'] });
       if (decoded.purpose !== 'email-verification') {
         throw new AppError('Invalid verification token', 400, ErrorCodes.INVALID_TOKEN);
       }
@@ -621,7 +621,7 @@ class AuthService {
       const verificationToken = jwt.sign(
         { userId: user.id, purpose: 'email-verification' },
         this.config.jwtSecret,
-        { expiresIn: '24h' }
+        { expiresIn: '24h', algorithm: 'HS256' }
       );
       await this.userRepository.storeVerificationToken(user.id, verificationToken);
       await emailService.sendVerificationEmail(user.email, verificationToken);
@@ -653,7 +653,7 @@ class AuthService {
    */
   async verifyToken(token) {
     try {
-      const decoded = jwt.verify(token, this.config.jwtSecret);
+      const decoded = jwt.verify(token, this.config.jwtSecret, { algorithms: ['HS256'] });
 
       // Check if session is valid
       const isValid = await this.sessionManager.validateSession(
@@ -699,6 +699,7 @@ class AuthService {
       this.config.jwtSecret,
       {
         expiresIn: '24h',
+        algorithm: 'HS256',
         issuer: 'zekka-framework',
         audience: 'zekka-api'
       }
@@ -715,6 +716,7 @@ class AuthService {
       this.config.jwtSecret,
       {
         expiresIn: '30d',
+        algorithm: 'HS256',
         issuer: 'zekka-framework',
         audience: 'zekka-api'
       }
@@ -723,7 +725,7 @@ class AuthService {
 
   async refreshAccessToken(refreshToken, metadata = {}) {
     try {
-      const decoded = jwt.verify(refreshToken, this.config.jwtSecret);
+      const decoded = jwt.verify(refreshToken, this.config.jwtSecret, { algorithms: ['HS256'] });
       if (decoded.type !== 'refresh') {
         throw new AppError(
           'Invalid refresh token',

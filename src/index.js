@@ -24,6 +24,7 @@ if (process.env.SENTRY_DSN) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
+const crypto = require('crypto');
 const express = require('express');
 const fs = require('fs');
 const http = require('http');
@@ -38,7 +39,7 @@ const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./swagger');
 const redisClient = require('./config/redis');
 const config = require('./config');
-const { healthCheck: databaseHealthCheck } = require('./config/database');
+const { healthCheck: databaseHealthCheck, getDetailedPoolStats } = require('./config/database');
 const { healthCheck: redisHealthCheck, closeRedis } = require('./config/redis');
 const { initVault, shutdownVault } = require('./config/vault');
 
@@ -106,6 +107,16 @@ const sessionStore = new RedisStore({
 
 // Middleware
 app.set('trust proxy', 1);
+
+// ── Request ID middleware (H1) ─────────────────────────────────────────────────
+// Generate a unique ID for every request, propagate as X-Request-ID, and
+// attach to res.locals so downstream middleware / error handlers can log it.
+app.use((req, res, next) => {
+  const id = (req.headers['x-request-id'] || crypto.randomUUID());
+  req.requestId = id;
+  res.setHeader('X-Request-ID', id);
+  next();
+});
 
 // Sentry request handler must come before any other middleware
 if (global.Sentry) {
@@ -255,7 +266,10 @@ app.get('/metrics', async (req, res) => {
 });
 
 function buildHealthPayload(checks) {
-  const allHealthy = Object.values(checks).every((service) => service === true);
+  // Each value is either a boolean or an object with a `healthy` boolean property
+  const allHealthy = Object.values(checks).every((service) =>
+    service === true || (typeof service === 'object' && service !== null && service.healthy === true)
+  );
 
   return {
     status: allHealthy ? 'healthy' : 'unhealthy',
@@ -311,12 +325,25 @@ app.get('/readyz', async (_req, res) => {
   await respondWithHealth(res, Promise.all([
     databaseHealthCheck(),
     redisHealthCheck()
-  ]).then(([database, redis]) => ({
-    database,
-    redis,
-    contextBus: contextBus?.isConnected() || false,
-    orchestrator: orchestrator?.isReady() || false
-  })));
+  ]).then(([database, redis]) => {
+    // Pool exhaustion check (H6): fail readiness if ≥80% of connections are waiting
+    const poolStats = getDetailedPoolStats();
+    const poolHealthy = poolStats.waiting < poolStats.max * 0.8;
+
+    return {
+      database,
+      redis,
+      pool: {
+        healthy: poolHealthy,
+        total: poolStats.total,
+        idle: poolStats.idle,
+        waiting: poolStats.waiting,
+        max: poolStats.max
+      },
+      contextBus: contextBus?.isConnected() || false,
+      orchestrator: orchestrator?.isReady() || false
+    };
+  }));
 });
 
 app.get('/health', async (_req, res) => {
@@ -684,6 +711,28 @@ process.on('SIGTERM', () => {
 
 process.on('SIGINT', () => {
   shutdown('SIGINT');
+});
+
+// ── Process-level error handlers (C1) ─────────────────────────────────────────
+// Node 15+ turns unhandledRejection into a fatal exit but without useful
+// context. Capture and log before that happens.
+process.on('unhandledRejection', (reason, promise) => {
+  logger.error('Unhandled promise rejection', {
+    promise: String(promise),
+    reason: reason instanceof Error
+      ? { message: reason.message, stack: reason.stack }
+      : reason
+  });
+  if (global.Sentry) global.Sentry.captureException(reason);
+});
+
+process.on('uncaughtException', (error) => {
+  logger.error('Uncaught exception — process will exit', {
+    message: error.message,
+    stack: error.stack
+  });
+  if (global.Sentry) global.Sentry.captureException(error);
+  process.exit(1);
 });
 
 // Start server

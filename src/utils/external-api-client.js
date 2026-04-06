@@ -17,6 +17,7 @@ const axios = require('axios');
 const { CircuitBreaker } = require('./circuit-breaker');
 const { CacheManager } = require('./cache-manager');
 const { AuditLogger } = require('./audit-logger');
+const { validateExternalUrl } = require('./ssrf-guard');
 
 class ExternalAPIClient {
   constructor(config = {}) {
@@ -331,6 +332,7 @@ class ExternalAPIClient {
    */
   async callOllama(payload, options = {}) {
     const ollamaHost = process.env.OLLAMA_HOST || 'http://localhost:11434';
+    validateExternalUrl(ollamaHost, 'OLLAMA_HOST');
 
     return await this.breakers.ollama.execute(async () => {
       const startTime = Date.now();
@@ -415,6 +417,7 @@ class ExternalAPIClient {
 
   async *_iterateOllamaStream(payload, options = {}) {
     const ollamaHost = process.env.OLLAMA_HOST || 'http://localhost:11434';
+    validateExternalUrl(ollamaHost, 'OLLAMA_HOST');
     const startTime = Date.now();
     let streamedResponse;
 
@@ -814,6 +817,7 @@ class ExternalAPIClient {
     // Ollama
     try {
       const ollamaHost = process.env.OLLAMA_HOST || 'http://localhost:11434';
+    validateExternalUrl(ollamaHost, 'OLLAMA_HOST');
       await axios.get(`${ollamaHost}/api/tags`, { timeout: 5000 });
       checks.ollama = {
         status: 'healthy',

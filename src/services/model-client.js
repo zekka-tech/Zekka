@@ -24,6 +24,7 @@
 
 const axios = require('axios');
 const { ExternalAPIClient } = require('../utils/external-api-client');
+const { validateExternalUrl } = require('../utils/ssrf-guard');
 
 /**
  * Model Client - Unified interface for all LLM interactions
@@ -69,6 +70,11 @@ class ModelClient {
         host: process.env.OLLAMA_HOST || 'http://localhost:11434'
       }
     };
+
+    // H4: Validate OLLAMA_HOST against SSRF block-list at startup
+    if (process.env.OLLAMA_HOST) {
+      validateExternalUrl(process.env.OLLAMA_HOST, 'OLLAMA_HOST');
+    }
 
     // Track fallback events for monitoring
     this.fallbackCount = {
