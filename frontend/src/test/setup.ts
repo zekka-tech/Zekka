@@ -1,4 +1,17 @@
 import '@testing-library/jest-dom'
+import { configureAxe } from 'vitest-axe'
+import { toHaveNoViolations } from 'vitest-axe/matchers'
+import { expect } from 'vitest'
+
+expect.extend({ toHaveNoViolations })
+
+// Configure axe with WCAG 2.1 AA rules
+configureAxe({
+  rules: [
+    { id: 'color-contrast', enabled: true },
+    { id: 'region', enabled: true }
+  ]
+})
 import { createElement, type ReactNode } from 'react'
 import { afterEach, vi } from 'vitest'
 import { cleanup } from '@testing-library/react'
