@@ -3,16 +3,29 @@ const GDPRComplianceService = require('../services/gdpr-compliance.service');
 const { AuthorizationError } = require('../utils/errors');
 
 class UsersController {
-  constructor(
-    userRepository = new UserRepository(),
-    gdprService = new GDPRComplianceService()
-  ) {
+  constructor(userRepository = null, gdprService = null) {
     this.userRepository = userRepository;
     this.gdprService = gdprService;
     this.getUser = this.getUser.bind(this);
     this.updateUser = this.updateUser.bind(this);
     this.exportUserData = this.exportUserData.bind(this);
     this.deleteUserData = this.deleteUserData.bind(this);
+  }
+
+  getUserRepository() {
+    if (!this.userRepository) {
+      this.userRepository = new UserRepository();
+    }
+
+    return this.userRepository;
+  }
+
+  getGdprService() {
+    if (!this.gdprService) {
+      this.gdprService = new GDPRComplianceService();
+    }
+
+    return this.gdprService;
   }
 
   assertSelfAccess(requestedUserId, authenticatedUserId) {
@@ -38,7 +51,7 @@ class UsersController {
   async getUser(req, res, next) {
     try {
       this.assertSelfAccess(req.params.userId, req.user.userId);
-      const user = await this.userRepository.findById(req.params.userId);
+      const user = await this.getUserRepository().findById(req.params.userId);
       res.json({ user: this.sanitizeUser(user) });
     } catch (error) {
       next(error);
@@ -48,7 +61,7 @@ class UsersController {
   async updateUser(req, res, next) {
     try {
       this.assertSelfAccess(req.params.userId, req.user.userId);
-      const user = await this.userRepository.update(req.params.userId, req.body);
+      const user = await this.getUserRepository().update(req.params.userId, req.body);
       res.json({ user: this.sanitizeUser(user) });
     } catch (error) {
       next(error);
@@ -59,9 +72,10 @@ class UsersController {
     try {
       this.assertSelfAccess(req.params.userId, req.user.userId);
       const format = req.query.format === 'portable' ? 'portable' : 'json';
+      const gdprService = this.getGdprService();
       const data = format === 'portable'
-        ? await this.gdprService.exportPortableData(req.params.userId)
-        : await this.gdprService.exportUserData(req.params.userId, 'json');
+        ? await gdprService.exportPortableData(req.params.userId)
+        : await gdprService.exportUserData(req.params.userId, 'json');
       res.json({ data });
     } catch (error) {
       next(error);
@@ -72,7 +86,7 @@ class UsersController {
     try {
       this.assertSelfAccess(req.params.userId, req.user.userId);
       const reason = req.body.reason || 'user_requested_erasure';
-      const result = await this.gdprService.deleteUserData(
+      const result = await this.getGdprService().deleteUserData(
         req.params.userId,
         reason,
         req.user.userId

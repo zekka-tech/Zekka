@@ -3,16 +3,55 @@
  */
 
 const { pool: defaultPool } = require('../config/database');
-const defaultAuditService = require('./audit-service');
-const defaultEncryptionService = require('./encryption-service');
+const { AuditLogger } = require('../utils/audit-logger');
 const logger = require('../utils/logger');
+
+function loadOptionalDependency(load, fallback) {
+  try {
+    return load();
+  } catch (error) {
+    logger.warn(`Optional GDPR dependency unavailable, using fallback: ${error.message}`);
+    return fallback;
+  }
+}
+
+function createAuditServiceAdapter() {
+  const auditLogger = new AuditLogger();
+
+  return {
+    log(event) {
+      return auditLogger.log({
+        category: 'data_access',
+        severity: event.riskLevel === 'high' ? 'warning' : 'info',
+        action: event.action,
+        message: event.action,
+        actor: {
+          id: event.userId,
+          email: event.username
+        },
+        target: {
+          type: event.resourceType,
+          id: event.resourceId
+        },
+        ipAddress: event.ipAddress,
+        additionalData: event.requestBody || {}
+      });
+    }
+  };
+}
 
 class GDPRComplianceService {
   constructor(
     pool = defaultPool,
     {
-      auditService = defaultAuditService,
-      encryptionService = defaultEncryptionService
+      auditService = loadOptionalDependency(
+        () => require('./audit-service'),
+        createAuditServiceAdapter()
+      ),
+      encryptionService = loadOptionalDependency(
+        () => require('./encryption-service'),
+        null
+      )
     } = {}
   ) {
     this.pool = pool;
