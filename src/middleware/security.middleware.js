@@ -14,6 +14,7 @@
  */
 
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const pool = require('../config/database');
 const redis = require('../config/redis');
 const auditService = require('../services/audit-service');
@@ -475,6 +476,9 @@ const corsOptions = {
  * Security headers
  */
 const securityHeaders = (req, res, next) => {
+  const cspNonce = crypto.randomBytes(16).toString('base64');
+  res.locals.cspNonce = cspNonce;
+
   // Prevent clickjacking
   res.setHeader('X-Frame-Options', 'DENY');
 
@@ -490,7 +494,7 @@ const securityHeaders = (req, res, next) => {
   // Content Security Policy
   res.setHeader(
     'Content-Security-Policy',
-    'default-src \'self\'; script-src \'self\' \'unsafe-inline\'; style-src \'self\' \'unsafe-inline\'; img-src \'self\' data: https:; font-src \'self\' data:;'
+    `default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; script-src 'self' 'nonce-${cspNonce}'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https: wss:;`
   );
 
   // Strict Transport Security (HTTPS only)
