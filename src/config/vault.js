@@ -28,6 +28,11 @@ const logger = require('../utils/logger');
 
 let vaultInstance = null;
 
+function isVaultStrictMode() {
+  return process.env.NODE_ENV === 'production'
+    && process.env.VAULT_ENABLED === 'true';
+}
+
 /**
  * Initialize the Vault service.
  *
@@ -109,6 +114,12 @@ function getVault() {
 async function getVaultSecret(vaultPath, envVarName, field = null) {
   // If Vault is not initialized, fall back to environment variable
   if (!vaultInstance) {
+    if (isVaultStrictMode()) {
+      throw new Error(
+        `Vault is required in production and secret '${vaultPath}' could not be loaded`
+      );
+    }
+
     const envValue = process.env[envVarName];
     if (!envValue) {
       throw new Error(
@@ -132,6 +143,10 @@ async function getVaultSecret(vaultPath, envVarName, field = null) {
     return secret;
   } catch (error) {
     // Fall back to environment variable if Vault fails
+    if (isVaultStrictMode()) {
+      throw error;
+    }
+
     const envValue = process.env[envVarName];
     if (envValue) {
       logger.warn(`⚠️  Vault failed, using fallback env var: ${envVarName}`);

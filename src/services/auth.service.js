@@ -159,27 +159,10 @@ class AuthService {
         severity: 'info'
       });
 
-      // Generate access token
-      const token = this.generateAccessToken(user);
-      const refreshToken = this.generateRefreshToken(user);
-
-      // Create session
-      await this.sessionManager.createSession({
-        userId: user.id,
-        token,
-        metadata: metadata.deviceInfo || {}
-      });
-      await this.sessionManager.createRefreshSession({
-        userId: user.id,
-        refreshToken,
-        metadata: metadata.deviceInfo || {}
-      });
-
       return {
         user: this.sanitizeUser(user),
-        token,
-        accessToken: token,
-        refreshToken
+        requiresEmailVerification: true,
+        message: 'Registration successful. Please verify your email before signing in.'
       };
     } catch (error) {
       if (error instanceof AppError) {

@@ -89,7 +89,13 @@ describe('AuthService', () => {
       const result = await authService.register(userData);
 
       expect(result).toHaveProperty('user');
-      expect(result).toHaveProperty('token');
+      expect(result).toHaveProperty('requiresEmailVerification', true);
+      expect(result).toHaveProperty(
+        'message',
+        'Registration successful. Please verify your email before signing in.'
+      );
+      expect(result).not.toHaveProperty('token');
+      expect(result).not.toHaveProperty('refreshToken');
       expect(result.user.email).toBe(userData.email);
       expect(result.user).not.toHaveProperty('password');
       expect(mockUserRepository.findByEmail).toHaveBeenCalledWith(userData.email);
@@ -153,7 +159,7 @@ describe('AuthService', () => {
       expect(mockUserRepository.create).toHaveBeenCalled();
     });
 
-    it('should create session on registration', async () => {
+    it('should not create an authenticated session on registration', async () => {
       const userData = createUserRegistration();
       const mockUser = createRandomUser();
 
@@ -162,17 +168,8 @@ describe('AuthService', () => {
 
       await authService.register(userData);
 
-      expect(mockSessionManager.createSession).toHaveBeenCalledWith(
-        expect.objectContaining({
-          userId: mockUser.id
-        })
-      );
-      expect(mockSessionManager.createRefreshSession).toHaveBeenCalledWith(
-        expect.objectContaining({
-          userId: mockUser.id,
-          refreshToken: expect.any(String)
-        })
-      );
+      expect(mockSessionManager.createSession).not.toHaveBeenCalled();
+      expect(mockSessionManager.createRefreshSession).not.toHaveBeenCalled();
     });
   });
 

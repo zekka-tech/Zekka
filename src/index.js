@@ -145,6 +145,10 @@ async function initializeServices() {
         logger.info('✅ Vault service ready');
       }
     } catch (vaultError) {
+      if (process.env.NODE_ENV === 'production' && process.env.VAULT_ENABLED === 'true') {
+        throw vaultError;
+      }
+
       logger.warn(
         '⚠️  Vault initialization failed, using environment variables:',
         vaultError.message
