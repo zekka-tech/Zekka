@@ -130,6 +130,7 @@ let contextBus;
 let tokenEconomics;
 let orchestrator;
 let vault;
+let isShuttingDown = false;
 
 async function initializeServices() {
   try {
@@ -233,9 +234,20 @@ function buildHealthPayload(checks) {
 }
 
 async function respondWithHealth(res, checksPromise) {
+  if (isShuttingDown) {
+    return res.status(503).json({
+      status: 'shutting_down',
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      services: {
+        shutdown: false
+      }
+    });
+  }
+
   const checks = await checksPromise;
   const health = buildHealthPayload(checks);
-  res.status(health.status === 'healthy' ? 200 : 503).json(health);
+  return res.status(health.status === 'healthy' ? 200 : 503).json(health);
 }
 
 // Health check endpoint
@@ -587,9 +599,6 @@ app.use((err, req, res, _next) => {
     message: process.env.NODE_ENV === 'development' ? err.message : undefined
   });
 });
-
-// Graceful shutdown
-let isShuttingDown = false;
 
 async function shutdown(signal) {
   if (isShuttingDown) {
