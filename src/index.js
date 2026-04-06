@@ -24,6 +24,7 @@ if (process.env.SENTRY_DSN) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
+const compression = require('compression');
 const crypto = require('crypto');
 const express = require('express');
 const fs = require('fs');
@@ -107,6 +108,19 @@ const sessionStore = new RedisStore({
 
 // Middleware
 app.set('trust proxy', 1);
+
+// ── Response compression (H14) ────────────────────────────────────────────────
+// Compress all JSON/text responses. Must come before static-file middleware.
+app.use(compression());
+
+// ── Active-request counter for graceful drain (H7) ───────────────────────────
+let activeRequests = 0;
+app.use((req, res, next) => {
+  activeRequests++;
+  res.on('finish', () => { activeRequests--; });
+  res.on('close', () => { activeRequests--; });
+  next();
+});
 
 // ── Request ID middleware (H1) ─────────────────────────────────────────────────
 // Generate a unique ID for every request, propagate as X-Request-ID, and
@@ -679,15 +693,26 @@ async function shutdown(signal) {
   }, timeoutMs);
 
   try {
+    // Stop accepting new connections
     await new Promise((resolve, reject) => {
       server.close((error) => {
-        if (error) {
-          reject(error);
-          return;
-        }
+        if (error) { reject(error); return; }
         resolve();
       });
     });
+
+    // H7: Drain in-flight requests before proceeding
+    if (activeRequests > 0) {
+      logger.info(`Waiting for ${activeRequests} in-flight request(s) to finish...`);
+      await new Promise((resolve) => {
+        const drainCheck = setInterval(() => {
+          if (activeRequests <= 0) {
+            clearInterval(drainCheck);
+            resolve();
+          }
+        }, 100);
+      });
+    }
 
     if (vault) {
       await shutdownVault();

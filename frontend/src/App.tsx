@@ -76,10 +76,10 @@ function AppContentInner() {
         <RootLayout>
           <Suspense fallback={<AppLoadingFallback />}>
             <Routes>
-              <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/projects" element={<ProjectsPage />} />
-              <Route path="/analytics" element={<AnalyticsPage />} />
-              <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/dashboard" element={<ErrorBoundary><DashboardPage /></ErrorBoundary>} />
+              <Route path="/projects" element={<ErrorBoundary><ProjectsPage /></ErrorBoundary>} />
+              <Route path="/analytics" element={<ErrorBoundary><AnalyticsPage /></ErrorBoundary>} />
+              <Route path="/settings" element={<ErrorBoundary><SettingsPage /></ErrorBoundary>} />
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
             </Routes>
           </Suspense>

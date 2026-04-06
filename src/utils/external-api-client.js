@@ -63,6 +63,12 @@ class ExternalAPIClient {
         failureThreshold: 5,
         resetTimeout: 60000,
         monitor: true
+      }),
+      gemini: new CircuitBreaker({
+        name: 'gemini-api',
+        failureThreshold: 3,
+        resetTimeout: 30000,
+        monitor: true
       })
     };
 
@@ -70,7 +76,8 @@ class ExternalAPIClient {
       github: 0,
       anthropic: 0,
       openai: 0,
-      ollama: 0
+      ollama: 0,
+      gemini: 0
     };
   }
 
@@ -216,6 +223,52 @@ class ExternalAPIClient {
       } catch (error) {
         const duration = Date.now() - startTime;
         await this._logAPICall('openai', 'chat/completions', 'error', {
+          duration,
+          error: error.message
+        });
+        throw error;
+      }
+    });
+  }
+
+  /**
+   * Call Google Gemini API with circuit-breaker protection (H13)
+   * @param {string} model - Gemini model name
+   * @param {Object} payload - Request body (contents, generationConfig, safetySettings)
+   * @param {Object} options - Axios options
+   * @returns {Promise<Object>} Gemini response body
+   */
+  async callGemini(model, payload, options = {}) {
+    if (!process.env.GEMINI_API_KEY) {
+      throw new Error('GEMINI_API_KEY not configured');
+    }
+
+    return await this.breakers.gemini.execute(async () => {
+      const startTime = Date.now();
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`;
+
+      try {
+        const response = await axios({
+          url,
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...options.headers },
+          data: payload,
+          timeout: 60000,
+          ...options
+        });
+
+        this.requestCount.gemini++;
+        const duration = Date.now() - startTime;
+
+        await this._logAPICall('gemini', `models/${model}:generateContent`, 'success', {
+          duration,
+          model
+        });
+
+        return response.data;
+      } catch (error) {
+        const duration = Date.now() - startTime;
+        await this._logAPICall('gemini', `models/${model}:generateContent`, 'error', {
           duration,
           error: error.message
         });
