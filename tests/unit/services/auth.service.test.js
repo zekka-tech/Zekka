@@ -4,12 +4,24 @@
  * Target: 15+ tests covering all auth functionality
  */
 
+jest.mock('../../../src/services/email.service', () => ({
+  sendVerificationEmail: jest.fn().mockResolvedValue({
+    success: true,
+    message: 'Verification email sent successfully'
+  }),
+  sendPasswordResetEmail: jest.fn().mockResolvedValue({
+    success: true,
+    message: 'Password reset email sent successfully'
+  })
+}));
+
 const { AuthService } = require('../../../src/services/auth.service');
 const { AppError, ErrorCodes } = require('../../../src/utils/errors');
 const { createRandomUser, createUserRegistration } = require('../../fixtures/user.fixtures');
 const { createMockRepository } = global.testUtils;
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const emailService = require('../../../src/services/email.service');
 
 describe('AuthService', () => {
   let authService;
@@ -43,8 +55,11 @@ describe('AuthService', () => {
     // Mock session manager
     mockSessionManager = {
       createSession: jest.fn().mockResolvedValue(true),
+      createRefreshSession: jest.fn().mockResolvedValue(true),
       validateSession: jest.fn().mockResolvedValue(true),
+      validateRefreshSession: jest.fn().mockResolvedValue(true),
       invalidateSession: jest.fn().mockResolvedValue(true),
+      invalidateRefreshSession: jest.fn().mockResolvedValue(true),
       invalidateAllUserSessions: jest.fn().mockResolvedValue(true),
       getActiveSessionCount: jest.fn().mockResolvedValue(10)
     };
@@ -83,6 +98,14 @@ describe('AuthService', () => {
         expect.objectContaining({
           action: 'user_registered'
         })
+      );
+      expect(mockUserRepository.storeVerificationToken).toHaveBeenCalledWith(
+        mockUser.id,
+        expect.any(String)
+      );
+      expect(emailService.sendVerificationEmail).toHaveBeenCalledWith(
+        mockUser.email,
+        expect.any(String)
       );
     });
 
@@ -144,6 +167,12 @@ describe('AuthService', () => {
           userId: mockUser.id
         })
       );
+      expect(mockSessionManager.createRefreshSession).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: mockUser.id,
+          refreshToken: expect.any(String)
+        })
+      );
     });
   });
 
@@ -162,9 +191,28 @@ describe('AuthService', () => {
 
       expect(result).toHaveProperty('user');
       expect(result).toHaveProperty('token');
+      expect(result).toHaveProperty('refreshToken');
       expect(result.user.email).toBe(email);
       expect(mockUserRepository.resetFailedLoginAttempts).toHaveBeenCalledWith(mockUser.id);
       expect(mockUserRepository.updateLastLogin).toHaveBeenCalledWith(mockUser.id);
+    });
+
+    it('should reject login for unverified accounts', async () => {
+      const email = 'test@test.com';
+      const password = 'Test123!@#';
+      const hashedPassword = await bcrypt.hash(password, 10);
+      const mockUser = createRandomUser({
+        email,
+        password: hashedPassword,
+        email_verified: false
+      });
+
+      mockUserRepository.findByEmail.mockResolvedValue(mockUser);
+
+      await expect(authService.login(email, password)).rejects.toThrow(AppError);
+      await expect(authService.login(email, password)).rejects.toThrow(
+        'Email verification is required before login'
+      );
     });
 
     it('should reject login with invalid password', async () => {
@@ -234,6 +282,15 @@ describe('AuthService', () => {
           action: 'user_logged_out',
           userId
         })
+      );
+    });
+
+    it('should revoke refresh token on logout when provided', async () => {
+      await authService.logout('test-user-id', 'access-token', 'refresh-token');
+
+      expect(mockSessionManager.invalidateRefreshSession).toHaveBeenCalledWith(
+        'test-user-id',
+        'refresh-token'
       );
     });
   });
@@ -310,6 +367,150 @@ describe('AuthService', () => {
       expect(mockUserRepository.storeResetToken).toHaveBeenCalledWith(
         user.id,
         expect.any(String)
+      );
+      expect(emailService.sendPasswordResetEmail).toHaveBeenCalledWith(
+        user.email,
+        expect.any(String)
+      );
+    });
+  });
+
+  describe('resetPassword', () => {
+    it('should reset password for a valid reset token', async () => {
+      const user = createRandomUser({
+        id: 'user-reset',
+        email_verified: true,
+        password: await bcrypt.hash('OldPass123!@#', 10)
+      });
+      const resetToken = jwt.sign(
+        { userId: user.id, purpose: 'password-reset' },
+        process.env.JWT_SECRET,
+        { expiresIn: '1h' }
+      );
+
+      mockUserRepository.findByResetToken.mockResolvedValue(user);
+      mockUserRepository.checkPasswordHistory.mockResolvedValue(false);
+      mockUserRepository.updatePassword.mockResolvedValue(true);
+
+      const result = await authService.resetPassword(
+        resetToken,
+        'NewPass123!@#'
+      );
+
+      expect(result).toEqual({ message: 'Password reset successfully' });
+      expect(mockUserRepository.findByResetToken).toHaveBeenCalledWith(resetToken);
+      expect(mockUserRepository.updatePassword).toHaveBeenCalled();
+      expect(mockSessionManager.invalidateAllUserSessions).toHaveBeenCalledWith(user.id);
+    });
+
+    it('should reject an invalid reset token', async () => {
+      await expect(
+        authService.resetPassword('invalid.token.here', 'NewPass123!@#')
+      ).rejects.toThrow('Invalid or expired reset token');
+    });
+  });
+
+  describe('verifyEmail', () => {
+    it('should mark the user verified for a valid verification token', async () => {
+      const user = createRandomUser({
+        id: 'user-verify',
+        email_verified: false
+      });
+      const verificationToken = jwt.sign(
+        { userId: user.id, purpose: 'email-verification' },
+        process.env.JWT_SECRET,
+        { expiresIn: '24h' }
+      );
+      const verifiedUser = { ...user, email_verified: true };
+
+      mockUserRepository.findByVerificationToken.mockResolvedValue(user);
+      mockUserRepository.markEmailVerified.mockResolvedValue(verifiedUser);
+
+      const result = await authService.verifyEmail(verificationToken);
+
+      expect(result).toHaveProperty('message', 'Email verified successfully');
+      expect(mockUserRepository.findByVerificationToken).toHaveBeenCalledWith(
+        verificationToken
+      );
+      expect(mockUserRepository.markEmailVerified).toHaveBeenCalledWith(user.id);
+    });
+  });
+
+  describe('resendVerificationEmail', () => {
+    it('should resend verification email for unverified users', async () => {
+      const user = createRandomUser({
+        id: 'user-resend',
+        email: 'pending@example.com',
+        email_verified: false
+      });
+
+      mockUserRepository.findByEmail.mockResolvedValue(user);
+      mockUserRepository.storeVerificationToken.mockResolvedValue(true);
+
+      const result = await authService.resendVerificationEmail(user.email);
+
+      expect(result).toEqual({
+        message: 'If the account exists and is unverified, a verification email will be sent'
+      });
+      expect(mockUserRepository.storeVerificationToken).toHaveBeenCalledWith(
+        user.id,
+        expect.any(String)
+      );
+      expect(emailService.sendVerificationEmail).toHaveBeenCalledWith(
+        user.email,
+        expect.any(String)
+      );
+    });
+  });
+
+  describe('refreshAccessToken', () => {
+    it('should rotate refresh tokens and issue a new access token', async () => {
+      const user = createRandomUser({
+        id: 'user-refresh',
+        email_verified: true
+      });
+      const refreshToken = authService.generateRefreshToken(user);
+
+      mockSessionManager.validateRefreshSession.mockResolvedValue(true);
+      mockUserRepository.findById.mockResolvedValue(user);
+
+      const result = await authService.refreshAccessToken(refreshToken, {
+        ipAddress: '127.0.0.1',
+        userAgent: 'jest'
+      });
+
+      expect(result).toHaveProperty('accessToken');
+      expect(result).toHaveProperty('refreshToken');
+      expect(result.refreshToken).not.toBe(refreshToken);
+      expect(mockSessionManager.invalidateRefreshSession).toHaveBeenCalledWith(
+        user.id,
+        refreshToken
+      );
+      expect(mockSessionManager.createSession).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: user.id,
+          token: expect.any(String)
+        })
+      );
+      expect(mockSessionManager.createRefreshSession).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: user.id,
+          refreshToken: expect.any(String)
+        })
+      );
+    });
+
+    it('should reject revoked refresh tokens', async () => {
+      const user = createRandomUser({
+        id: 'user-refresh-revoked',
+        email_verified: true
+      });
+      const refreshToken = authService.generateRefreshToken(user);
+
+      mockSessionManager.validateRefreshSession.mockResolvedValue(false);
+
+      await expect(authService.refreshAccessToken(refreshToken)).rejects.toThrow(
+        'Refresh token has been revoked or rotated'
       );
     });
   });

@@ -11,6 +11,7 @@
  */
 
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const { AppError, ErrorCodes } = require('../utils/errors');
 const { AuditLogger } = require('../utils/audit-logger');
@@ -725,7 +726,8 @@ class AuthService {
     return jwt.sign(
       {
         userId: user.id,
-        type: 'refresh'
+        type: 'refresh',
+        jti: crypto.randomUUID()
       },
       this.config.jwtSecret,
       {

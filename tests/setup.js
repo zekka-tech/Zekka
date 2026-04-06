@@ -274,7 +274,11 @@ global.testUtils = {
     updateLastLogin: jest.fn(),
     updatePassword: jest.fn(),
     storeResetToken: jest.fn(),
-    checkPasswordHistory: jest.fn()
+    checkPasswordHistory: jest.fn(),
+    storeVerificationToken: jest.fn(),
+    findByResetToken: jest.fn(),
+    findByVerificationToken: jest.fn(),
+    markEmailVerified: jest.fn()
   }),
 
   /**
