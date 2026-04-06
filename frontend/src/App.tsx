@@ -5,6 +5,7 @@ import { RootLayout } from '@/components/layout/RootLayout'
 import { ErrorBoundary } from '@/components/layout/ErrorBoundary'
 import { ThemeProvider } from '@/contexts/ThemeContext'
 import { ToastProvider } from '@/components/ui/Toast'
+import { OfflineBanner } from '@/components/ui/OfflineBanner'
 import { useAuth } from '@/hooks/useAuth'
 import { useTheme } from '@/contexts/ThemeContext'
 import './styles/globals.css'
@@ -98,6 +99,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <ToastProvider>
+          <OfflineBanner />
           <Router>
             <AppContentInner />
           </Router>

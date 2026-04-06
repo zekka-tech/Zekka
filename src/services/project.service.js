@@ -37,7 +37,17 @@ class ProjectService {
   async listProjects(userId, filters = {}, pagination = {}) {
     try {
       const { status, search } = filters;
-      const { limit = 20, offset = 0 } = pagination;
+      const { limit = 20, offset = 0, cursor } = pagination;
+
+      // Decode keyset cursor: base64(JSON.stringify({ updated_at, id }))
+      let cursorPayload = null;
+      if (cursor) {
+        try {
+          cursorPayload = JSON.parse(Buffer.from(cursor, 'base64').toString('utf8'));
+        } catch {
+          throw new AppError('Invalid pagination cursor', 400);
+        }
+      }
 
       let query = `
         SELECT DISTINCT
@@ -76,48 +86,66 @@ class ProjectService {
         queryParams.push(`%${search}%`);
       }
 
-      query += ` ORDER BY p.updated_at DESC LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}`;
-      queryParams.push(limit, offset);
+      if (cursorPayload) {
+        // Keyset: rows strictly before the cursor position (updated_at DESC, id DESC)
+        paramCount++;
+        const cursorUpdatedAt = paramCount;
+        paramCount++;
+        const cursorId = paramCount;
+        query += ` AND (p.updated_at < $${cursorUpdatedAt} OR (p.updated_at = $${cursorUpdatedAt} AND p.id < $${cursorId}))`;
+        queryParams.push(cursorPayload.updated_at, cursorPayload.id);
+      }
+
+      query += ` ORDER BY p.updated_at DESC, p.id DESC LIMIT $${paramCount + 1}`;
+      queryParams.push(limit + 1); // fetch one extra to detect hasMore
 
       const result = await db.query(query, queryParams);
+      const hasMore = result.rows.length > limit;
+      const rows = hasMore ? result.rows.slice(0, limit) : result.rows;
 
-      // Get total count for pagination
-      let countQuery = `
-        SELECT COUNT(DISTINCT p.id) as total
-        FROM projects p
-        LEFT JOIN project_members pm ON p.id = pm.project_id
-        WHERE p.deleted_at IS NULL
-          AND (p.owner_id = $1 OR pm.user_id = $1)
-      `;
+      // Build next cursor from the last returned row
+      const nextCursor = hasMore
+        ? Buffer.from(JSON.stringify({ updated_at: rows[rows.length - 1].updated_at, id: rows[rows.length - 1].id })).toString('base64')
+        : null;
 
-      const countParams = [userId];
-      let countParamCount = 1;
+      // For offset mode, also return a total count
+      let total = null;
+      if (!cursorPayload) {
+        let countQuery = `
+          SELECT COUNT(DISTINCT p.id) as total
+          FROM projects p
+          LEFT JOIN project_members pm ON p.id = pm.project_id
+          WHERE p.deleted_at IS NULL
+            AND (p.owner_id = $1 OR pm.user_id = $1)
+        `;
+        const countParams = [userId];
+        let countParamCount = 1;
 
-      if (status) {
-        countParamCount++;
-        countQuery += ` AND p.status = $${countParamCount}`;
-        countParams.push(status);
+        if (status) {
+          countParamCount++;
+          countQuery += ` AND p.status = $${countParamCount}`;
+          countParams.push(status);
+        }
+        if (search) {
+          countParamCount++;
+          countQuery += ` AND (p.name ILIKE $${countParamCount} OR p.description ILIKE $${countParamCount})`;
+          countParams.push(`%${search}%`);
+        }
+
+        const countResult = await db.query(countQuery, countParams);
+        total = parseInt(countResult.rows[0].total);
       }
-
-      if (search) {
-        countParamCount++;
-        countQuery += ` AND (p.name ILIKE $${countParamCount} OR p.description ILIKE $${countParamCount})`;
-        countParams.push(`%${search}%`);
-      }
-
-      const countResult = await db.query(countQuery, countParams);
-      const total = parseInt(countResult.rows[0].total);
 
       return {
-        projects: result.rows,
+        projects: rows,
         pagination: {
-          total,
           limit,
-          offset,
-          hasMore: offset + limit < total
+          ...(cursorPayload ? {} : { total, offset, hasMore: offset + limit < (total ?? 0) }),
+          ...(cursorPayload || nextCursor ? { nextCursor, hasMore } : {})
         }
       };
     } catch (error) {
+      if (error instanceof AppError) throw error;
       throw new AppError(`Failed to list projects: ${error.message}`, 500);
     }
   }
