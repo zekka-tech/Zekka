@@ -184,7 +184,7 @@ spec:
           # Liveness probe
           livenessProbe:
             httpGet:
-              path: /health
+              path: /livez
               port: 3000
               scheme: HTTP
             initialDelaySeconds: 60
@@ -196,7 +196,7 @@ spec:
           # Readiness probe
           readinessProbe:
             httpGet:
-              path: /health
+              path: /readyz
               port: 3000
               scheme: HTTP
             initialDelaySeconds: 30
@@ -208,7 +208,7 @@ spec:
           # Startup probe (for slow starts)
           startupProbe:
             httpGet:
-              path: /health
+              path: /livez
               port: 3000
             initialDelaySeconds: 0
             periodSeconds: 10
