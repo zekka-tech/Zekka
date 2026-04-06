@@ -44,11 +44,27 @@ function isVaultStrictMode() {
  * const vault = await initVault(logger);
  */
 async function initVault(logger = console) {
-  // Check if Vault is enabled
+  const isProduction = process.env.NODE_ENV === 'production';
   const vaultEnabled = process.env.VAULT_ENABLED === 'true';
+  const vaultAddrSet = !!process.env.VAULT_ADDR;
+
+  // In production: if VAULT_ADDR is set but VAULT_ENABLED is not explicitly
+  // true, the operator likely forgot to enable Vault — fail fast rather than
+  // silently fall back to plain env vars for sensitive secrets.
+  if (isProduction && vaultAddrSet && !vaultEnabled) {
+    throw new Error(
+      'VAULT_ADDR is set but VAULT_ENABLED is not "true". ' +
+      'Set VAULT_ENABLED=true to use Vault, or remove VAULT_ADDR to explicitly ' +
+      'opt out of Vault in production.'
+    );
+  }
 
   if (!vaultEnabled) {
-    logger.info('ℹ️  Vault integration disabled (VAULT_ENABLED=false)');
+    if (isProduction) {
+      logger.warn('⚠️  Running in production without Vault. Secrets are sourced from environment variables.');
+    } else {
+      logger.info('ℹ️  Vault integration disabled (VAULT_ENABLED=false)');
+    }
     return null;
   }
 
