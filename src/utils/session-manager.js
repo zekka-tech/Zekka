@@ -12,7 +12,7 @@
  */
 
 const session = require('express-session');
-const RedisStore = require('connect-redis').default;
+const { RedisStore } = require('connect-redis');
 const crypto = require('crypto');
 
 class SessionManager {

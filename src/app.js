@@ -1,67 +1,64 @@
-require('dotenv').config();
-const express = require('express');
-const fs = require('fs');
-const path = require('path');
-const cors = require('cors');
-const session = require('express-session');
-const RedisStoreFactory = require('connect-redis');
-const helmet = require('helmet');
-const morgan = require('morgan');
-const { createLogger, format, transports } = require('winston');
-const swaggerUi = require('swagger-ui-express');
-const swaggerSpec = require('./swagger');
-const redisClient = require('./config/redis');
+require("dotenv").config();
+const express = require("express");
+const fs = require("fs");
+const path = require("path");
+const cors = require("cors");
+const session = require("express-session");
+const { RedisStore } = require("connect-redis");
+const helmet = require("helmet");
+const morgan = require("morgan");
+const { createLogger, format, transports } = require("winston");
+const swaggerUi = require("swagger-ui-express");
+const swaggerSpec = require("./swagger");
+const redisClient = require("./config/redis");
+const config = require("./config");
 
 // Middleware
-const {
-  apiLimiter,
-  createProjectLimiter
-} = require('./middleware/rateLimit');
-const {
-  authenticate,
-  optionalAuth
-} = require('./middleware/auth');
+const { apiLimiter, createProjectLimiter } = require("./middleware/rateLimit");
+const { authenticate, optionalAuth } = require("./middleware/auth");
 const {
   metricsMiddleware,
   getMetrics,
-  trackProject
-} = require('./middleware/metrics');
-const { csrfTokenGenerator, csrfTokenValidator } = require('./middleware/csrf');
-const { createCsrfRouteGuard } = require('./middleware/csrf-route-guard');
-const RedisStore = RedisStoreFactory(session);
-
+  trackProject,
+} = require("./middleware/metrics");
+const { csrfTokenGenerator, csrfTokenValidator } = require("./middleware/csrf");
+const { createCsrfRouteGuard } = require("./middleware/csrf-route-guard");
 // API Routes
-const projectsRoutes = require('./routes/projects.routes');
-const conversationsRoutes = require('./routes/conversations.routes');
-const analyticsRoutes = require('./routes/analytics.routes');
-const agentsRoutes = require('./routes/agents.routes');
-const sourcesRoutes = require('./routes/sources.routes');
-const preferencesRoutes = require('./routes/preferences.routes');
-const authRoutes = require('./routes/auth.routes');
+const projectsRoutes = require("./routes/projects.routes");
+const conversationsRoutes = require("./routes/conversations.routes");
+const analyticsRoutes = require("./routes/analytics.routes");
+const agentsRoutes = require("./routes/agents.routes");
+const sourcesRoutes = require("./routes/sources.routes");
+const preferencesRoutes = require("./routes/preferences.routes");
+const authRoutes = require("./routes/auth.routes");
+const usersRoutes = require("./routes/users.routes");
 
 // Logger setup
 const logger = createLogger({
-  level: process.env.LOG_LEVEL || 'info',
+  level: process.env.LOG_LEVEL || "info",
   format: format.combine(format.timestamp(), format.json()),
   transports: [
-    new transports.File({ filename: 'logs/error.log', level: 'error' }),
-    new transports.File({ filename: 'logs/combined.log' }),
+    new transports.File({ filename: "logs/error.log", level: "error" }),
+    new transports.File({ filename: "logs/combined.log" }),
     new transports.Console({
-      format: format.combine(format.colorize(), format.simple())
-    })
-  ]
+      format: format.combine(format.colorize(), format.simple()),
+    }),
+  ],
 });
 
 const sessionSecret = process.env.SESSION_SECRET;
 
 if (!sessionSecret) {
-  throw new Error('SESSION_SECRET is required for CSRF session protection');
+  throw new Error("SESSION_SECRET is required for CSRF session protection");
 }
 
 const sessionStore = new RedisStore({
   client: redisClient,
-  prefix: 'zekka:session:'
+  prefix: "zekka:session:",
 });
+
+// Idempotency middleware for write endpoints
+const { idempotency } = require("./middleware/idempotency");
 
 // Service references — populated by index.js via setServices() after init
 let contextBus;
@@ -81,13 +78,22 @@ function setServices(services) {
 const app = express();
 
 // Middleware
-app.set('trust proxy', 1);
+app.set("trust proxy", 1);
 app.use(helmet());
-app.use(cors());
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (!origin) return callback(null, true);
+      if (config.cors.origins.includes(origin)) return callback(null, true);
+      return callback(new Error("Origin not allowed by CORS"));
+    },
+    credentials: true,
+  }),
+);
 app.use(
   session({
     store: sessionStore,
-    name: 'zekka.sid',
+    name: "zekka.sid",
     secret: sessionSecret,
     resave: false,
     saveUninitialized: false,
@@ -95,45 +101,45 @@ app.use(
     proxy: true,
     cookie: {
       httpOnly: true,
-      sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
       maxAge: parseInt(process.env.SESSION_TIMEOUT, 10) || 60 * 60 * 1000,
-      path: '/api'
-    }
-  })
+      path: "/api",
+    },
+  }),
 );
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: config.limits.json }));
+app.use(express.urlencoded({ extended: true, limit: config.limits.urlEncoded }));
 app.use(
-  morgan('combined', { stream: { write: (msg) => logger.info(msg.trim()) } })
+  morgan("combined", { stream: { write: (msg) => logger.info(msg.trim()) } }),
 );
 app.use(metricsMiddleware);
 
 // CSRF Protection
-app.use('/api', csrfTokenGenerator); // Generate CSRF tokens for API requests
-app.use('/api', createCsrfRouteGuard(csrfTokenValidator));
+app.use("/api", csrfTokenGenerator); // Generate CSRF tokens for API requests
+app.use("/api", createCsrfRouteGuard(csrfTokenValidator));
 
 // Swagger API Documentation
-app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
-app.get('/api/docs.json', (req, res) => {
-  res.setHeader('Content-Type', 'application/json');
+app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+app.get("/api/docs.json", (req, res) => {
+  res.setHeader("Content-Type", "application/json");
   res.send(swaggerSpec);
 });
 
-app.get('/api/csrf-token', (req, res) => {
-  res.set('Cache-Control', 'no-store');
+app.get("/api/csrf-token", (req, res) => {
+  res.set("Cache-Control", "no-store");
   res.json({ csrfToken: res.locals.csrfToken });
 });
 
 // Prometheus Metrics
-app.get('/metrics', async (req, res) => {
+app.get("/metrics", async (req, res) => {
   try {
     const metrics = await getMetrics();
-    res.set('Content-Type', 'text/plain');
+    res.set("Content-Type", "text/plain");
     res.send(metrics);
   } catch (error) {
-    logger.error('Error fetching Prometheus metrics:', error);
+    logger.error("Error fetching Prometheus metrics:", error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -155,15 +161,15 @@ app.get('/metrics', async (req, res) => {
  *       503:
  *         description: System is unhealthy
  */
-app.get('/health', (req, res) => {
+app.get("/health", (req, res) => {
   const health = {
-    status: 'healthy',
+    status: "healthy",
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     services: {
       contextBus: contextBus?.isConnected() || false,
-      orchestrator: orchestrator?.isReady() || false
-    }
+      orchestrator: orchestrator?.isReady() || false,
+    },
   };
 
   const allHealthy = Object.values(health.services).every((s) => s === true);
@@ -171,15 +177,15 @@ app.get('/health', (req, res) => {
 
   res.status(statusCode).json(health);
 });
-app.get('/api/health', (req, res) => {
+app.get("/api/health", (req, res) => {
   const health = {
-    status: 'healthy',
+    status: "healthy",
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     services: {
       contextBus: contextBus?.isConnected() || false,
-      orchestrator: orchestrator?.isReady() || false
-    }
+      orchestrator: orchestrator?.isReady() || false,
+    },
   };
 
   const allHealthy = Object.values(health.services).every((s) => s === true);
@@ -190,7 +196,9 @@ app.get('/api/health', (req, res) => {
 
 // API Routes
 
-app.use('/api/auth', authRoutes);
+app.use("/api/auth", authRoutes);
+app.use("/api/v1/auth", authRoutes);
+app.use("/api/users", usersRoutes);
 
 // Create new project
 /**
@@ -228,19 +236,18 @@ app.use('/api/auth', authRoutes);
  *               $ref: '#/components/schemas/Project'
  */
 app.post(
-  '/api/projects',
+  "/api/projects",
   apiLimiter,
   createProjectLimiter,
   optionalAuth,
+  idempotency(),
   async (req, res) => {
     try {
-      const {
-        name, requirements, storyPoints, budget
-      } = req.body;
+      const { name, requirements, storyPoints, budget } = req.body;
 
       if (!name || !requirements || !Array.isArray(requirements)) {
         return res.status(400).json({
-          error: 'Missing required fields: name, requirements (array)'
+          error: "Missing required fields: name, requirements (array)",
         });
       }
 
@@ -250,26 +257,26 @@ app.post(
         storyPoints: storyPoints || 8,
         budget: budget || {
           daily: parseFloat(process.env.DAILY_BUDGET) || 50,
-          monthly: parseFloat(process.env.MONTHLY_BUDGET) || 1000
+          monthly: parseFloat(process.env.MONTHLY_BUDGET) || 1000,
         },
-        userId: req.user?.userId
+        userId: req.user?.userId,
       });
 
-      trackProject('started', 'pending');
+      trackProject("started", "pending");
 
-      const websocket = require('./middleware/websocket');
+      const websocket = require("./middleware/websocket");
       websocket.broadcastProjectUpdate(project.projectId, {
-        status: 'created',
-        name: project.name
+        status: "created",
+        name: project.name,
       });
 
       logger.info(`Project created: ${project.projectId}`);
       res.status(201).json(project);
     } catch (error) {
-      logger.error('Error creating project:', error);
+      logger.error("Error creating project:", error);
       res.status(500).json({ error: error.message });
     }
-  }
+  },
 );
 
 // Execute project workflow
@@ -290,7 +297,7 @@ app.post(
  *         description: Execution started
  */
 app.post(
-  '/api/projects/:projectId/execute',
+  "/api/projects/:projectId/execute",
   apiLimiter,
   optionalAuth,
   async (req, res) => {
@@ -310,15 +317,15 @@ app.post(
         });
 
       res.json({
-        message: 'Execution started',
+        message: "Execution started",
         projectId,
-        status: 'running'
+        status: "running",
       });
     } catch (error) {
-      logger.error('Error starting execution:', error);
+      logger.error("Error starting execution:", error);
       res.status(500).json({ error: error.message });
     }
-  }
+  },
 );
 
 // Get project status
@@ -343,7 +350,7 @@ app.post(
  *               $ref: '#/components/schemas/Project'
  */
 app.get(
-  '/api/projects/:projectId',
+  "/api/projects/:projectId",
   apiLimiter,
   optionalAuth,
   async (req, res) => {
@@ -352,15 +359,15 @@ app.get(
       const project = await orchestrator.getProject(projectId);
 
       if (!project) {
-        return res.status(404).json({ error: 'Project not found' });
+        return res.status(404).json({ error: "Project not found" });
       }
 
       res.json(project);
     } catch (error) {
-      logger.error('Error fetching project:', error);
+      logger.error("Error fetching project:", error);
       res.status(500).json({ error: error.message });
     }
-  }
+  },
 );
 
 // List all projects
@@ -374,12 +381,12 @@ app.get(
  *       200:
  *         description: List of projects
  */
-app.get('/api/projects', apiLimiter, optionalAuth, async (req, res) => {
+app.get("/api/projects", apiLimiter, optionalAuth, async (req, res) => {
   try {
     const projects = await orchestrator.listProjects();
     res.json(projects);
   } catch (error) {
-    logger.error('Error listing projects:', error);
+    logger.error("Error listing projects:", error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -409,13 +416,13 @@ app.get('/api/projects', apiLimiter, optionalAuth, async (req, res) => {
  *             schema:
  *               $ref: '#/components/schemas/CostSummary'
  */
-app.get('/api/costs', apiLimiter, optionalAuth, async (req, res) => {
+app.get("/api/costs", apiLimiter, optionalAuth, async (req, res) => {
   try {
     const { projectId, period } = req.query;
     const costs = await tokenEconomics.getCostSummary(projectId, period);
     res.json(costs);
   } catch (error) {
-    logger.error('Error fetching costs:', error);
+    logger.error("Error fetching costs:", error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -435,38 +442,38 @@ app.get('/api/costs', apiLimiter, optionalAuth, async (req, res) => {
  *             schema:
  *               $ref: '#/components/schemas/Metrics'
  */
-app.get('/api/metrics', apiLimiter, optionalAuth, async (req, res) => {
+app.get("/api/metrics", apiLimiter, optionalAuth, async (req, res) => {
   try {
     const metrics = await orchestrator.getMetrics();
     res.json(metrics);
   } catch (error) {
-    logger.error('Error fetching metrics:', error);
+    logger.error("Error fetching metrics:", error);
     res.status(500).json({ error: error.message });
   }
 });
 
 // Register API v1 routes (Team 3 - Core Services)
-app.use('/api/v1/projects', projectsRoutes);
-app.use('/api/v1/conversations', conversationsRoutes);
-app.use('/api/v1/analytics', analyticsRoutes);
-app.use('/api/v1/agents', agentsRoutes);
-app.use('/api/v1/sources', sourcesRoutes);
-app.use('/api/v1/preferences', preferencesRoutes);
+app.use("/api/v1/projects", projectsRoutes);
+app.use("/api/v1/conversations", conversationsRoutes);
+app.use("/api/v1/analytics", analyticsRoutes);
+app.use("/api/v1/agents", agentsRoutes);
+app.use("/api/v1/sources", sourcesRoutes);
+app.use("/api/v1/preferences", preferencesRoutes);
 
-const frontendBuildDir = path.join(__dirname, '../frontend/dist');
-const legacyPublicDir = path.join(__dirname, '../public');
-const primaryWebDir = fs.existsSync(path.join(frontendBuildDir, 'index.html'))
+const frontendBuildDir = path.join(__dirname, "../frontend/dist");
+const legacyPublicDir = path.join(__dirname, "../public");
+const primaryWebDir = fs.existsSync(path.join(frontendBuildDir, "index.html"))
   ? frontendBuildDir
   : legacyPublicDir;
 
 app.use(express.static(primaryWebDir));
 
-app.get('/', (req, res) => {
-  res.sendFile(path.join(primaryWebDir, 'index.html'));
+app.get("/", (req, res) => {
+  res.sendFile(path.join(primaryWebDir, "index.html"));
 });
 
 app.get(/^\/(?!api|metrics).*/, (req, res, next) => {
-  const indexFile = path.join(primaryWebDir, 'index.html');
+  const indexFile = path.join(primaryWebDir, "index.html");
   if (!fs.existsSync(indexFile)) {
     return next();
   }
@@ -476,15 +483,15 @@ app.get(/^\/(?!api|metrics).*/, (req, res, next) => {
 
 // 404 handler
 app.use((req, res) => {
-  res.status(404).json({ error: 'Not found' });
+  res.status(404).json({ error: "Not found" });
 });
 
 // Error handler
 app.use((err, req, res, next) => {
-  logger.error('Unhandled error:', err);
+  logger.error("Unhandled error:", err);
   res.status(500).json({
-    error: 'Internal server error',
-    message: process.env.NODE_ENV === 'development' ? err.message : undefined
+    error: "Internal server error",
+    message: process.env.NODE_ENV === "development" ? err.message : undefined,
   });
 });
 

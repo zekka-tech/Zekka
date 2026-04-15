@@ -1,12 +1,23 @@
 const CSRF_PUBLIC_EXEMPT_PATHS = new Set([
-  '/auth/login',
-  '/auth/register',
-  '/auth/forgot-password',
-  '/csrf-token'
+  "/auth/login",
+  "/auth/register",
+  "/auth/forgot-password",
+  "/auth/refresh-token",
+  "/auth/reset-password",
+  "/auth/verify-email",
+  "/auth/resend-verification",
+  "/v1/auth/login",
+  "/v1/auth/register",
+  "/v1/auth/forgot-password",
+  "/v1/auth/refresh-token",
+  "/v1/auth/reset-password",
+  "/v1/auth/verify-email",
+  "/v1/auth/resend-verification",
+  "/csrf-token",
 ]);
 
 function shouldSkipCsrfValidation(req) {
-  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+  if (["GET", "HEAD", "OPTIONS"].includes(req.method)) {
     return true;
   }
 
@@ -26,5 +37,5 @@ function createCsrfRouteGuard(csrfValidator) {
 module.exports = {
   CSRF_PUBLIC_EXEMPT_PATHS,
   shouldSkipCsrfValidation,
-  createCsrfRouteGuard
+  createCsrfRouteGuard,
 };

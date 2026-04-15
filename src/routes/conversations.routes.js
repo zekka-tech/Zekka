@@ -28,6 +28,7 @@ const {
   validateParams
 } = require('../middleware/validate');
 const { authenticate } = require('../middleware/auth');
+const { idempotency } = require('../middleware/idempotency');
 const {
   ALLOWED_EXTENSIONS,
   ALLOWED_MIME_TYPES,
@@ -72,6 +73,7 @@ router.get(
  */
 router.post(
   '/',
+  idempotency(),
   validateBody(conversationSchemas.createConversation),
   conversationsController.createConversation
 );
@@ -141,6 +143,7 @@ router.get(
  */
 router.post(
   '/:id/messages',
+  idempotency(),
   validateParams(conversationSchemas.conversationId),
   validateBody(conversationSchemas.sendMessage),
   conversationsController.sendMessage

@@ -8,12 +8,13 @@
 
 // connect-redis requires a real ioredis/node-redis client to construct; mock
 // it so SessionManager can be instantiated with our plain object mocks.
+// connect-redis v8 exports { RedisStore } directly (no factory wrapper).
 jest.mock('connect-redis', () => {
   function MockRedisStore() {}
   MockRedisStore.prototype.get = jest.fn();
   MockRedisStore.prototype.set = jest.fn();
   MockRedisStore.prototype.destroy = jest.fn((id, cb) => cb && cb());
-  return { default: jest.fn(() => MockRedisStore) };
+  return { RedisStore: MockRedisStore };
 });
 
 // express-session is pulled in transitively; keep it lightweight.

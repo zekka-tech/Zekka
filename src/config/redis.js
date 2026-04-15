@@ -12,43 +12,59 @@
  * - Message queues
  */
 
-const { createClient } = require('redis');
-const config = require('./index.js');
-const logger = require('../utils/logger');
+const { createClient } = require("redis");
+const config = require("./index.js");
+const logger = require("../utils/logger");
 
 // Cache key patterns for different data types
 const CACHE_KEYS = {
-  PROJECT: (projectId) => `${config.redis.keyPrefix || 'zekka:'}project:${projectId}`,
-  PROJECT_STATE: (projectId) => `${config.redis.keyPrefix || 'zekka:'}project:${projectId}:state`,
-  PROJECT_STATUS: (projectId) => `${config.redis.keyPrefix || 'zekka:'}project:${projectId}:status`,
-  PROJECT_AGENTS: (projectId) => `${config.redis.keyPrefix || 'zekka:'}project:${projectId}:agents`,
-  PROJECT_CONFLICTS: (projectId) => `${config.redis.keyPrefix || 'zekka:'}project:${projectId}:conflicts`,
-  PROJECT_LOCKS: (projectId, filePath) => `${config.redis.keyPrefix || 'zekka:'}project:${projectId}:lock:${filePath}`,
+  PROJECT: (projectId) =>
+    `${config.redis.keyPrefix || "zekka:"}project:${projectId}`,
+  PROJECT_STATE: (projectId) =>
+    `${config.redis.keyPrefix || "zekka:"}project:${projectId}:state`,
+  PROJECT_STATUS: (projectId) =>
+    `${config.redis.keyPrefix || "zekka:"}project:${projectId}:status`,
+  PROJECT_AGENTS: (projectId) =>
+    `${config.redis.keyPrefix || "zekka:"}project:${projectId}:agents`,
+  PROJECT_CONFLICTS: (projectId) =>
+    `${config.redis.keyPrefix || "zekka:"}project:${projectId}:conflicts`,
+  PROJECT_LOCKS: (projectId, filePath) =>
+    `${config.redis.keyPrefix || "zekka:"}project:${projectId}:lock:${filePath}`,
 
-  AGENT: (agentId) => `${config.redis.keyPrefix || 'zekka:'}agent:${agentId}`,
-  AGENT_STATUS: (agentId) => `${config.redis.keyPrefix || 'zekka:'}agent:${agentId}:status`,
-  AGENT_OUTPUT: (agentId, outputId) => `${config.redis.keyPrefix || 'zekka:'}agent:${agentId}:output:${outputId}`,
+  AGENT: (agentId) => `${config.redis.keyPrefix || "zekka:"}agent:${agentId}`,
+  AGENT_STATUS: (agentId) =>
+    `${config.redis.keyPrefix || "zekka:"}agent:${agentId}:status`,
+  AGENT_OUTPUT: (agentId, outputId) =>
+    `${config.redis.keyPrefix || "zekka:"}agent:${agentId}:output:${outputId}`,
 
-  USER: (userId) => `${config.redis.keyPrefix || 'zekka:'}user:${userId}`,
-  USER_SESSION: (userId, sessionId) => `${config.redis.keyPrefix || 'zekka:'}user:${userId}:session:${sessionId}`,
+  USER: (userId) => `${config.redis.keyPrefix || "zekka:"}user:${userId}`,
+  USER_SESSION: (userId, sessionId) =>
+    `${config.redis.keyPrefix || "zekka:"}user:${userId}:session:${sessionId}`,
 
-  CONVERSATION: (conversationId) => `${config.redis.keyPrefix || 'zekka:'}conversation:${conversationId}`,
-  MESSAGE: (messageId) => `${config.redis.keyPrefix || 'zekka:'}message:${messageId}`,
+  CONVERSATION: (conversationId) =>
+    `${config.redis.keyPrefix || "zekka:"}conversation:${conversationId}`,
+  MESSAGE: (messageId) =>
+    `${config.redis.keyPrefix || "zekka:"}message:${messageId}`,
 
-  TASK: (taskId) => `${config.redis.keyPrefix || 'zekka:'}task:${taskId}`,
-  TASK_QUEUE: (queue) => `${config.redis.keyPrefix || 'zekka:'}queue:${queue}`,
+  TASK: (taskId) => `${config.redis.keyPrefix || "zekka:"}task:${taskId}`,
+  TASK_QUEUE: (queue) => `${config.redis.keyPrefix || "zekka:"}queue:${queue}`,
 
-  REVIEW_PENDING: () => `${config.redis.keyPrefix || 'zekka:'}claude:review:pending`,
-  OUTPUT_STATUS: (outputId) => `${config.redis.keyPrefix || 'zekka:'}output:${outputId}:status`,
+  REVIEW_PENDING: () =>
+    `${config.redis.keyPrefix || "zekka:"}claude:review:pending`,
+  OUTPUT_STATUS: (outputId) =>
+    `${config.redis.keyPrefix || "zekka:"}output:${outputId}:status`,
 
-  METRICS: (metricType) => `${config.redis.keyPrefix || 'zekka:'}metrics:${metricType}`,
-  RATE_LIMIT: (identifier) => `${config.redis.keyPrefix || 'zekka:'}ratelimit:${identifier}`,
+  METRICS: (metricType) =>
+    `${config.redis.keyPrefix || "zekka:"}metrics:${metricType}`,
+  RATE_LIMIT: (identifier) =>
+    `${config.redis.keyPrefix || "zekka:"}ratelimit:${identifier}`,
 
-  BUDGET: (period) => `${config.redis.keyPrefix || 'zekka:'}budget:${period}`,
-  TOKEN_USAGE: (model, date) => `${config.redis.keyPrefix || 'zekka:'}tokens:${model}:${date}`,
+  BUDGET: (period) => `${config.redis.keyPrefix || "zekka:"}budget:${period}`,
+  TOKEN_USAGE: (model, date) =>
+    `${config.redis.keyPrefix || "zekka:"}tokens:${model}:${date}`,
 
-  CACHE: (key) => `${config.redis.keyPrefix || 'zekka:'}cache:${key}`,
-  TEMP: (key) => `${config.redis.keyPrefix || 'zekka:'}temp:${key}`
+  CACHE: (key) => `${config.redis.keyPrefix || "zekka:"}cache:${key}`,
+  TEMP: (key) => `${config.redis.keyPrefix || "zekka:"}temp:${key}`,
 };
 
 // TTL configurations (in seconds)
@@ -61,7 +77,7 @@ const TTL = {
   SESSION: 7200, // 2 hours
   LOCK: 300, // 5 minutes
   TEMP: 60, // 1 minute
-  RATE_LIMIT: 900 // 15 minutes
+  RATE_LIMIT: 900, // 15 minutes
 };
 
 // Create Redis client
@@ -72,38 +88,38 @@ const redis = createClient({
     connectTimeout: 5000,
     reconnectStrategy: (retries) => {
       if (retries > 10) {
-        logger.error('❌ Redis max retries exceeded');
-        return new Error('Redis connection failed');
+        logger.error("❌ Redis max retries exceeded");
+        return new Error("Redis connection failed");
       }
       // Exponential backoff: 50ms, 100ms, 200ms, etc.
       return Math.min(retries * 50, 3000);
-    }
+    },
   },
   password: config.redis.password || undefined,
   database: 0,
   // Client name for debugging
-  name: 'zekka-framework'
+  name: "zekka-framework",
 });
 
 // Error handling
-redis.on('error', (err) => {
-  logger.error('❌ Redis client error:', err);
+redis.on("error", (err) => {
+  logger.error("❌ Redis client error:", err);
 });
 
-redis.on('connect', () => {
-  logger.info('✅ Redis client connecting...');
+redis.on("connect", () => {
+  logger.info("✅ Redis client connecting...");
 });
 
-redis.on('ready', () => {
-  logger.info('✅ Redis client connected and ready');
+redis.on("ready", () => {
+  logger.info("✅ Redis client connected and ready");
 });
 
-redis.on('reconnecting', () => {
-  logger.info('⚠️  Redis client reconnecting...');
+redis.on("reconnecting", () => {
+  logger.info("⚠️  Redis client reconnecting...");
 });
 
-redis.on('end', () => {
-  logger.info('⚠️  Redis client connection closed');
+redis.on("end", () => {
+  logger.info("⚠️  Redis client connection closed");
 });
 
 /**
@@ -112,10 +128,10 @@ redis.on('end', () => {
 async function connectRedis() {
   try {
     await redis.connect();
-    logger.info('✅ Redis connection established');
+    logger.info("✅ Redis connection established");
     return redis;
   } catch (error) {
-    logger.error('❌ Failed to connect to Redis:', error);
+    logger.error("❌ Failed to connect to Redis:", error);
     throw error;
   }
 }
@@ -126,9 +142,9 @@ async function connectRedis() {
 async function healthCheck() {
   try {
     const pong = await redis.ping();
-    return pong === 'PONG';
+    return pong === "PONG";
   } catch (error) {
-    logger.error('❌ Redis health check failed:', error);
+    logger.error("❌ Redis health check failed:", error);
     return false;
   }
 }
@@ -138,10 +154,10 @@ async function healthCheck() {
  */
 async function getStats() {
   try {
-    const info = await redis.info('stats');
+    const info = await redis.info("stats");
     return info;
   } catch (error) {
-    logger.error('❌ Failed to get Redis stats:', error);
+    logger.error("❌ Failed to get Redis stats:", error);
     return null;
   }
 }
@@ -152,9 +168,9 @@ async function getStats() {
 async function closeRedis() {
   try {
     await redis.quit();
-    logger.info('✅ Redis connection closed gracefully');
+    logger.info("✅ Redis connection closed gracefully");
   } catch (error) {
-    logger.error('❌ Error closing Redis connection:', error);
+    logger.error("❌ Error closing Redis connection:", error);
     await redis.disconnect();
   }
 }
@@ -168,7 +184,8 @@ const cache = {
    */
   async set(key, value, ttl = TTL.MEDIUM) {
     try {
-      const serialized = typeof value === 'string' ? value : JSON.stringify(value);
+      const serialized =
+        typeof value === "string" ? value : JSON.stringify(value);
       await redis.setEx(key, ttl, serialized);
       return true;
     } catch (error) {
@@ -223,7 +240,9 @@ const cache = {
    */
   async lpush(key, ...values) {
     try {
-      const serialized = values.map((v) => (typeof v === 'string' ? v : JSON.stringify(v)));
+      const serialized = values.map((v) =>
+        typeof v === "string" ? v : JSON.stringify(v),
+      );
       return await redis.lPush(key, serialized);
     } catch (error) {
       logger.error(`❌ Error pushing to list ${key}:`, error);
@@ -306,11 +325,13 @@ const cache = {
       logger.error(`❌ Error clearing cache by pattern ${pattern}:`, error);
       return 0;
     }
-  }
+  },
 };
 
-// Auto-connect on module load
-connectRedis().catch(logger.error);
+// Auto-connect on module load (skip in test environment to avoid spurious connection errors)
+if (process.env.NODE_ENV !== 'test') {
+  connectRedis().catch(logger.error);
+}
 
 module.exports = redis;
 module.exports.connectRedis = connectRedis;
@@ -318,3 +339,5 @@ module.exports.closeRedis = closeRedis;
 module.exports.healthCheck = healthCheck;
 module.exports.getStats = getStats;
 module.exports.CACHE_KEYS = CACHE_KEYS;
+module.exports.cache = cache;
+module.exports.TTL = TTL;
