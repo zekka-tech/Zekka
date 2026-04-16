@@ -60,7 +60,7 @@ export const useProject = (projectId: string | null) => {
   // Update project mutation
   const updateMutation = useMutation({
     mutationFn: (data: Partial<Project>) =>
-      projectId ? apiService.updateProject(projectId, data) : Promise.reject('No project ID'),
+      projectId ? apiService.updateProject(projectId, data) : Promise.reject(new Error('No project ID')),
     retry: 3,
     retryDelay: exponentialBackoff,
     onSuccess: (updatedProject) => {
@@ -75,7 +75,7 @@ export const useProject = (projectId: string | null) => {
   // Delete project mutation
   const deleteMutation = useMutation({
     mutationFn: () =>
-      projectId ? apiService.deleteProject(projectId) : Promise.reject('No project ID'),
+      projectId ? apiService.deleteProject(projectId) : Promise.reject(new Error('No project ID')),
     retry: 3,
     retryDelay: exponentialBackoff,
     onSuccess: () => {

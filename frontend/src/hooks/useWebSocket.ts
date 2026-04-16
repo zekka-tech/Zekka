@@ -20,8 +20,10 @@ export const useWebSocket = () => {
     // Try to connect if not already connected
     if (!webSocketService.isReady()) {
       webSocketService.connect({}).catch(err => {
-        console.error('Failed to connect:', err)
-        // Don't fail, we'll use fallback behavior
+        const connectError = err instanceof Error ? err : new Error(String(err))
+        setError(connectError)
+        // Connection failure is non-fatal — components fall back to polling.
+        console.error('WebSocket connect failed:', connectError.message)
       })
     }
 

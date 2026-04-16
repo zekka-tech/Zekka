@@ -21,6 +21,21 @@ function shouldSkipCsrfValidation(req) {
     return true;
   }
 
+  // Bearer token auth is not vulnerable to CSRF — browsers never auto-attach
+  // Authorization headers, so a forged cross-site request cannot include one.
+  const authHeader = req.headers?.authorization || "";
+  if (authHeader.startsWith("Bearer ")) {
+    return true;
+  }
+
+  // Requests with no session cookie cannot be forged via CSRF — there is no
+  // credential the browser would automatically attach.  Let the auth
+  // middleware produce the appropriate 401 for these unauthenticated calls.
+  const cookieHeader = req.headers?.cookie || "";
+  if (!cookieHeader.includes("zekka.sid=")) {
+    return true;
+  }
+
   return CSRF_PUBLIC_EXEMPT_PATHS.has(req.path);
 }
 

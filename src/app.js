@@ -52,10 +52,15 @@ if (!sessionSecret) {
   throw new Error("SESSION_SECRET is required for CSRF session protection");
 }
 
-const sessionStore = new RedisStore({
-  client: redisClient,
-  prefix: "zekka:session:",
-});
+// In test environment use the default in-process MemoryStore so that supertest
+// requests don't attempt to talk to a real Redis instance.
+const sessionStore =
+  process.env.NODE_ENV !== "test"
+    ? new RedisStore({
+        client: redisClient,
+        prefix: "zekka:session:",
+      })
+    : undefined; // express-session falls back to MemoryStore when undefined
 
 // Idempotency middleware for write endpoints
 const { idempotency } = require("./middleware/idempotency");

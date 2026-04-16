@@ -46,6 +46,10 @@ function standardHandler(message, retryAfter) {
   };
 }
 
+// In test environment all limiters are bypassed so sequential test suites
+// that share an in-memory store don't bleed 429s into each other.
+const skipInTest = process.env.NODE_ENV === 'test' ? () => true : undefined;
+
 // General API rate limiter — 100 req / 15 min per IP
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -54,7 +58,8 @@ const apiLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: (req) => req.user?.id || req.ip || req.connection.remoteAddress,
   handler: standardHandler('Too many requests from this IP, please try again after 15 minutes', 900),
-  store: makeStore('api')
+  store: makeStore('api'),
+  skip: skipInTest
 });
 
 // Authentication endpoints — 5 attempts / 15 min (only counts failures)
@@ -65,7 +70,8 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
   skipSuccessfulRequests: true,
   handler: standardHandler('Too many login attempts. Account temporarily locked. Please try again later.', 900),
-  store: makeStore('auth')
+  store: makeStore('auth'),
+  skip: skipInTest
 });
 
 // Project creation — 10 per hour

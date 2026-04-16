@@ -8,7 +8,18 @@ const loginSchema = Joi.object({
 
 const registerSchema = Joi.object({
   email: Joi.string().email({ minDomainSegments: 2 }).max(254).required(),
-  password: Joi.string().max(4096).required(),
+  password: Joi.string()
+    .min(8)
+    .max(4096)
+    .pattern(/[A-Z]/, "uppercase letter")
+    .pattern(/[a-z]/, "lowercase letter")
+    .pattern(/[0-9]/, "number")
+    .required()
+    .messages({
+      "string.min": "Password must be at least 8 characters",
+      "string.pattern.name":
+        "Password must contain at least one {#name}",
+    }),
   name: Joi.string().trim().min(2).max(100).required(),
 });
 
