@@ -17,6 +17,7 @@ const axios = require('axios');
 const { CircuitBreaker } = require('./circuit-breaker');
 const { CacheManager } = require('./cache-manager');
 const { AuditLogger } = require('./audit-logger');
+const { validateExternalUrl } = require('./ssrf-guard');
 
 class ExternalAPIClient {
   constructor(config = {}) {
@@ -62,6 +63,12 @@ class ExternalAPIClient {
         failureThreshold: 5,
         resetTimeout: 60000,
         monitor: true
+      }),
+      gemini: new CircuitBreaker({
+        name: 'gemini-api',
+        failureThreshold: 3,
+        resetTimeout: 30000,
+        monitor: true
       })
     };
 
@@ -69,7 +76,8 @@ class ExternalAPIClient {
       github: 0,
       anthropic: 0,
       openai: 0,
-      ollama: 0
+      ollama: 0,
+      gemini: 0
     };
   }
 
@@ -223,6 +231,52 @@ class ExternalAPIClient {
     });
   }
 
+  /**
+   * Call Google Gemini API with circuit-breaker protection (H13)
+   * @param {string} model - Gemini model name
+   * @param {Object} payload - Request body (contents, generationConfig, safetySettings)
+   * @param {Object} options - Axios options
+   * @returns {Promise<Object>} Gemini response body
+   */
+  async callGemini(model, payload, options = {}) {
+    if (!process.env.GEMINI_API_KEY) {
+      throw new Error('GEMINI_API_KEY not configured');
+    }
+
+    return await this.breakers.gemini.execute(async () => {
+      const startTime = Date.now();
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`;
+
+      try {
+        const response = await axios({
+          url,
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...options.headers },
+          data: payload,
+          timeout: 60000,
+          ...options
+        });
+
+        this.requestCount.gemini++;
+        const duration = Date.now() - startTime;
+
+        await this._logAPICall('gemini', `models/${model}:generateContent`, 'success', {
+          duration,
+          model
+        });
+
+        return response.data;
+      } catch (error) {
+        const duration = Date.now() - startTime;
+        await this._logAPICall('gemini', `models/${model}:generateContent`, 'error', {
+          duration,
+          error: error.message
+        });
+        throw error;
+      }
+    });
+  }
+
   async callAnthropicStream(payload, options = {}) {
     return await this.breakers.anthropic.execute(async () => {
       const startTime = Date.now();
@@ -331,6 +385,7 @@ class ExternalAPIClient {
    */
   async callOllama(payload, options = {}) {
     const ollamaHost = process.env.OLLAMA_HOST || 'http://localhost:11434';
+    validateExternalUrl(ollamaHost, 'OLLAMA_HOST');
 
     return await this.breakers.ollama.execute(async () => {
       const startTime = Date.now();
@@ -415,6 +470,7 @@ class ExternalAPIClient {
 
   async *_iterateOllamaStream(payload, options = {}) {
     const ollamaHost = process.env.OLLAMA_HOST || 'http://localhost:11434';
+    validateExternalUrl(ollamaHost, 'OLLAMA_HOST');
     const startTime = Date.now();
     let streamedResponse;
 
@@ -814,6 +870,7 @@ class ExternalAPIClient {
     // Ollama
     try {
       const ollamaHost = process.env.OLLAMA_HOST || 'http://localhost:11434';
+    validateExternalUrl(ollamaHost, 'OLLAMA_HOST');
       await axios.get(`${ollamaHost}/api/tags`, { timeout: 5000 });
       checks.ollama = {
         status: 'healthy',

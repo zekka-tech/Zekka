@@ -27,8 +27,13 @@ data:
   POSTGRES_HOST: "postgres-service"
   POSTGRES_PORT: "5432"
   POSTGRES_DB: "zekka_production"
-  VAULT_ADDR: "http://vault-service:8200"
-  VAULT_ENABLED: "true"
+  APP_URL: "https://zekka.yourdomain.com"
+  ALLOWED_ORIGINS: "https://zekka.yourdomain.com"
+  SHUTDOWN_TIMEOUT_MS: "15000"
+  # Keep Vault disabled in the base manifest until TLS and AppRole secrets are
+  # provisioned. Enabling strict Vault mode without those inputs will fail closed.
+  VAULT_ADDR: "https://vault-service:8200"
+  VAULT_ENABLED: "false"
   RATE_LIMIT_WINDOW_MS: "900000"
   RATE_LIMIT_MAX_REQUESTS: "100"
 
@@ -91,6 +96,7 @@ spec:
         prometheus.io/port: "3000"
         prometheus.io/path: "/metrics"
     spec:
+      terminationGracePeriodSeconds: 30
       # Security context
       securityContext:
         runAsNonRoot: true
@@ -121,7 +127,7 @@ spec:
             runAsUser: 1001
 
         - name: run-migrations
-          image: zekka-framework:latest
+          image: zekka-framework:v3.1.0
           command: ['node', 'src/cli/migrate.js']
           envFrom:
             - configMapRef:
@@ -139,7 +145,7 @@ spec:
       # Main application containers
       containers:
         - name: zekka-app
-          image: zekka-framework:latest
+          image: zekka-framework:v3.1.0
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
@@ -159,6 +165,18 @@ spec:
           env:
             - name: DATABASE_URL
               value: "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@$(POSTGRES_HOST):$(POSTGRES_PORT)/$(POSTGRES_DB)"
+            - name: VAULT_ROLE_ID
+              valueFrom:
+                secretKeyRef:
+                  name: zekka-secrets
+                  key: VAULT_ROLE_ID
+                  optional: true
+            - name: VAULT_SECRET_ID
+              valueFrom:
+                secretKeyRef:
+                  name: zekka-secrets
+                  key: VAULT_SECRET_ID
+                  optional: true
             - name: POD_NAME
               valueFrom:
                 fieldRef:
@@ -184,7 +202,7 @@ spec:
           # Liveness probe
           livenessProbe:
             httpGet:
-              path: /health
+              path: /livez
               port: 3000
               scheme: HTTP
             initialDelaySeconds: 60
@@ -196,7 +214,7 @@ spec:
           # Readiness probe
           readinessProbe:
             httpGet:
-              path: /health
+              path: /readyz
               port: 3000
               scheme: HTTP
             initialDelaySeconds: 30
@@ -208,7 +226,7 @@ spec:
           # Startup probe (for slow starts)
           startupProbe:
             httpGet:
-              path: /health
+              path: /livez
               port: 3000
             initialDelaySeconds: 0
             periodSeconds: 10
@@ -218,12 +236,19 @@ spec:
           # Security context
           securityContext:
             allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: false
+            readOnlyRootFilesystem: true
             runAsNonRoot: true
             runAsUser: 1001
             capabilities:
               drop:
                 - ALL
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - /bin/sh
+                  - -c
+                  - kill -TERM 1; sleep 15
 
           # Volume mounts
           volumeMounts:
@@ -412,8 +437,6 @@ metadata:
     nginx.ingress.kubernetes.io/proxy-connect-timeout: "60"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
     nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
-    nginx.ingress.kubernetes.io/enable-cors: "true"
-    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
     nginx.ingress.kubernetes.io/rate-limit: "100"
 spec:
   tls:

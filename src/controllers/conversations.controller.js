@@ -13,10 +13,7 @@
 const path = require('path');
 const { uploadFile } = require('../utils/file-storage');
 const conversationService = require('../services/conversation.service');
-
-const ALLOWED_MIME_PREFIXES = ['image/', 'text/'];
-const ALLOWED_MIME_EXACT = new Set(['application/pdf', 'application/json']);
-const ALLOWED_EXT = /\.(png|jpe?g|gif|webp|pdf|txt|md|json|yaml|yml|ts|tsx|js|jsx|py|go|rs|java|c|cpp|cs|rb|php)$/i;
+const { validateUploadedFile } = require('../utils/upload-validation');
 
 class ConversationsController {
   writeSseEvent(res, payload) {
@@ -73,8 +70,8 @@ class ConversationsController {
       const { projectId, limit, offset } = req.query;
 
       const pagination = {
-        limit: Math.min(Math.max(parseInt(limit) || 20, 1), 100),
-        offset: Math.max(parseInt(offset) || 0, 0)
+        limit: Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100),
+        offset: Math.max(parseInt(offset, 10) || 0, 0)
       };
 
       const result = await conversationService.listConversations(
@@ -201,8 +198,8 @@ class ConversationsController {
       const result = await conversationService.getMessages(
         id,
         userId,
-        Math.min(Math.max(parseInt(limit) || 50, 1), 200),
-        Math.max(parseInt(offset) || 0, 0)
+        Math.min(Math.max(parseInt(limit, 10) || 50, 1), 200),
+        Math.max(parseInt(offset, 10) || 0, 0)
       );
 
       res.status(200).json({
@@ -336,17 +333,10 @@ class ConversationsController {
         return res.status(400).json({ success: false, message: 'No file uploaded' });
       }
 
-      const { originalname, mimetype, size, buffer } = req.file;
-
-      // Validate MIME type and extension
-      const extOk = ALLOWED_EXT.test(originalname);
-      const mimeOk =
-        ALLOWED_MIME_PREFIXES.some((p) => mimetype.startsWith(p)) ||
-        ALLOWED_MIME_EXACT.has(mimetype);
-
-      if (!extOk || !mimeOk) {
-        return res.status(400).json({ success: false, message: 'File type not allowed' });
-      }
+      const {
+        originalname, mimetype, size, buffer
+      } = req.file;
+      await validateUploadedFile(req.file);
 
       if (size > 10 * 1024 * 1024) {
         return res.status(400).json({ success: false, message: 'File exceeds 10MB limit' });

@@ -413,10 +413,12 @@ class AnalyticsService {
    * @param {string} period - Time period
    * @returns {Promise<object>} Project analytics
    */
-  async getProjectAnalytics(projectId, period = 'all') {
+  async getProjectAnalytics(projectId, period = 'all', userId = null) {
     const timeFilter = this._getTimeFilter(period);
+    // Include userId in the cache key so different users cannot share cached
+    // analytics for the same project (prevents stale cross-user data).
     const cacheKey = CACHE_KEYS.CACHE(
-      `project-analytics:${projectId}:${period}`
+      `project-analytics:${projectId}:${period}:${userId || 'anon'}`
     );
 
     const cached = await cache.get(cacheKey);
@@ -445,10 +447,12 @@ class AnalyticsService {
       LEFT JOIN agent_activities aa ON aa.project_id = p.id
         ${timeFilter ? `AND aa.timestamp >= ${timeFilter}` : ''}
       WHERE p.id = $1
+        ${userId ? 'AND p.user_id = $2' : ''}
       GROUP BY p.id
     `;
 
-    const result = await pool.query(query, [projectId]);
+    const params = userId ? [projectId, userId] : [projectId];
+    const result = await pool.query(query, params);
     const analytics = result.rows[0] || null;
 
     if (analytics) {

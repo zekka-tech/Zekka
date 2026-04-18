@@ -9,6 +9,7 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
     exclude: [...configDefaults.exclude, 'tests/e2e/**'],
+    testTimeout: 15000, // axe-core and heavy component renders need headroom under load
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],

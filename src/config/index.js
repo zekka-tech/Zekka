@@ -9,6 +9,32 @@ const joi = require('joi');
 require('dotenv').config();
 const logger = require('../utils/logger');
 
+function parseAllowedOrigins(value) {
+  return value
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+}
+
+function validateProductionOrigins(origins, nodeEnv) {
+  if (nodeEnv !== 'production') {
+    return origins;
+  }
+
+  if (origins.length === 0) {
+    throw new Error('ALLOWED_ORIGINS must be defined in production');
+  }
+
+  const invalidOrigins = origins.filter((origin) => !origin.startsWith('https://'));
+  if (invalidOrigins.length > 0) {
+    throw new Error(
+      `ALLOWED_ORIGINS must use HTTPS in production. Invalid origins: ${invalidOrigins.join(', ')}`
+    );
+  }
+
+  return origins;
+}
+
 // Define validation schema
 const envSchema = joi
   .object({
@@ -277,7 +303,10 @@ const config = {
 
   // CORS
   cors: {
-    origins: env.ALLOWED_ORIGINS.split(',').map((o) => o.trim())
+    origins: validateProductionOrigins(
+      parseAllowedOrigins(env.ALLOWED_ORIGINS),
+      env.NODE_ENV
+    )
   },
 
   // Security
@@ -316,9 +345,9 @@ const config = {
       apiKey: env.GEMINI_API_KEY,
       model: env.GEMINI_MODEL || 'gemini-pro',
       temperature: parseFloat(env.GEMINI_TEMPERATURE) || 0.7,
-      maxOutputTokens: parseInt(env.GEMINI_MAX_OUTPUT_TOKENS) || 8192,
+      maxOutputTokens: parseInt(env.GEMINI_MAX_OUTPUT_TOKENS, 10) || 8192,
       topP: parseFloat(env.GEMINI_TOP_P) || 0.95,
-      topK: parseInt(env.GEMINI_TOP_K) || 40,
+      topK: parseInt(env.GEMINI_TOP_K, 10) || 40,
       safetySettings: {
         harassment: env.GEMINI_SAFETY_HARASSMENT || 'BLOCK_MEDIUM_AND_ABOVE',
         hateSpeech: env.GEMINI_SAFETY_HATE_SPEECH || 'BLOCK_MEDIUM_AND_ABOVE',

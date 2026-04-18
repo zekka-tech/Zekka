@@ -11,6 +11,7 @@
  */
 
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const { AppError, ErrorCodes } = require('../utils/errors');
 const { AuditLogger } = require('../utils/audit-logger');
@@ -18,19 +19,19 @@ const { getPasswordPolicyManager } = require('../utils/password-policy');
 const { SessionManager } = require('../utils/session-manager');
 const UserRepository = require('../repositories/user.repository');
 const appConfig = require('../config');
+const emailService = require('./email.service');
 
 class AuthService {
   constructor(userRepository, config) {
-    this.userRepository =
-      userRepository && typeof userRepository.findByEmail === 'function'
-        ? userRepository
-        : new UserRepository();
+    this.userRepository = userRepository && typeof userRepository.findByEmail === 'function'
+      ? userRepository
+      : new UserRepository();
     this.config = config && config.jwtSecret
       ? config
       : {
-          jwtSecret: appConfig.jwt.secret,
-          jwtExpiration: appConfig.jwt.expiration
-        };
+        jwtSecret: appConfig.jwt.secret,
+        jwtExpiration: appConfig.jwt.expiration
+      };
     this.auditLogger = new AuditLogger();
     this.passwordPolicy = getPasswordPolicyManager();
     this.sessionManager = new SessionManager();
@@ -60,10 +61,17 @@ class AuthService {
   async createSession(userId, metadata = {}) {
     const user = await this.userRepository.findById(userId);
     const token = this.generateAccessToken(user);
+    const refreshToken = this.generateRefreshToken(user);
     await this.sessionManager.createSession({ userId, token, metadata });
+    await this.sessionManager.createRefreshSession({
+      userId,
+      refreshToken,
+      metadata
+    });
 
     return {
       token,
+      refreshToken,
       expiresAt: new Date(
         Date.now() + 24 * 60 * 60 * 1000
       ).toISOString()
@@ -134,6 +142,14 @@ class AuthService {
         }
       });
 
+      const verificationToken = jwt.sign(
+        { userId: user.id, purpose: 'email-verification' },
+        this.config.jwtSecret,
+        { expiresIn: '24h', algorithm: 'HS256' }
+      );
+      await this.userRepository.storeVerificationToken(user.id, verificationToken);
+      await emailService.sendVerificationEmail(user.email, verificationToken);
+
       // Log successful registration
       await this.auditLogger.log({
         category: 'authentication',
@@ -143,20 +159,10 @@ class AuthService {
         severity: 'info'
       });
 
-      // Generate access token
-      const token = this.generateAccessToken(user);
-
-      // Create session
-      await this.sessionManager.createSession({
-        userId: user.id,
-        token,
-        metadata: metadata.deviceInfo || {}
-      });
-
       return {
         user: this.sanitizeUser(user),
-        token,
-        accessToken: token
+        requiresEmailVerification: true,
+        message: 'Registration successful. Please verify your email before signing in.'
       };
     } catch (error) {
       if (error instanceof AppError) {
@@ -245,6 +251,14 @@ class AuthService {
         );
       }
 
+      if (!user.email_verified) {
+        throw new AppError(
+          'Email verification is required before login',
+          403,
+          ErrorCodes.INVALID_TOKEN
+        );
+      }
+
       // Check password expiration
       if (
         user.password_expires_at
@@ -273,11 +287,17 @@ class AuthService {
 
       // Generate access token
       const token = this.generateAccessToken(user);
+      const refreshToken = this.generateRefreshToken(user);
 
       // Create session
       await this.sessionManager.createSession({
         userId: user.id,
         token,
+        metadata: metadata.deviceInfo || {}
+      });
+      await this.sessionManager.createRefreshSession({
+        userId: user.id,
+        refreshToken,
         metadata: metadata.deviceInfo || {}
       });
 
@@ -293,7 +313,8 @@ class AuthService {
       return {
         user: this.sanitizeUser(user),
         token,
-        accessToken: token
+        accessToken: token,
+        refreshToken
       };
     } catch (error) {
       if (error instanceof AppError) {
@@ -310,10 +331,13 @@ class AuthService {
    * @param {string} userId - User ID
    * @param {string} token - Access token
    */
-  async logout(userId, token) {
+  async logout(userId, token, refreshToken = null) {
     try {
       // Invalidate session
       await this.sessionManager.invalidateSession(userId, token);
+      if (refreshToken) {
+        await this.sessionManager.invalidateRefreshSession(userId, refreshToken);
+      }
 
       // Log logout
       await this.auditLogger.log({
@@ -436,11 +460,12 @@ class AuthService {
       const resetToken = jwt.sign(
         { userId: user.id, purpose: 'password-reset' },
         this.config.jwtSecret,
-        { expiresIn: '1h' }
+        { expiresIn: '1h', algorithm: 'HS256' }
       );
 
       // Store reset token (in production, store in database)
       await this.userRepository.storeResetToken(user.id, resetToken);
+      await emailService.sendPasswordResetEmail(user.email, resetToken);
 
       // Log password reset request
       await this.auditLogger.log({
@@ -464,6 +489,163 @@ class AuthService {
     }
   }
 
+  async resetPassword(token, newPassword) {
+    try {
+      const decoded = jwt.verify(token, this.config.jwtSecret, { algorithms: ['HS256'] });
+      if (decoded.purpose !== 'password-reset') {
+        throw new AppError('Invalid reset token', 400, ErrorCodes.INVALID_TOKEN);
+      }
+
+      const user = await this.userRepository.findByResetToken(token);
+      if (!user) {
+        throw new AppError('Invalid or expired reset token', 400, ErrorCodes.INVALID_TOKEN);
+      }
+
+      const passwordValidation = this.passwordPolicy.validatePassword(newPassword);
+      if (!passwordValidation.isValid) {
+        throw new AppError(
+          `Password validation failed: ${passwordValidation.errors.join(', ')}`,
+          400,
+          ErrorCodes.PASSWORD_WEAK
+        );
+      }
+
+      const isInHistory = await this.userRepository.checkPasswordHistory(
+        user.id,
+        newPassword
+      );
+      if (isInHistory) {
+        throw new AppError(
+          'Cannot reuse recent passwords',
+          400,
+          ErrorCodes.PASSWORD_REUSE
+        );
+      }
+
+      const hashedPassword = await bcrypt.hash(newPassword, this.saltRounds);
+      await this.userRepository.updatePassword(user.id, hashedPassword);
+      await this.sessionManager.invalidateAllUserSessions(user.id);
+
+      await this.auditLogger.log({
+        category: 'authentication',
+        action: 'password_reset_completed',
+        userId: user.id,
+        severity: 'info'
+      });
+
+      return { message: 'Password reset successfully' };
+    } catch (error) {
+      if (error instanceof AppError) {
+        throw error;
+      }
+      if (
+        error.name === 'JsonWebTokenError'
+        || error.name === 'TokenExpiredError'
+      ) {
+        throw new AppError(
+          'Invalid or expired reset token',
+          400,
+          ErrorCodes.INVALID_TOKEN
+        );
+      }
+      throw new AppError(
+        'Password reset failed',
+        500,
+        ErrorCodes.INTERNAL_ERROR,
+        { originalError: error.message }
+      );
+    }
+  }
+
+  async verifyEmail(token) {
+    try {
+      const decoded = jwt.verify(token, this.config.jwtSecret, { algorithms: ['HS256'] });
+      if (decoded.purpose !== 'email-verification') {
+        throw new AppError('Invalid verification token', 400, ErrorCodes.INVALID_TOKEN);
+      }
+
+      const user = await this.userRepository.findByVerificationToken(token);
+      if (!user) {
+        throw new AppError(
+          'Invalid or expired verification token',
+          400,
+          ErrorCodes.INVALID_TOKEN
+        );
+      }
+
+      const verifiedUser = await this.userRepository.markEmailVerified(user.id);
+
+      await this.auditLogger.log({
+        category: 'authentication',
+        action: 'email_verified',
+        userId: verifiedUser.id,
+        severity: 'info'
+      });
+
+      return {
+        message: 'Email verified successfully',
+        user: this.sanitizeUser(verifiedUser)
+      };
+    } catch (error) {
+      if (error instanceof AppError) {
+        throw error;
+      }
+      if (
+        error.name === 'JsonWebTokenError'
+        || error.name === 'TokenExpiredError'
+      ) {
+        throw new AppError(
+          'Invalid or expired verification token',
+          400,
+          ErrorCodes.INVALID_TOKEN
+        );
+      }
+      throw new AppError(
+        'Email verification failed',
+        500,
+        ErrorCodes.INTERNAL_ERROR,
+        { originalError: error.message }
+      );
+    }
+  }
+
+  async resendVerificationEmail(email) {
+    try {
+      const user = await this.userRepository.findByEmail(email);
+      if (!user || user.email_verified) {
+        return {
+          message: 'If the account exists and is unverified, a verification email will be sent'
+        };
+      }
+
+      const verificationToken = jwt.sign(
+        { userId: user.id, purpose: 'email-verification' },
+        this.config.jwtSecret,
+        { expiresIn: '24h', algorithm: 'HS256' }
+      );
+      await this.userRepository.storeVerificationToken(user.id, verificationToken);
+      await emailService.sendVerificationEmail(user.email, verificationToken);
+
+      await this.auditLogger.log({
+        category: 'authentication',
+        action: 'verification_email_resent',
+        userId: user.id,
+        severity: 'info'
+      });
+
+      return {
+        message: 'If the account exists and is unverified, a verification email will be sent'
+      };
+    } catch (error) {
+      throw new AppError(
+        'Verification email resend failed',
+        500,
+        ErrorCodes.INTERNAL_ERROR,
+        { originalError: error.message }
+      );
+    }
+  }
+
   /**
    * Verify access token
    * @param {string} token - JWT token
@@ -471,7 +653,7 @@ class AuthService {
    */
   async verifyToken(token) {
     try {
-      const decoded = jwt.verify(token, this.config.jwtSecret);
+      const decoded = jwt.verify(token, this.config.jwtSecret, { algorithms: ['HS256'] });
 
       // Check if session is valid
       const isValid = await this.sessionManager.validateSession(
@@ -517,10 +699,112 @@ class AuthService {
       this.config.jwtSecret,
       {
         expiresIn: '24h',
+        algorithm: 'HS256',
         issuer: 'zekka-framework',
         audience: 'zekka-api'
       }
     );
+  }
+
+  generateRefreshToken(user) {
+    return jwt.sign(
+      {
+        userId: user.id,
+        type: 'refresh',
+        jti: crypto.randomUUID()
+      },
+      this.config.jwtSecret,
+      {
+        expiresIn: '30d',
+        algorithm: 'HS256',
+        issuer: 'zekka-framework',
+        audience: 'zekka-api'
+      }
+    );
+  }
+
+  async refreshAccessToken(refreshToken, metadata = {}) {
+    try {
+      const decoded = jwt.verify(refreshToken, this.config.jwtSecret, { algorithms: ['HS256'] });
+      if (decoded.type !== 'refresh') {
+        throw new AppError(
+          'Invalid refresh token',
+          401,
+          ErrorCodes.INVALID_TOKEN
+        );
+      }
+
+      const isValid = await this.sessionManager.validateRefreshSession(
+        decoded.userId,
+        refreshToken
+      );
+      if (!isValid) {
+        throw new AppError(
+          'Refresh token has been revoked or rotated',
+          401,
+          ErrorCodes.INVALID_TOKEN
+        );
+      }
+
+      const user = await this.userRepository.findById(decoded.userId);
+      if (!user.email_verified) {
+        throw new AppError(
+          'Email verification is required before token refresh',
+          403,
+          ErrorCodes.INVALID_TOKEN
+        );
+      }
+
+      await this.sessionManager.invalidateRefreshSession(decoded.userId, refreshToken);
+
+      const accessToken = this.generateAccessToken(user);
+      const nextRefreshToken = this.generateRefreshToken(user);
+
+      await this.sessionManager.createSession({
+        userId: user.id,
+        token: accessToken,
+        metadata: metadata.deviceInfo || {}
+      });
+      await this.sessionManager.createRefreshSession({
+        userId: user.id,
+        refreshToken: nextRefreshToken,
+        metadata: metadata.deviceInfo || {}
+      });
+
+      await this.auditLogger.log({
+        category: 'authentication',
+        action: 'refresh_token_rotated',
+        userId: user.id,
+        details: { ipAddress: metadata.ipAddress, userAgent: metadata.userAgent },
+        severity: 'info'
+      });
+
+      return {
+        token: accessToken,
+        accessToken,
+        refreshToken: nextRefreshToken
+      };
+    } catch (error) {
+      if (error instanceof AppError) {
+        throw error;
+      }
+      if (
+        error.name === 'JsonWebTokenError'
+        || error.name === 'TokenExpiredError'
+      ) {
+        throw new AppError(
+          'Invalid or expired refresh token',
+          401,
+          ErrorCodes.INVALID_TOKEN
+        );
+      }
+      throw new AppError(
+        'Token refresh failed',
+        500,
+        ErrorCodes.INTERNAL_ERROR,
+        { originalError: error.message }
+      );
+    }
   }
 
   /**
@@ -529,7 +813,11 @@ class AuthService {
    * @returns {Object} Sanitized user object
    */
   sanitizeUser(user) {
-    const { password, password_history, ...sanitized } = user;
+    const {
+      password: _password,
+      password_history: _passwordHistory,
+      ...sanitized
+    } = user;
     return sanitized;
   }
 

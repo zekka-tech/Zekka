@@ -1,0 +1,257 @@
+# ===================================================================
+# Kubernetes CronJob — Automated PostgreSQL Backup
+# Runs daily at 02:00 UTC, retains 30 days of backups in S3.
+# ===================================================================
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backup-config
+  namespace: zekka-production
+data:
+  BACKUP_RETENTION_DAYS: "30"
+  DATABASE_HOST: "postgres-service"
+  DATABASE_PORT: "5432"
+  DATABASE_NAME: "zekka_production"
+
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: zekka-db-backup
+  namespace: zekka-production
+  labels:
+    app: db-backup
+    component: backup
+spec:
+  # Daily at 02:00 UTC
+  schedule: "0 2 * * *"
+  timeZone: "UTC"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 7
+  failedJobsHistoryLimit: 3
+  startingDeadlineSeconds: 600
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 3600
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app: db-backup
+            component: backup
+        spec:
+          restartPolicy: OnFailure
+          serviceAccountName: zekka-app-sa
+
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 999   # postgres user UID
+            fsGroup: 999
+            seccompProfile:
+              type: RuntimeDefault
+
+          containers:
+            - name: pg-backup
+              image: postgres:15-alpine
+              imagePullPolicy: IfNotPresent
+
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -euo pipefail
+                  TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+                  FILENAME="zekka_backup_${TIMESTAMP}.sql.gz"
+                  TMPFILE="/tmp/${FILENAME}"
+
+                  echo "[$(date)] Starting backup: ${FILENAME}"
+
+                  # Dump and compress
+                  PGPASSWORD="${DATABASE_PASSWORD}" pg_dump \
+                    -h "${DATABASE_HOST}" \
+                    -p "${DATABASE_PORT}" \
+                    -U "${DATABASE_USER}" \
+                    -d "${DATABASE_NAME}" \
+                    --no-password \
+                    --format=custom \
+                    --compress=9 \
+                    --file="${TMPFILE}"
+
+                  echo "[$(date)] Dump complete: $(du -sh ${TMPFILE} | cut -f1)"
+
+                  # Upload to S3 if configured
+                  if [ -n "${S3_BACKUP_BUCKET:-}" ]; then
+                    aws s3 cp "${TMPFILE}" \
+                      "s3://${S3_BACKUP_BUCKET}/backups/${FILENAME}" \
+                      --sse aws:kms \
+                      --storage-class STANDARD_IA
+                    echo "[$(date)] Uploaded to s3://${S3_BACKUP_BUCKET}/backups/${FILENAME}"
+
+                    # Prune backups older than retention period
+                    CUTOFF=$(date -d "-${BACKUP_RETENTION_DAYS} days" +%Y-%m-%dT%H:%M:%S 2>/dev/null \
+                      || date -v-${BACKUP_RETENTION_DAYS}d +%Y-%m-%dT%H:%M:%S)
+                    aws s3 ls "s3://${S3_BACKUP_BUCKET}/backups/" \
+                      | awk '{print $4}' \
+                      | while read key; do
+                          KEY_DATE=$(echo "$key" | grep -oP '\d{8}' | head -1)
+                          if [ -n "$KEY_DATE" ] && [ "$KEY_DATE" < "$(date -d "$CUTOFF" +%Y%m%d 2>/dev/null || date -v"${BACKUP_RETENTION_DAYS}d" +%Y%m%d)" ]; then
+                            aws s3 rm "s3://${S3_BACKUP_BUCKET}/backups/${key}"
+                            echo "[$(date)] Pruned old backup: ${key}"
+                          fi
+                        done
+                  else
+                    echo "[$(date)] S3_BACKUP_BUCKET not set — backup saved locally at ${TMPFILE}"
+                  fi
+
+                  echo "[$(date)] Backup job complete."
+
+              envFrom:
+                - configMapRef:
+                    name: backup-config
+                - secretRef:
+                    name: zekka-secrets
+
+              env:
+                - name: DATABASE_USER
+                  valueFrom:
+                    secretKeyRef:
+                      name: zekka-secrets
+                      key: POSTGRES_USER
+                - name: DATABASE_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: zekka-secrets
+                      key: POSTGRES_PASSWORD
+
+              resources:
+                requests:
+                  memory: "128Mi"
+                  cpu: "100m"
+                limits:
+                  memory: "512Mi"
+                  cpu: "500m"
+
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                runAsNonRoot: true
+                runAsUser: 999
+                capabilities:
+                  drop:
+                    - ALL
+
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+
+          volumes:
+            - name: tmp
+              emptyDir:
+                sizeLimit: 5Gi
+
+---
+# One-time restore Job template (copy and apply when needed)
+# kubectl apply -f backup-cronjob.yaml -l app=db-restore
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: zekka-db-restore-YYYYMMDD
+  namespace: zekka-production
+  labels:
+    app: db-restore
+    component: backup
+  # Annotate with the backup file to restore
+  annotations:
+    backup-file: "zekka_backup_YYYYMMDD_HHMMSS.sql.gz"
+spec:
+  activeDeadlineSeconds: 3600
+  backoffLimit: 0   # No retries on restore — prevents double-apply
+  template:
+    metadata:
+      labels:
+        app: db-restore
+    spec:
+      restartPolicy: Never
+      serviceAccountName: zekka-app-sa
+
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        fsGroup: 999
+
+      containers:
+        - name: pg-restore
+          image: postgres:15-alpine
+          imagePullPolicy: IfNotPresent
+
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -euo pipefail
+              BACKUP_FILE="${BACKUP_FILENAME}"
+              TMPFILE="/tmp/${BACKUP_FILE}"
+
+              echo "[$(date)] Downloading backup: ${BACKUP_FILE}"
+              aws s3 cp "s3://${S3_BACKUP_BUCKET}/backups/${BACKUP_FILE}" "${TMPFILE}"
+
+              echo "[$(date)] Restoring to ${DATABASE_NAME} on ${DATABASE_HOST}"
+              PGPASSWORD="${DATABASE_PASSWORD}" pg_restore \
+                -h "${DATABASE_HOST}" \
+                -p "${DATABASE_PORT}" \
+                -U "${DATABASE_USER}" \
+                -d "${DATABASE_NAME}" \
+                --no-password \
+                --clean \
+                --if-exists \
+                "${TMPFILE}"
+
+              echo "[$(date)] Restore complete."
+
+          envFrom:
+            - configMapRef:
+                name: backup-config
+            - secretRef:
+                name: zekka-secrets
+
+          env:
+            - name: DATABASE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: zekka-secrets
+                  key: POSTGRES_USER
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: zekka-secrets
+                  key: POSTGRES_PASSWORD
+            - name: BACKUP_FILENAME
+              value: "zekka_backup_YYYYMMDD_HHMMSS.sql.gz"   # override at apply time
+
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 999
+            capabilities:
+              drop:
+                - ALL
+
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 5Gi

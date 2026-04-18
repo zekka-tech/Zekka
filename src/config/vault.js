@@ -28,6 +28,11 @@ const logger = require('../utils/logger');
 
 let vaultInstance = null;
 
+function isVaultStrictMode() {
+  return process.env.NODE_ENV === 'production'
+    && process.env.VAULT_ENABLED === 'true';
+}
+
 /**
  * Initialize the Vault service.
  *
@@ -39,11 +44,27 @@ let vaultInstance = null;
  * const vault = await initVault(logger);
  */
 async function initVault(logger = console) {
-  // Check if Vault is enabled
+  const isProduction = process.env.NODE_ENV === 'production';
   const vaultEnabled = process.env.VAULT_ENABLED === 'true';
+  const vaultAddrSet = !!process.env.VAULT_ADDR;
+
+  // In production: if VAULT_ADDR is set but VAULT_ENABLED is not explicitly
+  // true, the operator likely forgot to enable Vault — fail fast rather than
+  // silently fall back to plain env vars for sensitive secrets.
+  if (isProduction && vaultAddrSet && !vaultEnabled) {
+    throw new Error(
+      'VAULT_ADDR is set but VAULT_ENABLED is not "true". ' +
+      'Set VAULT_ENABLED=true to use Vault, or remove VAULT_ADDR to explicitly ' +
+      'opt out of Vault in production.'
+    );
+  }
 
   if (!vaultEnabled) {
-    logger.info('ℹ️  Vault integration disabled (VAULT_ENABLED=false)');
+    if (isProduction) {
+      logger.warn('⚠️  Running in production without Vault. Secrets are sourced from environment variables.');
+    } else {
+      logger.info('ℹ️  Vault integration disabled (VAULT_ENABLED=false)');
+    }
     return null;
   }
 
@@ -109,6 +130,12 @@ function getVault() {
 async function getVaultSecret(vaultPath, envVarName, field = null) {
   // If Vault is not initialized, fall back to environment variable
   if (!vaultInstance) {
+    if (isVaultStrictMode()) {
+      throw new Error(
+        `Vault is required in production and secret '${vaultPath}' could not be loaded`
+      );
+    }
+
     const envValue = process.env[envVarName];
     if (!envValue) {
       throw new Error(
@@ -132,6 +159,10 @@ async function getVaultSecret(vaultPath, envVarName, field = null) {
     return secret;
   } catch (error) {
     // Fall back to environment variable if Vault fails
+    if (isVaultStrictMode()) {
+      throw error;
+    }
+
     const envValue = process.env[envVarName];
     if (envValue) {
       logger.warn(`⚠️  Vault failed, using fallback env var: ${envVarName}`);

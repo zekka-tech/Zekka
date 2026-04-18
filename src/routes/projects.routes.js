@@ -25,6 +25,7 @@ const {
   validateParams
 } = require('../middleware/validate');
 const { authenticate } = require('../middleware/auth');
+const { idempotency } = require('../middleware/idempotency');
 
 // Apply authentication to all project routes
 router.use(authenticate);
@@ -54,6 +55,7 @@ router.get(
  */
 router.post(
   '/',
+  idempotency(),
   validateBody(projectSchemas.createProject),
   projectsController.createProject
 );

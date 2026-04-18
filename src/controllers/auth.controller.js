@@ -1,108 +1,155 @@
-const { AuthService } = require('../services/auth.service');
+const { AuthService } = require("../services/auth.service");
+const Joi = require("joi");
+
+const loginSchema = Joi.object({
+  email: Joi.string().email({ minDomainSegments: 2 }).max(254).required(),
+  password: Joi.string().max(4096).required(),
+});
+
+const registerSchema = Joi.object({
+  email: Joi.string().email({ minDomainSegments: 2 }).max(254).required(),
+  password: Joi.string()
+    .min(8)
+    .max(4096)
+    .pattern(/[A-Z]/, "uppercase letter")
+    .pattern(/[a-z]/, "lowercase letter")
+    .pattern(/[0-9]/, "number")
+    .required()
+    .messages({
+      "string.min": "Password must be at least 8 characters",
+      "string.pattern.name":
+        "Password must contain at least one {#name}",
+    }),
+  name: Joi.string().trim().min(2).max(100).required(),
+});
 
 class AuthController {
   constructor(authService = new AuthService()) {
     this.authService = authService;
+    this.register = this.register.bind(this);
+    this.login = this.login.bind(this);
+    this.me = this.me.bind(this);
+    this.logout = this.logout.bind(this);
+    this.changePassword = this.changePassword.bind(this);
+    this.forgotPassword = this.forgotPassword.bind(this);
+    this.resetPassword = this.resetPassword.bind(this);
+    this.verifyEmail = this.verifyEmail.bind(this);
+    this.resendVerificationEmail = this.resendVerificationEmail.bind(this);
+    this.refreshToken = this.refreshToken.bind(this);
   }
 
-  register = async (req, res, next) => {
+  async register(req, res, next) {
     try {
-      const { email, password, name } = req.body;
+      const { error, value } = registerSchema.validate(req.body, {
+        abortEarly: false,
+        stripUnknown: true,
+      });
 
-      if (!email || !password || !name) {
-        return res.status(400).json({ error: 'Missing required fields' });
+      if (error) {
+        return res.status(400).json({
+          error: error.details.map((detail) => detail.message).join("; "),
+        });
       }
 
       const result = await this.authService.register({
-        email,
-        password,
-        name,
+        email: value.email,
+        password: value.password,
+        name: value.name,
         metadata: {
           ipAddress: req.ip,
-          userAgent: req.get('user-agent')
-        }
+          userAgent: req.get("user-agent"),
+        },
       });
 
       return res.status(201).json(result);
     } catch (error) {
       return next(error);
     }
-  };
+  }
 
-  login = async (req, res, next) => {
+  async login(req, res, next) {
     try {
-      const { email, password } = req.body;
+      const { error, value } = loginSchema.validate(req.body, {
+        abortEarly: false,
+        stripUnknown: true,
+      });
 
-      if (!email || !password) {
-        return res.status(400).json({ error: 'Missing credentials' });
+      if (error) {
+        return res.status(400).json({
+          error: error.details.map((detail) => detail.message).join("; "),
+        });
       }
 
-      const result = await this.authService.login(email, password, {
+      const result = await this.authService.login(value.email, value.password, {
         ipAddress: req.ip,
-        userAgent: req.get('user-agent')
+        userAgent: req.get("user-agent"),
       });
 
       return res.json(result);
     } catch (error) {
       return next(error);
     }
-  };
+  }
 
-  me = async (req, res, next) => {
+  async me(req, res, next) {
     try {
       const user = await this.authService.getUserById(req.user.userId);
       return res.json({ user });
     } catch (error) {
       return next(error);
     }
-  };
+  }
 
-  logout = async (req, res, next) => {
+  async logout(req, res, next) {
     try {
-      const authHeader = req.headers.authorization || '';
-      const token = authHeader.startsWith('Bearer ')
+      const authHeader = req.headers.authorization || "";
+      const token = authHeader.startsWith("Bearer ")
         ? authHeader.slice(7)
         : null;
 
       if (!token) {
-        return res.status(400).json({ error: 'Missing bearer token' });
+        return res.status(400).json({ error: "Missing bearer token" });
       }
 
-      const result = await this.authService.logout(req.user.userId, token);
+      const result = await this.authService.logout(
+        req.user.userId,
+        token,
+        req.body?.refreshToken || null,
+      );
       return res.json(result);
     } catch (error) {
       return next(error);
     }
-  };
+  }
 
-  changePassword = async (req, res, next) => {
+  async changePassword(req, res, next) {
     try {
       const { currentPassword, newPassword } = req.body;
 
       if (!currentPassword || !newPassword) {
         return res.status(400).json({
-          error: 'currentPassword and newPassword are required'
+          error: "currentPassword and newPassword are required",
         });
       }
 
       const result = await this.authService.changePassword(
         req.user.userId,
         currentPassword,
-        newPassword
+        newPassword,
       );
 
       return res.json(result);
     } catch (error) {
       return next(error);
     }
-  };
+  }
 
-  forgotPassword = async (req, res, next) => {
+  async forgotPassword(req, res, next) {
     try {
       const { email } = req.body;
 
       if (!email) {
-        return res.status(400).json({ error: 'Email is required' });
+        return res.status(400).json({ error: "Email is required" });
       }
 
       const result = await this.authService.requestPasswordReset(email);
@@ -110,7 +157,72 @@ class AuthController {
     } catch (error) {
       return next(error);
     }
-  };
+  }
+
+  async resetPassword(req, res, next) {
+    try {
+      const { token, newPassword } = req.body;
+
+      if (!token || !newPassword) {
+        return res.status(400).json({
+          error: "token and newPassword are required",
+        });
+      }
+
+      const result = await this.authService.resetPassword(token, newPassword);
+      return res.json(result);
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  async verifyEmail(req, res, next) {
+    try {
+      const { token } = req.body;
+
+      if (!token) {
+        return res.status(400).json({ error: "token is required" });
+      }
+
+      const result = await this.authService.verifyEmail(token);
+      return res.json(result);
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  async resendVerificationEmail(req, res, next) {
+    try {
+      const { email } = req.body;
+
+      if (!email) {
+        return res.status(400).json({ error: "Email is required" });
+      }
+
+      const result = await this.authService.resendVerificationEmail(email);
+      return res.json(result);
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  async refreshToken(req, res, next) {
+    try {
+      const { refreshToken } = req.body;
+
+      if (!refreshToken) {
+        return res.status(400).json({ error: "refreshToken is required" });
+      }
+
+      const result = await this.authService.refreshAccessToken(refreshToken, {
+        ipAddress: req.ip,
+        userAgent: req.get("user-agent"),
+      });
+      return res.json(result);
+    } catch (error) {
+      return next(error);
+    }
+  }
 }
 
 module.exports = new AuthController();

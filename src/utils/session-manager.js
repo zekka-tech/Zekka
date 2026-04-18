@@ -12,7 +12,7 @@
  */
 
 const session = require('express-session');
-const RedisStore = require('connect-redis').default;
+const { RedisStore } = require('connect-redis');
 const crypto = require('crypto');
 
 class SessionManager {
@@ -504,6 +504,67 @@ class SessionManager {
   }
 
   /**
+   * Evict the oldest entries from a token hash so its size stays within
+   * maxConcurrentSessions.  Reads each session record for its createdAt
+   * timestamp, sorts ascending, and deletes the surplus oldest ones.
+   *
+   * @param {string} hashKey   - Redis hash key (e.g. auth:user:{uid}:sessions)
+   * @param {string} dataPrefix - Key prefix for session data blobs (auth:session: or auth:refresh:)
+   * @private
+   */
+  async _enforceTokenSessionLimit(hashKey, dataPrefix) {
+    const count = await this.redisClient.hLen(hashKey);
+    if (count <= this.options.maxConcurrentSessions) {
+      return;
+    }
+
+    // Retrieve all session IDs and their creation times
+    const all = await this.redisClient.hKeys(hashKey);
+    const withAge = await Promise.all(
+      all.map(async (sessionId) => {
+        try {
+          const raw = await this.redisClient.get(`${dataPrefix}${sessionId}`);
+          const parsed = raw ? JSON.parse(raw) : {};
+          return { sessionId, createdAt: parsed.createdAt || 0 };
+        } catch {
+          return { sessionId, createdAt: 0 };
+        }
+      })
+    );
+
+    // Sort oldest-first, evict the excess
+    withAge.sort((a, b) => a.createdAt - b.createdAt);
+    const toEvict = withAge.slice(0, count - this.options.maxConcurrentSessions);
+
+    await Promise.all(
+      toEvict.map(async ({ sessionId }) => {
+        await this.redisClient.del(`${dataPrefix}${sessionId}`);
+        await this.redisClient.hDel(hashKey, sessionId);
+      })
+    );
+  }
+
+  /**
+   * Evict oldest in-memory bearer or refresh sessions for a user when the
+   * count exceeds maxConcurrentSessions.
+   *
+   * @param {string} userId
+   * @param {string} keyPrefix - 'refresh:' for refresh sessions, '' for bearer
+   * @private
+   */
+  _enforceMemorySessionLimit(userId, keyPrefix) {
+    const prefix = keyPrefix || '';
+    const userSessions = Array.from(this.memorySessions.entries())
+      .filter(([key, sess]) => key.startsWith(prefix) && sess.userId === userId)
+      .sort(([, a], [, b]) => a.createdAt - b.createdAt);
+
+    const excess = userSessions.length - this.options.maxConcurrentSessions;
+    if (excess > 0) {
+      userSessions.slice(0, excess).forEach(([key]) => this.memorySessions.delete(key));
+    }
+  }
+
+  /**
    * Create a service-level session record for token-based auth flows.
    */
   async createSession({ userId, token, metadata = {} }) {
@@ -518,6 +579,7 @@ class SessionManager {
 
     if (!this.redisClient) {
       this.memorySessions.set(sessionId, sessionData);
+      this._enforceMemorySessionLimit(userId, '');
       return sessionId;
     }
 
@@ -527,6 +589,41 @@ class SessionManager {
       { EX: Math.floor(this.options.sessionMaxAge / 1000) }
     );
     await this.redisClient.hSet(`auth:user:${userId}:sessions`, sessionId, token);
+    await this._enforceTokenSessionLimit(`auth:user:${userId}:sessions`, 'auth:session:');
+
+    return sessionId;
+  }
+
+  /**
+   * Create a refresh-token session record for rotation/revocation.
+   */
+  async createRefreshSession({ userId, refreshToken, metadata = {} }) {
+    const sessionId = crypto.randomUUID();
+    const sessionData = {
+      userId,
+      refreshToken,
+      metadata,
+      createdAt: Date.now(),
+      lastActivity: Date.now()
+    };
+
+    if (!this.redisClient) {
+      this.memorySessions.set(`refresh:${sessionId}`, sessionData);
+      this._enforceMemorySessionLimit(userId, 'refresh:');
+      return sessionId;
+    }
+
+    await this.redisClient.set(
+      `auth:refresh:${sessionId}`,
+      JSON.stringify(sessionData),
+      { EX: Math.floor(this.options.sessionMaxAge / 1000) }
+    );
+    await this.redisClient.hSet(
+      `auth:user:${userId}:refresh`,
+      sessionId,
+      refreshToken
+    );
+    await this._enforceTokenSessionLimit(`auth:user:${userId}:refresh`, 'auth:refresh:');
 
     return sessionId;
   }
@@ -570,6 +667,44 @@ class SessionManager {
   }
 
   /**
+   * Validate a refresh-token session for a user.
+   */
+  async validateRefreshSession(userId, refreshToken) {
+    if (!this.redisClient) {
+      return Array.from(this.memorySessions.values()).some(
+        (session) => session.userId === userId && session.refreshToken === refreshToken
+      );
+    }
+
+    const sessions = await this.redisClient.hGetAll(`auth:user:${userId}:refresh`);
+    return Object.values(sessions).includes(refreshToken);
+  }
+
+  /**
+   * Invalidate a single refresh-token session.
+   */
+  async invalidateRefreshSession(userId, refreshToken) {
+    if (!this.redisClient) {
+      for (const [sessionId, session] of this.memorySessions.entries()) {
+        if (session.userId === userId && session.refreshToken === refreshToken) {
+          this.memorySessions.delete(sessionId);
+        }
+      }
+      return;
+    }
+
+    const key = `auth:user:${userId}:refresh`;
+    const sessions = await this.redisClient.hGetAll(key);
+
+    for (const [sessionId, storedRefreshToken] of Object.entries(sessions)) {
+      if (storedRefreshToken === refreshToken) {
+        await this.redisClient.del(`auth:refresh:${sessionId}`);
+        await this.redisClient.hDel(key, sessionId);
+      }
+    }
+  }
+
+  /**
    * Invalidate all token-based auth sessions for a user.
    */
   async invalidateAllUserSessions(userId) {
@@ -590,6 +725,15 @@ class SessionManager {
     }
 
     await this.redisClient.del(key);
+
+    const refreshKey = `auth:user:${userId}:refresh`;
+    const refreshSessions = await this.redisClient.hGetAll(refreshKey);
+
+    for (const sessionId of Object.keys(refreshSessions)) {
+      await this.redisClient.del(`auth:refresh:${sessionId}`);
+    }
+
+    await this.redisClient.del(refreshKey);
   }
 
   /**

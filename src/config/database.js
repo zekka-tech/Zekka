@@ -246,8 +246,8 @@ function getDetailedPoolStats() {
   };
 }
 
-// Convenience wrapper to use pool.query directly
-const query = (text, values) => pool.query(text, values);
+// All service calls go through queryWithRetry (C2: transient DB failure retry)
+const query = (text, values) => queryWithRetry(text, values);
 const getClient = () => pool.connect();
 
 module.exports = {

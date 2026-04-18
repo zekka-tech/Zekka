@@ -173,7 +173,7 @@ class AppError extends Error {
         message: this.message,
         category: this.category,
         severity: this.severity,
-        details: IS_PRODUCTION ? undefined : this.details,
+        details: process.env.NODE_ENV === 'production' ? undefined : this.details,
         timestamp: this.timestamp
       }
     };

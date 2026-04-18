@@ -42,6 +42,8 @@ class UserRepository {
           password_history JSONB DEFAULT '[]'::jsonb,
           reset_token TEXT,
           reset_token_expires_at TIMESTAMP WITH TIME ZONE,
+          verification_token TEXT,
+          verification_token_expires_at TIMESTAMP WITH TIME ZONE,
           created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
         );
@@ -64,6 +66,8 @@ class UserRepository {
           ADD COLUMN IF NOT EXISTS password_history JSONB DEFAULT '[]'::jsonb,
           ADD COLUMN IF NOT EXISTS reset_token TEXT,
           ADD COLUMN IF NOT EXISTS reset_token_expires_at TIMESTAMP WITH TIME ZONE,
+          ADD COLUMN IF NOT EXISTS verification_token TEXT,
+          ADD COLUMN IF NOT EXISTS verification_token_expires_at TIMESTAMP WITH TIME ZONE,
           ADD COLUMN IF NOT EXISTS failed_login_attempts INTEGER DEFAULT 0;
       `);
     } catch (error) {
@@ -110,6 +114,8 @@ class UserRepository {
         : [],
       reset_token: row.reset_token,
       reset_token_expires_at: row.reset_token_expires_at,
+      verification_token: row.verification_token,
+      verification_token_expires_at: row.verification_token_expires_at,
       created_at: row.created_at,
       updated_at: row.updated_at
     };
@@ -125,7 +131,9 @@ class UserRepository {
     return `user-${Date.now()}@zekka.local`;
   }
 
-  buildDisplayName({ name, username, firstName, lastName, phone, telegramId }) {
+  buildDisplayName({
+    name, username, firstName, lastName, phone, telegramId
+  }) {
     if (name) return name;
     const composite = [firstName, lastName].filter(Boolean).join(' ').trim();
     if (composite) return composite;
@@ -344,14 +352,10 @@ class UserRepository {
     const user = await this.findById(userId);
     const passwordHashes = [user.password, ...(user.password_history || [])]
       .filter(Boolean);
-
-    for (const hash of passwordHashes) {
-      if (await bcrypt.compare(candidatePassword, hash)) {
-        return true;
-      }
-    }
-
-    return false;
+    const matches = await Promise.all(
+      passwordHashes.map((hash) => bcrypt.compare(candidatePassword, hash))
+    );
+    return matches.some(Boolean);
   }
 
   async updatePassword(userId, hashedPassword) {
@@ -383,6 +387,65 @@ class UserRepository {
        WHERE user_id = $1 OR CAST(id AS TEXT) = $1`,
       [userId, token]
     );
+  }
+
+  async findByResetToken(token) {
+    await this.ready();
+    const result = await this.pool.query(
+      `SELECT * FROM users
+       WHERE reset_token = $1
+         AND reset_token_expires_at IS NOT NULL
+         AND reset_token_expires_at > CURRENT_TIMESTAMP`,
+      [token]
+    );
+
+    return this.toDomainUser(result.rows[0]);
+  }
+
+  async storeVerificationToken(userId, token) {
+    await this.ready();
+    await this.pool.query(
+      `UPDATE users
+       SET verification_token = $2,
+           verification_token_expires_at = CURRENT_TIMESTAMP + INTERVAL '24 hours',
+           updated_at = CURRENT_TIMESTAMP
+       WHERE user_id = $1 OR CAST(id AS TEXT) = $1`,
+      [userId, token]
+    );
+  }
+
+  async findByVerificationToken(token) {
+    await this.ready();
+    const result = await this.pool.query(
+      `SELECT * FROM users
+       WHERE verification_token = $1
+         AND verification_token_expires_at IS NOT NULL
+         AND verification_token_expires_at > CURRENT_TIMESTAMP`,
+      [token]
+    );
+
+    return this.toDomainUser(result.rows[0]);
+  }
+
+  async markEmailVerified(userId) {
+    await this.ready();
+    const result = await this.pool.query(
+      `UPDATE users
+       SET email_verified = true,
+           verified = true,
+           verification_token = NULL,
+           verification_token_expires_at = NULL,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE user_id = $1 OR CAST(id AS TEXT) = $1
+       RETURNING *`,
+      [userId]
+    );
+
+    if (result.rows.length === 0) {
+      throw new NotFoundError('User');
+    }
+
+    return this.toDomainUser(result.rows[0]);
   }
 
   async count() {

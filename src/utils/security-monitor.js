@@ -11,6 +11,7 @@
  */
 
 const EventEmitter = require('events');
+const logger = require('./logger');
 const {
   getAuditLogger,
   AuditCategory,
@@ -276,19 +277,92 @@ class SecurityMonitor extends EventEmitter {
   }
 
   /**
-   * Send email alert (placeholder for integration)
+   * Send email alert via the configured email service.
+   * Silently no-ops when no recipients are configured; logs once at warn level
+   * when the service is unreachable so gaps are not invisible.
    */
   async sendEmailAlert(alert) {
-    // TODO: Integrate with email service
-    console.log('Email alert:', alert);
+    const recipients = this.options.alertEmailAddresses || [];
+    if (recipients.length === 0) {
+      if (!this._warnedNoEmailRecipients) {
+        logger.warn('Security alert email enabled but no recipients configured');
+        this._warnedNoEmailRecipients = true;
+      }
+      return;
+    }
+
+    try {
+      const emailService = require('../services/email.service');
+      const service = emailService?.default || emailService;
+      if (!service || typeof service.sendAlertEmail !== 'function') {
+        if (!this._warnedEmailUnavailable) {
+          logger.warn(
+            'Security alert email enabled but email.service.sendAlertEmail is not available'
+          );
+          this._warnedEmailUnavailable = true;
+        }
+        return;
+      }
+
+      await service.sendAlertEmail(recipients, alert);
+    } catch (err) {
+      logger.error('Failed to send security alert email', {
+        error: err?.message,
+        alertType: alert?.type
+      });
+    }
   }
 
   /**
-   * Send Slack alert (placeholder for integration)
+   * Send Slack alert via the configured webhook.
    */
   async sendSlackAlert(alert) {
-    // TODO: Integrate with Slack
-    console.log('Slack alert:', alert);
+    const webhookUrl = this.options.slackWebhookUrl;
+    if (!webhookUrl) {
+      if (!this._warnedNoSlackWebhook) {
+        logger.warn('Security alert Slack enabled but no webhook URL configured');
+        this._warnedNoSlackWebhook = true;
+      }
+      return;
+    }
+
+    const payload = {
+      text: `:rotating_light: *Security alert* — ${alert?.type ?? 'unknown'} (${alert?.severity ?? 'n/a'})`,
+      attachments: [
+        {
+          color: alert?.severity === 'critical' ? 'danger' : 'warning',
+          fields: [
+            { title: 'Type', value: String(alert?.type ?? ''), short: true },
+            { title: 'Severity', value: String(alert?.severity ?? ''), short: true },
+            { title: 'Timestamp', value: new Date().toISOString(), short: false },
+            {
+              title: 'Details',
+              value: '```' + JSON.stringify(alert ?? {}, null, 2).slice(0, 2500) + '```',
+              short: false
+            }
+          ]
+        }
+      ]
+    };
+
+    try {
+      const res = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) {
+        logger.warn('Slack alert webhook returned non-2xx', {
+          status: res.status,
+          alertType: alert?.type
+        });
+      }
+    } catch (err) {
+      logger.error('Failed to post Slack security alert', {
+        error: err?.message,
+        alertType: alert?.type
+      });
+    }
   }
 
   /**

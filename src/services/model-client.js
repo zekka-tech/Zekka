@@ -24,6 +24,7 @@
 
 const axios = require('axios');
 const { ExternalAPIClient } = require('../utils/external-api-client');
+const { validateExternalUrl } = require('../utils/ssrf-guard');
 
 /**
  * Model Client - Unified interface for all LLM interactions
@@ -69,6 +70,11 @@ class ModelClient {
         host: process.env.OLLAMA_HOST || 'http://localhost:11434'
       }
     };
+
+    // H4: Validate OLLAMA_HOST against SSRF block-list at startup
+    if (process.env.OLLAMA_HOST) {
+      validateExternalUrl(process.env.OLLAMA_HOST, 'OLLAMA_HOST');
+    }
 
     // Track fallback events for monitoring
     this.fallbackCount = {
@@ -340,71 +346,39 @@ class ModelClient {
    * @returns {Promise<Object>} API response
    */
   async _callGemini(prompt, options = {}) {
-    if (!process.env.GEMINI_API_KEY) {
-      throw new Error('GEMINI_API_KEY not configured');
-    }
-
     const model = process.env.GEMINI_MODEL || 'gemini-pro';
-    const apiKey = process.env.GEMINI_API_KEY;
 
-    // Gemini API endpoint
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-
-    const response = await axios.post(
-      url,
-      {
-        contents: [
-          {
-            parts: [
-              {
-                text: prompt
-              }
-            ]
-          }
-        ],
-        generationConfig: {
-          temperature: options.temperature ?? 0.7,
-          maxOutputTokens: options.maxTokens || 2000,
-          topP: parseFloat(process.env.GEMINI_TOP_P) || 0.95,
-          topK: parseInt(process.env.GEMINI_TOP_K) || 40
-        },
-        safetySettings: [
-          {
-            category: 'HARM_CATEGORY_HARASSMENT',
-            threshold:
-              process.env.GEMINI_SAFETY_HARASSMENT || 'BLOCK_MEDIUM_AND_ABOVE'
-          },
-          {
-            category: 'HARM_CATEGORY_HATE_SPEECH',
-            threshold:
-              process.env.GEMINI_SAFETY_HATE_SPEECH || 'BLOCK_MEDIUM_AND_ABOVE'
-          },
-          {
-            category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
-            threshold:
-              process.env.GEMINI_SAFETY_SEXUALLY_EXPLICIT
-              || 'BLOCK_MEDIUM_AND_ABOVE'
-          },
-          {
-            category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
-            threshold:
-              process.env.GEMINI_SAFETY_DANGEROUS || 'BLOCK_MEDIUM_AND_ABOVE'
-          }
-        ]
+    // H13: Route through ExternalAPIClient circuit breaker
+    const data = await this.apiClient.callGemini(model, {
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: {
+        temperature: options.temperature ?? 0.7,
+        maxOutputTokens: options.maxTokens || 2000,
+        topP: parseFloat(process.env.GEMINI_TOP_P) || 0.95,
+        topK: parseInt(process.env.GEMINI_TOP_K) || 40
       },
-      {
-        timeout: 60000, // 60 seconds
-        headers: {
-          'Content-Type': 'application/json'
+      safetySettings: [
+        {
+          category: 'HARM_CATEGORY_HARASSMENT',
+          threshold: process.env.GEMINI_SAFETY_HARASSMENT || 'BLOCK_MEDIUM_AND_ABOVE'
+        },
+        {
+          category: 'HARM_CATEGORY_HATE_SPEECH',
+          threshold: process.env.GEMINI_SAFETY_HATE_SPEECH || 'BLOCK_MEDIUM_AND_ABOVE'
+        },
+        {
+          category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
+          threshold: process.env.GEMINI_SAFETY_SEXUALLY_EXPLICIT || 'BLOCK_MEDIUM_AND_ABOVE'
+        },
+        {
+          category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
+          threshold: process.env.GEMINI_SAFETY_DANGEROUS || 'BLOCK_MEDIUM_AND_ABOVE'
         }
-      }
-    );
+      ]
+    });
 
-    // Extract text from Gemini response
-    const { text } = response.data.candidates[0].content.parts[0];
-
-    // Extract token usage (Gemini provides this in usageMetadata)
-    const usage = response.data.usageMetadata || {};
+    const { text } = data.candidates[0].content.parts[0];
+    const usage = data.usageMetadata || {};
 
     return {
       text,

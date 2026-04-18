@@ -14,6 +14,7 @@
  */
 
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const pool = require('../config/database');
 const redis = require('../config/redis');
 const auditService = require('../services/audit-service');
@@ -45,8 +46,8 @@ const authenticate = async (req, res, next) => {
 
     const token = authHeader.substring(7);
 
-    // Verify token
-    const decoded = jwt.verify(token, JWT_SECRET);
+    // Verify token — pin algorithm to block alg:none and HS/RS confusion attacks
+    const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
 
     // Get user from database
     const result = await pool.query(
@@ -475,6 +476,9 @@ const corsOptions = {
  * Security headers
  */
 const securityHeaders = (req, res, next) => {
+  const cspNonce = crypto.randomBytes(16).toString('base64');
+  res.locals.cspNonce = cspNonce;
+
   // Prevent clickjacking
   res.setHeader('X-Frame-Options', 'DENY');
 
@@ -490,7 +494,7 @@ const securityHeaders = (req, res, next) => {
   // Content Security Policy
   res.setHeader(
     'Content-Security-Policy',
-    'default-src \'self\'; script-src \'self\' \'unsafe-inline\'; style-src \'self\' \'unsafe-inline\'; img-src \'self\' data: https:; font-src \'self\' data:;'
+    `default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; script-src 'self' 'nonce-${cspNonce}'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https: wss:;`
   );
 
   // Strict Transport Security (HTTPS only)
@@ -516,7 +520,7 @@ const optionalAuth = async (req, res, next) => {
     }
 
     const token = authHeader.substring(7);
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
 
     const result = await pool.query(
       'SELECT id, email, name, role, is_active FROM users WHERE id = $1',

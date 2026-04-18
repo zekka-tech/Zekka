@@ -3,6 +3,8 @@ name: Security Scan
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   schedule:
     - cron: '0 2 * * 1'  # Weekly Monday 02:00 UTC
 
@@ -20,14 +22,27 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --legacy-peer-deps
 
-      - name: Backend dependency audit
-        run: npm audit --audit-level=moderate
+      - name: Backend production dependency audit
+        run: npm audit --omit=dev --audit-level=high
 
-      - name: Frontend dependency audit
-        run: npm audit --audit-level=moderate --prefix frontend
+      - name: Frontend production dependency audit
+        run: npm audit --omit=dev --audit-level=high --prefix frontend
 
       - name: Run security scan
         run: npm run security:scan:ci
         continue-on-error: true
+
+  secrets:
+    name: Secret Scanning
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

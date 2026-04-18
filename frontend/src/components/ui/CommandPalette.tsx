@@ -145,7 +145,7 @@ export const CommandPalette = ({ isDark, onThemeToggle }: CommandPaletteProps) =
       description: 'Get help or send feedback',
       icon: <HelpCircle className="w-4 h-4" />,
       action: () => {
-        // TODO: Open help/feedback
+        window.open('https://github.com/zekkaagent/zekka/issues/new', '_blank', 'noopener,noreferrer')
         setIsOpen(false)
       },
       category: 'settings'

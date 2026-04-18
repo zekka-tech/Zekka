@@ -448,7 +448,17 @@ class ConversationService {
    */
   async listConversations(userId, projectId = null, pagination = {}) {
     try {
-      const { limit = 20, offset = 0 } = pagination;
+      const { limit = 20, offset = 0, cursor } = pagination;
+
+      // Decode keyset cursor: base64(JSON.stringify({ updated_at, id }))
+      let cursorPayload = null;
+      if (cursor) {
+        try {
+          cursorPayload = JSON.parse(Buffer.from(cursor, 'base64').toString('utf8'));
+        } catch {
+          throw new AppError('Invalid pagination cursor', 400);
+        }
+      }
 
       let query = `
         SELECT DISTINCT
@@ -482,36 +492,52 @@ class ConversationService {
         queryParams.push(projectId);
       }
 
-      query += ` ORDER BY c.updated_at DESC LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}`;
-      queryParams.push(limit, offset);
-
-      const result = await db.query(query, queryParams);
-
-      // Get total count
-      let countQuery = `
-        SELECT COUNT(DISTINCT c.id) as total
-        FROM conversations c
-        JOIN projects p ON c.project_id = p.id
-        LEFT JOIN project_members pm ON p.id = pm.project_id
-        WHERE c.deleted_at IS NULL
-          AND p.deleted_at IS NULL
-          AND (p.owner_id = $1 OR pm.user_id = $1)
-      `;
-
-      const countParams = [userId];
-      let countParamCount = 1;
-
-      if (projectId) {
-        countParamCount++;
-        countQuery += ` AND c.project_id = $${countParamCount}`;
-        countParams.push(projectId);
+      if (cursorPayload) {
+        paramCount++;
+        const cursorUpdatedAt = paramCount;
+        paramCount++;
+        const cursorId = paramCount;
+        query += ` AND (c.updated_at < $${cursorUpdatedAt} OR (c.updated_at = $${cursorUpdatedAt} AND c.id < $${cursorId}))`;
+        queryParams.push(cursorPayload.updated_at, cursorPayload.id);
       }
 
-      const countResult = await db.query(countQuery, countParams);
-      const total = parseInt(countResult.rows[0].total);
+      query += ` ORDER BY c.updated_at DESC, c.id DESC LIMIT $${paramCount + 1}`;
+      queryParams.push(limit + 1);
+
+      const result = await db.query(query, queryParams);
+      const hasMore = result.rows.length > limit;
+      const rows = hasMore ? result.rows.slice(0, limit) : result.rows;
+
+      const nextCursor = hasMore
+        ? Buffer.from(JSON.stringify({ updated_at: rows[rows.length - 1].updated_at, id: rows[rows.length - 1].id })).toString('base64')
+        : null;
+
+      let total = null;
+      if (!cursorPayload) {
+        let countQuery = `
+          SELECT COUNT(DISTINCT c.id) as total
+          FROM conversations c
+          JOIN projects p ON c.project_id = p.id
+          LEFT JOIN project_members pm ON p.id = pm.project_id
+          WHERE c.deleted_at IS NULL
+            AND p.deleted_at IS NULL
+            AND (p.owner_id = $1 OR pm.user_id = $1)
+        `;
+        const countParams = [userId];
+        let countParamCount = 1;
+
+        if (projectId) {
+          countParamCount++;
+          countQuery += ` AND c.project_id = $${countParamCount}`;
+          countParams.push(projectId);
+        }
+
+        const countResult = await db.query(countQuery, countParams);
+        total = parseInt(countResult.rows[0].total);
+      }
 
       return {
-        conversations: result.rows.map((conv) => ({
+        conversations: rows.map((conv) => ({
           ...conv,
           metadata:
             typeof conv.metadata === 'string'
@@ -519,13 +545,13 @@ class ConversationService {
               : conv.metadata
         })),
         pagination: {
-          total,
           limit,
-          offset,
-          hasMore: offset + limit < total
+          ...(cursorPayload ? {} : { total, offset, hasMore: offset + limit < (total ?? 0) }),
+          ...(cursorPayload || nextCursor ? { nextCursor, hasMore } : {})
         }
       };
     } catch (error) {
+      if (error instanceof AppError) throw error;
       throw new AppError(`Failed to list conversations: ${error.message}`, 500);
     }
   }
@@ -1000,12 +1026,22 @@ class ConversationService {
    * @param {number} offset - Offset for pagination
    * @returns {Promise<Object>} Messages with pagination metadata
    */
-  async getMessages(conversationId, userId, limit = 50, offset = 0) {
+  async getMessages(conversationId, userId, limit = 50, offset = 0, cursor = null) {
     try {
       // Verify access
       await this.getConversation(conversationId, userId);
 
-      const query = `
+      // Decode keyset cursor: base64(JSON.stringify({ created_at, id }))
+      let cursorPayload = null;
+      if (cursor) {
+        try {
+          cursorPayload = JSON.parse(Buffer.from(cursor, 'base64').toString('utf8'));
+        } catch {
+          throw new AppError('Invalid pagination cursor', 400);
+        }
+      }
+
+      let query = `
         SELECT
           m.*,
           u.name as user_name,
@@ -1013,24 +1049,45 @@ class ConversationService {
         FROM messages m
         LEFT JOIN users u ON m.user_id = u.user_id
         WHERE m.conversation_id = $1 AND m.deleted_at IS NULL
-        ORDER BY m.created_at ASC
-        LIMIT $2 OFFSET $3
       `;
 
-      const result = await db.query(query, [conversationId, limit, offset]);
+      const queryParams = [conversationId];
+      let paramCount = 1;
 
-      // Get total count
-      const countQuery = `
-        SELECT COUNT(*) as total
-        FROM messages
-        WHERE conversation_id = $1 AND deleted_at IS NULL
-      `;
+      if (cursorPayload) {
+        // Keyset: rows strictly after the cursor (created_at ASC, id ASC)
+        paramCount++;
+        const cursorCreatedAt = paramCount;
+        paramCount++;
+        const cursorId = paramCount;
+        query += ` AND (m.created_at > $${cursorCreatedAt} OR (m.created_at = $${cursorCreatedAt} AND m.id > $${cursorId}))`;
+        queryParams.push(cursorPayload.created_at, cursorPayload.id);
+        query += ` ORDER BY m.created_at ASC, m.id ASC LIMIT $${paramCount + 1}`;
+        queryParams.push(limit + 1);
+      } else {
+        query += ` ORDER BY m.created_at ASC, m.id ASC LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}`;
+        queryParams.push(limit + 1, offset);
+      }
 
-      const countResult = await db.query(countQuery, [conversationId]);
-      const total = parseInt(countResult.rows[0].total);
+      const result = await db.query(query, queryParams);
+      const hasMore = result.rows.length > limit;
+      const rows = hasMore ? result.rows.slice(0, limit) : result.rows;
+
+      const nextCursor = hasMore
+        ? Buffer.from(JSON.stringify({ created_at: rows[rows.length - 1].created_at, id: rows[rows.length - 1].id })).toString('base64')
+        : null;
+
+      let total = null;
+      if (!cursorPayload) {
+        const countResult = await db.query(
+          'SELECT COUNT(*) as total FROM messages WHERE conversation_id = $1 AND deleted_at IS NULL',
+          [conversationId]
+        );
+        total = parseInt(countResult.rows[0].total);
+      }
 
       return {
-        messages: result.rows.map((msg) => ({
+        messages: rows.map((msg) => ({
           ...msg,
           metadata:
             typeof msg.metadata === 'string'
@@ -1038,10 +1095,9 @@ class ConversationService {
               : msg.metadata
         })),
         pagination: {
-          total,
           limit,
-          offset,
-          hasMore: offset + limit < total
+          ...(cursorPayload ? {} : { total, offset, hasMore: offset + limit < (total ?? 0) }),
+          ...(cursorPayload || nextCursor ? { nextCursor, hasMore } : {})
         }
       };
     } catch (error) {
