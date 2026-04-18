@@ -127,7 +127,7 @@ spec:
             runAsUser: 1001
 
         - name: run-migrations
-          image: zekka-framework:latest
+          image: zekka-framework:v3.1.0
           command: ['node', 'src/cli/migrate.js']
           envFrom:
             - configMapRef:
@@ -145,7 +145,7 @@ spec:
       # Main application containers
       containers:
         - name: zekka-app
-          image: zekka-framework:latest
+          image: zekka-framework:v3.1.0
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
@@ -236,7 +236,7 @@ spec:
           # Security context
           securityContext:
             allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: false
+            readOnlyRootFilesystem: true
             runAsNonRoot: true
             runAsUser: 1001
             capabilities:

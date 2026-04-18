@@ -46,8 +46,8 @@ const authenticate = async (req, res, next) => {
 
     const token = authHeader.substring(7);
 
-    // Verify token
-    const decoded = jwt.verify(token, JWT_SECRET);
+    // Verify token — pin algorithm to block alg:none and HS/RS confusion attacks
+    const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
 
     // Get user from database
     const result = await pool.query(
@@ -520,7 +520,7 @@ const optionalAuth = async (req, res, next) => {
     }
 
     const token = authHeader.substring(7);
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
 
     const result = await pool.query(
       'SELECT id, email, name, role, is_active FROM users WHERE id = $1',
