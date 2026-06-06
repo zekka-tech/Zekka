@@ -19,7 +19,7 @@
 | **Project Management** | Full lifecycle — requirements → architecture → DB schema → API → frontend → integration → testing → docs → deployment → QA |
 | **Real-time** | WebSocket chat, live context sync via Redis context bus |
 | **Auth & Security** | JWT, CSRF, rate limiting, TOTP 2FA, Vault secrets, SOC2/GDPR compliance |
-| **Integrations** | Claude, Gemini, Ollama, Notion, GitHub webhooks, Superwork, Voice |
+| **Integrations** | Claude, Gemini, Ollama, GitHub webhooks, Superwork |
 | **Operations** | Docker/K8s, Prometheus/Grafana, Vault, S3 backups, audit logging |
 | **Analytics** | Comprehensive analytics service, Prometheus metrics, reporting |
 | **Documentation** | Swagger/OpenAPI, architecture docs, API reference |
