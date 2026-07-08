@@ -16,7 +16,7 @@ COPY . .
 RUN npm run build
 
 # Production stage — static files served by nginx, non-root
-FROM nginx:1.27-alpine
+FROM nginx:1.31-alpine
 
 # Copy built static assets
 COPY --from=builder /app/dist /usr/share/nginx/html
