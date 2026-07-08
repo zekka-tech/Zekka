@@ -24,7 +24,7 @@
  */
 
 const VaultService = require('../services/vault-service');
-const logger = require('../utils/logger');
+const defaultLogger = require('../utils/logger');
 
 let vaultInstance = null;
 
@@ -84,7 +84,7 @@ async function initVault(logger = console) {
       roleId: process.env.VAULT_ROLE_ID,
       secretId: process.env.VAULT_SECRET_ID,
       mountPath: process.env.VAULT_MOUNT_PATH || 'kv',
-      cacheTTL: parseInt(process.env.VAULT_CACHE_TTL) || 300000,
+      cacheTTL: parseInt(process.env.VAULT_CACHE_TTL, 10) || 300000,
       logger
     });
 
@@ -165,7 +165,7 @@ async function getVaultSecret(vaultPath, envVarName, field = null) {
 
     const envValue = process.env[envVarName];
     if (envValue) {
-      logger.warn(`⚠️  Vault failed, using fallback env var: ${envVarName}`);
+      defaultLogger.warn(`⚠️  Vault failed, using fallback env var: ${envVarName}`);
       return envValue;
     }
     throw error;

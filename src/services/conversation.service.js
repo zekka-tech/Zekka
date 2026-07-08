@@ -142,14 +142,16 @@ class ConversationService {
       RETURNING *
     `;
 
+    const nonUserRole = role === 'assistant' || role === 'system' || role === 'tool';
+    let persistedUserId = nonUserRole ? null : userId;
+    if (metadata.persistUserId !== undefined) {
+      persistedUserId = metadata.persistUserId;
+    }
+
     const messageResult = await client.query(messageQuery, [
       messageId,
       conversationId,
-      metadata.persistUserId !== undefined
-        ? metadata.persistUserId
-        : role === 'assistant' || role === 'system' || role === 'tool'
-          ? null
-          : userId,
+      persistedUserId,
       content,
       role,
       metadata.model || null,
@@ -534,7 +536,7 @@ class ConversationService {
         }
 
         const countResult = await db.query(countQuery, countParams);
-        total = parseInt(countResult.rows[0].total);
+        total = parseInt(countResult.rows[0].total, 10);
       }
 
       return {
@@ -1083,7 +1085,7 @@ class ConversationService {
           'SELECT COUNT(*) as total FROM messages WHERE conversation_id = $1 AND deleted_at IS NULL',
           [conversationId]
         );
-        total = parseInt(countResult.rows[0].total);
+        total = parseInt(countResult.rows[0].total, 10);
       }
 
       return {

@@ -712,7 +712,7 @@ class ExternalAPIClient {
    * @param {Object} options - Options
    * @returns {Promise<any>} Result from primary or fallback
    */
-  async callWithFallback(primaryFn, fallbackFn, options = {}) {
+  async callWithFallback(primaryFn, fallbackFn, _options = {}) {
     try {
       return await primaryFn();
     } catch (error) {

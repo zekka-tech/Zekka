@@ -10,7 +10,6 @@
  */
 
 const projectService = require('../services/project.service');
-const { AppError } = require('../utils/errors');
 
 class ProjectsController {
   /**
@@ -29,8 +28,8 @@ class ProjectsController {
       if (search) filters.search = search;
 
       const pagination = {
-        limit: parseInt(limit) || 20,
-        offset: parseInt(offset) || 0
+        limit: parseInt(limit, 10) || 20,
+        offset: parseInt(offset, 10) || 0
       };
 
       const result = await projectService.listProjects(

@@ -15,7 +15,7 @@ const config = require('./config');
 
 // Middleware
 const { apiLimiter, createProjectLimiter } = require('./middleware/rateLimit');
-const { authenticate, optionalAuth } = require('./middleware/auth');
+const { optionalAuth } = require('./middleware/auth');
 const {
   metricsMiddleware,
   getMetrics,
@@ -277,10 +277,10 @@ app.post(
       });
 
       logger.info(`Project created: ${project.projectId}`);
-      res.status(201).json(project);
+      return res.status(201).json(project);
     } catch (error) {
       logger.error('Error creating project:', error);
-      res.status(500).json({ error: error.message });
+      return res.status(500).json({ error: error.message });
     }
   }
 );
@@ -368,10 +368,10 @@ app.get(
         return res.status(404).json({ error: 'Project not found' });
       }
 
-      res.json(project);
+      return res.json(project);
     } catch (error) {
       logger.error('Error fetching project:', error);
-      res.status(500).json({ error: error.message });
+      return res.status(500).json({ error: error.message });
     }
   }
 );
@@ -493,7 +493,7 @@ app.use((req, res) => {
 });
 
 // Error handler
-app.use((err, req, res, next) => {
+app.use((err, req, res, _next) => {
   logger.error('Unhandled error:', err);
   res.status(500).json({
     error: 'Internal server error',

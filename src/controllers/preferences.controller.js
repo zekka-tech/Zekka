@@ -14,7 +14,7 @@
  */
 
 const preferenceService = require('../services/preference.service');
-const { AppError, ValidationError } = require('../utils/errors');
+const { ValidationError } = require('../utils/errors');
 
 class PreferencesController {
   /**

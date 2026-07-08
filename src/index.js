@@ -509,10 +509,10 @@ app.post(
       });
 
       logger.info(`📋 Project created: ${project.projectId}`);
-      res.status(201).json(project);
+      return res.status(201).json(project);
     } catch (error) {
       logger.error('Error creating project:', error);
-      res.status(500).json({ error: error.message });
+      return res.status(500).json({ error: error.message });
     }
   }
 );
@@ -600,10 +600,10 @@ app.get(
         return res.status(404).json({ error: 'Project not found' });
       }
 
-      res.json(project);
+      return res.json(project);
     } catch (error) {
       logger.error('Error fetching project:', error);
-      res.status(500).json({ error: error.message });
+      return res.status(500).json({ error: error.message });
     }
   }
 );

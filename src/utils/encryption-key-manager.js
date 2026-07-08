@@ -207,7 +207,7 @@ class EncryptionKeyManager {
       let decrypted = decipher.update(encryptedKey);
       decrypted = Buffer.concat([decrypted, decipher.final()]);
 
-      this.dataKeys.set(parseInt(version), decrypted);
+      this.dataKeys.set(parseInt(version, 10), decrypted);
     }
 
     this.currentKeyVersion = metadata.currentVersion;
@@ -298,7 +298,7 @@ class EncryptionKeyManager {
       const daysSinceCreation = (Date.now() - created.getTime()) / (1000 * 60 * 60 * 24);
 
       if (daysSinceCreation >= this.maxKeyAge) {
-        const versionNum = parseInt(version);
+        const versionNum = parseInt(version, 10);
         if (versionNum !== this.currentKeyVersion) {
           this.dataKeys.delete(versionNum);
           console.info(`Removed old encryption key version ${version}`);

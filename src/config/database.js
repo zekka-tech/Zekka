@@ -44,7 +44,7 @@ pool.on('connect', (client) => {
   });
 });
 
-pool.on('error', (err, client) => {
+pool.on('error', (err, _client) => {
   logger.error('❌ Unexpected database pool error:', err);
 
   // Attempt reconnection for connection errors
@@ -100,7 +100,7 @@ async function handleReconnection() {
 async function testConnection() {
   try {
     const client = await pool.connect();
-    const result = await client.query('SELECT NOW()');
+    await client.query('SELECT NOW()');
     client.release();
     logger.info('✅ Database connection test successful');
     return true;
@@ -173,7 +173,7 @@ async function queryWithRetry(text, params, retries = 3) {
         `⚠️  Query failed (attempt ${i + 1}/${retries}), retrying...`,
         error.message
       );
-      await new Promise((resolve) => setTimeout(resolve, 1000 * (i + 1))); // Exponential backoff
+      await new Promise((resolve) => { setTimeout(resolve, 1000 * (i + 1)); }); // Exponential backoff
     }
   }
 

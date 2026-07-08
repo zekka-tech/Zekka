@@ -471,7 +471,7 @@ Generate a brief execution plan for this task. Respond with a JSON object contai
     const task = result.rows[0];
 
     // Simulate processing time
-    await new Promise((resolve) => setTimeout(resolve, Math.random() * 2000 + 1000));
+    await new Promise((resolve) => { setTimeout(resolve, Math.random() * 2000 + 1000); });
 
     // Simulate token usage (would be real from actual API calls)
     const tokensInput = Math.floor(Math.random() * 1000) + 500;
@@ -490,7 +490,7 @@ Generate a brief execution plan for this task. Respond with a JSON object contai
     };
   }
 
-  async checkForConflicts(projectId, stage) {
+  async checkForConflicts(_projectId, _stage) {
     // Simplified conflict detection
     // In real implementation, would check file locks and modifications
     return [];
@@ -518,11 +518,11 @@ Generate a brief execution plan for this task. Respond with a JSON object contai
 
     return {
       projects: {
-        total: parseInt(totalProjects.rows[0].count)
+        total: parseInt(totalProjects.rows[0].count, 10)
       },
       tasks: {
-        running: parseInt(runningTasks.rows[0].count),
-        completed: parseInt(completedTasks.rows[0].count)
+        running: parseInt(runningTasks.rows[0].count, 10),
+        completed: parseInt(completedTasks.rows[0].count, 10)
       },
       budget: budgetStatus,
       context: contextMetrics

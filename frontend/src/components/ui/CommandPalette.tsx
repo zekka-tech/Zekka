@@ -273,12 +273,15 @@ export const CommandPalette = ({ isDark, onThemeToggle }: CommandPaletteProps) =
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isOpen, selectedIndex, filteredCommands, lastKeyPress, handleFocusTrap])
+  }, [isOpen, selectedIndex, filteredCommands, lastKeyPress, handleFocusTrap, search])
 
-  // Reset selection when search changes
-  useEffect(() => {
+  // Reset selection when search changes (state-during-render adjustment,
+  // per React docs, instead of a cascading effect)
+  const [prevSearch, setPrevSearch] = useState(search)
+  if (search !== prevSearch) {
+    setPrevSearch(search)
     setSelectedIndex(0)
-  }, [search])
+  }
 
   // Focus input when palette opens
   useEffect(() => {

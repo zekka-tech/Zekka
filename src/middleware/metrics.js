@@ -110,6 +110,8 @@ function trackProject(action, status) {
     activeProjects.dec();
     projectsCompleted.labels(status).inc();
     break;
+  default:
+    break;
   }
 }
 
@@ -126,6 +128,8 @@ function trackAgent(action, agentType, stage, duration) {
     if (duration) {
       agentExecutionTime.labels(agentType, stage).observe(duration);
     }
+    break;
+  default:
     break;
   }
 }

@@ -4,7 +4,6 @@
  */
 
 const { getAnalyticsService } = require('../services/analytics.service');
-const { AppError } = require('../utils/errors');
 
 const analyticsService = getAnalyticsService();
 

@@ -9,9 +9,7 @@ const Fuse = require('fuse.js');
 const { pool } = require('../config/database');
 const {
   uploadFile,
-  deleteFile,
-  getFileStream,
-  fileExists
+  deleteFile
 } = require('../utils/file-storage');
 const logger = require('../utils/logger');
 

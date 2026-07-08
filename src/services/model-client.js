@@ -355,7 +355,7 @@ class ModelClient {
         temperature: options.temperature ?? 0.7,
         maxOutputTokens: options.maxTokens || 2000,
         topP: parseFloat(process.env.GEMINI_TOP_P) || 0.95,
-        topK: parseInt(process.env.GEMINI_TOP_K) || 40
+        topK: parseInt(process.env.GEMINI_TOP_K, 10) || 40
       },
       safetySettings: [
         {

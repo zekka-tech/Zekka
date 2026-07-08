@@ -268,7 +268,7 @@ async function retryWithBackoff(operation, options = {}) {
 
       if (attempt < maxRetries && shouldRetry(error)) {
         const delay = calculateBackoff(attempt, baseDelay, maxDelay);
-        await new Promise((resolve) => setTimeout(resolve, delay));
+        await new Promise((resolve) => { setTimeout(resolve, delay); });
       }
     }
   }

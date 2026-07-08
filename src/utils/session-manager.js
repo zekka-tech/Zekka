@@ -11,7 +11,7 @@
  * - Geographic tracking (optional)
  */
 
-const session = require('express-session');
+const expressSession = require('express-session');
 const { RedisStore } = require('connect-redis');
 const crypto = require('crypto');
 
@@ -75,7 +75,7 @@ class SessionManager {
       return null;
     }
 
-    return session({
+    return expressSession({
       store: this.store,
       name: this.options.sessionName,
       secret: this.options.sessionSecret,
@@ -314,7 +314,7 @@ class SessionManager {
   async destroySession(sessionId) {
     if (!this.store) {
       this.memorySessions.delete(sessionId);
-      return;
+      return undefined;
     }
 
     return new Promise((resolve, reject) => {
@@ -378,7 +378,7 @@ class SessionManager {
       for (const key of keys) {
         const sessions = await this.redisClient.hGetAll(key);
 
-        for (const [sessionId, data] of Object.entries(sessions)) {
+        for (const [sessionId] of Object.entries(sessions)) {
           const sessionExists = await this.redisClient.exists(
             `sess:${sessionId}`
           );
@@ -492,7 +492,7 @@ class SessionManager {
         await this.updateActivity(req);
       }
 
-      next();
+      return next();
     };
   }
 

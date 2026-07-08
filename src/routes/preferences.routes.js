@@ -23,7 +23,6 @@ const preferencesController = require('../controllers/preferences.controller');
 const preferencesSchemas = require('../schemas/preferences.schema');
 const {
   validateBody,
-  validateQuery,
   validateParams
 } = require('../middleware/validate');
 const { authenticate } = require('../middleware/auth');

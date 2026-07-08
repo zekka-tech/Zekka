@@ -17,7 +17,6 @@ const pool = require('../config/database');
 const auditService = require('./audit-service');
 const logger = require('../utils/logger');
 
-const SALT_ROUNDS = 10;
 
 // Password policy configuration
 const POLICY = {
@@ -117,7 +116,8 @@ class PasswordService {
     if (/(.)\1{2,}/.test(password)) {
       warnings.push('Password contains repeated characters');
     }
-    if (/(?:abc|bcd|cde|def|efg|fgh|ghi|hij|ijk|jkl|klm|lmn|mno|nop|opq|pqr|qrs|rst|stu|tuv|uvw|vwx|wxy|xyz)/i.test(password)) {
+    const sequentialPattern = /(?:abc|bcd|cde|def|efg|fgh|ghi|hij|ijk|jkl|klm|lmn|mno|nop|opq|pqr|qrs|rst|stu|tuv|uvw|vwx|wxy|xyz)/i;
+    if (sequentialPattern.test(password)) {
       warnings.push('Password contains sequential characters');
     }
     if (/(?:012|123|234|345|456|567|678|789|890)/.test(password)) {

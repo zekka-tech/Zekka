@@ -6,7 +6,7 @@
  */
 
 const { pool } = require('../config/database');
-const { calculateCost, getModelPricing } = require('../utils/pricing');
+const { calculateCost } = require('../utils/pricing');
 const { cache, CACHE_KEYS, TTL } = require('../config/redis');
 const logger = require('../utils/logger');
 
@@ -196,9 +196,9 @@ class AnalyticsService {
         };
       }
       costs.byModel[model].cost += cost;
-      costs.byModel[model].inputTokens += parseInt(row.total_input_tokens);
-      costs.byModel[model].outputTokens += parseInt(row.total_output_tokens);
-      costs.byModel[model].count += parseInt(row.usage_count);
+      costs.byModel[model].inputTokens += parseInt(row.total_input_tokens, 10);
+      costs.byModel[model].outputTokens += parseInt(row.total_output_tokens, 10);
+      costs.byModel[model].count += parseInt(row.usage_count, 10);
 
       // By agent
       if (!costs.byAgent[agentId]) {
@@ -211,9 +211,9 @@ class AnalyticsService {
         };
       }
       costs.byAgent[agentId].cost += cost;
-      costs.byAgent[agentId].inputTokens += parseInt(row.total_input_tokens);
-      costs.byAgent[agentId].outputTokens += parseInt(row.total_output_tokens);
-      costs.byAgent[agentId].count += parseInt(row.usage_count);
+      costs.byAgent[agentId].inputTokens += parseInt(row.total_input_tokens, 10);
+      costs.byAgent[agentId].outputTokens += parseInt(row.total_output_tokens, 10);
+      costs.byAgent[agentId].count += parseInt(row.usage_count, 10);
 
       costs.total += cost;
     });
@@ -577,9 +577,7 @@ class AnalyticsService {
       agentId ? `zekka:cache:agent-metrics:${agentId}:*` : null
     ].filter(Boolean);
 
-    for (const pattern of patterns) {
-      await cache.clearByPattern(pattern);
-    }
+    await Promise.all(patterns.map((pattern) => cache.clearByPattern(pattern)));
   }
 }
 

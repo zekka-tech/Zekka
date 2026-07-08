@@ -21,7 +21,7 @@ router.get('/me', authenticate, authController.me);
 router.post('/logout', authenticate, authController.logout);
 router.post('/change-password', authenticate, authController.changePassword);
 
-router.use((error, req, res, next) => {
+router.use((error, req, res, _next) => {
   if (error.statusCode) {
     return res.status(error.statusCode).json({
       error: error.message,

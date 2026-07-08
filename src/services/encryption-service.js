@@ -22,7 +22,6 @@ const logger = require('../utils/logger');
 const ALGORITHM = 'aes-256-gcm';
 const KEY_LENGTH = 32; // 256 bits
 const IV_LENGTH = 16;
-const AUTH_TAG_LENGTH = 16;
 const KEY_ROTATION_DAYS = 90; // Rotate keys every 90 days
 
 class EncryptionService {

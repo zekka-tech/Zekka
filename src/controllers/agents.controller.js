@@ -4,7 +4,6 @@
  */
 
 const agentService = require('../services/agent.service');
-const { AppError } = require('../utils/errors');
 
 class AgentsController {
   /**
@@ -19,7 +18,7 @@ class AgentsController {
       } = req.query;
 
       const filters = { status };
-      const pagination = { limit: parseInt(limit), offset: parseInt(offset) };
+      const pagination = { limit: parseInt(limit, 10), offset: parseInt(offset, 10) };
 
       const result = await agentService.listAgents(
         userId,
@@ -182,8 +181,8 @@ class AgentsController {
       const { limit = 50, offset = 0 } = req.query;
 
       const activity = await agentService.getAgentActivity(id, userId, {
-        limit: parseInt(limit),
-        offset: parseInt(offset)
+        limit: parseInt(limit, 10),
+        offset: parseInt(offset, 10)
       });
 
       res.status(200).json({

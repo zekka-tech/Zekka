@@ -277,7 +277,7 @@ class AuditService {
     `;
 
     const result = await pool.query(query, [userId, action]);
-    return parseInt(result.rows[0].count);
+    return parseInt(result.rows[0].count, 10);
   }
 
   /**
@@ -445,7 +445,7 @@ class AuditService {
       pagination: {
         page,
         limit,
-        total: parseInt(count.rows[0].total),
+        total: parseInt(count.rows[0].total, 10),
         pages: Math.ceil(count.rows[0].total / limit)
       }
     };

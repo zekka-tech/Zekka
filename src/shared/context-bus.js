@@ -416,7 +416,7 @@ class ContextBus {
 
   async getCounter(metric) {
     const value = await this.client.get(`metric:${metric}`);
-    return parseInt(value) || 0;
+    return parseInt(value, 10) || 0;
   }
 
   async getMetrics() {

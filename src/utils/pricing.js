@@ -258,7 +258,9 @@ function estimateCost(model, estimatedTokens, inputOutputRatio = 0.7) {
  * @returns {Array} Array of cost comparisons sorted by total cost
  */
 function compareCosts(inputTokens, outputTokens) {
-  const comparisons = Object.keys(MODEL_PRICING).map((model) => calculateCostBreakdown(model, inputTokens, outputTokens));
+  const comparisons = Object.keys(MODEL_PRICING).map(
+    (model) => calculateCostBreakdown(model, inputTokens, outputTokens)
+  );
 
   return comparisons.sort((a, b) => a.totalCost - b.totalCost);
 }

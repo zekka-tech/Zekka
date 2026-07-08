@@ -133,7 +133,7 @@ class ProjectService {
         }
 
         const countResult = await db.query(countQuery, countParams);
-        total = parseInt(countResult.rows[0].total);
+        total = parseInt(countResult.rows[0].total, 10);
       }
 
       return {

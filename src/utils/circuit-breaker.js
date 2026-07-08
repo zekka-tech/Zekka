@@ -25,7 +25,7 @@ function createCircuitBreaker(asyncFunction, options = {}) {
   const breaker = new CircuitBreaker(asyncFunction, defaultOptions);
 
   // Event handlers
-  breaker.on('success', (result) => {
+  breaker.on('success', (_result) => {
     console.log(`✅ Circuit ${options.name}: Success`);
   });
 
@@ -49,7 +49,7 @@ function createCircuitBreaker(asyncFunction, options = {}) {
     console.log(`✅ Circuit ${options.name}: CLOSED - Service recovered`);
   });
 
-  breaker.on('fallback', (result) => {
+  breaker.on('fallback', (_result) => {
     console.log(`🔀 Circuit ${options.name}: Fallback executed`);
   });
 

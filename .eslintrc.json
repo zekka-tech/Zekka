@@ -31,7 +31,8 @@
       "code": 120,
       "ignoreComments": true,
       "ignoreStrings": true,
-      "ignoreTemplateLiterals": true
+      "ignoreTemplateLiterals": true,
+      "ignoreRegExpLiterals": true
     }],
     "no-multiple-empty-lines": ["error", {
       "max": 2,
@@ -70,9 +71,13 @@
         "message": "`with` is disallowed in strict mode because it makes code impossible to predict and optimize."
       }
     ],
-    "no-await-in-loop": "warn",
+    "no-await-in-loop": "off",
     "radix": "warn",
-    "camelcase": "warn",
+    "camelcase": ["warn", {
+      "properties": "never",
+      "ignoreDestructuring": true,
+      "allow": ["pull_request", "owner_id"]
+    }],
     "no-nested-ternary": "warn",
     "default-case": "warn",
     "no-promise-executor-return": "warn",

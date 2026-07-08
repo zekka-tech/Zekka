@@ -112,7 +112,7 @@ export const usePreferences = () => {
     setPreferences(prev => ({
       ...prev,
       [section]: {
-        ...(prev[section] as any),
+        ...(prev[section] as Record<string, unknown>),
         ...updates
       }
     }))

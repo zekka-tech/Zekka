@@ -24,7 +24,7 @@ function parseDatabaseConfig() {
   if (process.env.DB_HOST) {
     return {
       host: process.env.DB_HOST,
-      port: parseInt(process.env.DB_PORT || '5432'),
+      port: parseInt(process.env.DB_PORT || '5432', 10),
       database: process.env.DB_NAME || 'zekka',
       user: process.env.DB_USER || 'postgres',
       password: process.env.DB_PASSWORD || '',
@@ -37,7 +37,7 @@ function parseDatabaseConfig() {
     const url = new URL(process.env.DATABASE_URL);
     return {
       host: url.hostname,
-      port: parseInt(url.port || '5432'),
+      port: parseInt(url.port || '5432', 10),
       database: url.pathname.slice(1).split('?')[0], // Remove leading / and query params
       user: url.username,
       password: url.password,
@@ -257,13 +257,13 @@ const param = args[1];
     await commands.up({
       dryRun: args.includes('--dry-run'),
       target: args.includes('--target')
-        ? parseInt(args[args.indexOf('--target') + 1])
+        ? parseInt(args[args.indexOf('--target') + 1], 10)
         : null
     });
     break;
   case 'down':
   case 'rollback':
-    await commands.down(param ? parseInt(param) : 1);
+    await commands.down(param ? parseInt(param, 10) : 1);
     break;
   case 'status':
     await commands.status();

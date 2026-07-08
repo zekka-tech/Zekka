@@ -107,9 +107,9 @@ async function authenticateSocket(socket, next) {
       userAgent: socket.handshake.headers['user-agent']
     };
 
-    next();
+    return next();
   } catch (error) {
-    next(new Error(`Authentication failed: ${error.message}`));
+    return next(new Error(`Authentication failed: ${error.message}`));
   }
 }
 

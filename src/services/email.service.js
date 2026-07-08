@@ -142,7 +142,7 @@ class EmailService {
   /**
    * Get verification email template
    */
-  getVerificationEmailTemplate(verificationUrl, token) {
+  getVerificationEmailTemplate(verificationUrl, _token) {
     return `
       <!DOCTYPE html>
       <html>
@@ -193,7 +193,7 @@ class EmailService {
   /**
    * Get password reset email template
    */
-  getPasswordResetEmailTemplate(resetUrl, token) {
+  getPasswordResetEmailTemplate(resetUrl, _token) {
     return `
       <!DOCTYPE html>
       <html>

@@ -41,6 +41,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   case-block lexical declarations.
 
 ### 🔧 Changed
+- Stripped 61 unmounted "framework" modules (agent-zero/astron/dev-agents
+  scaffolds, simulated ml/devops/analytics/monitoring/reporting integrations,
+  unused schemas and util variants) plus the deprecated `src/index.secure.js`
+  and `src/utils/database-migrations.js`, after require-graph reachability
+  analysis from all real entrypoints, tests, and scripts.
+- Lint warning burndown: backend 447 → 0 (radix, unused vars, shadowed
+  identifiers, promise-executor returns, nested ternaries, consistent-return
+  in middleware); frontend 59 → 21 (typed all production-code `any`s, fixed a
+  stale-closure bug in ToastProvider, converted CommandPalette's reset-effect
+  to the state-during-render pattern). `no-await-in-loop` disabled after
+  reviewing all 46 sites — every remaining loop is sequential by design
+  (retry backoff, Redis SCAN cursors, transaction-scoped queries, ordered
+  migrations); two parallelizable loops were parallelized instead
+  (agent listing, analytics cache invalidation). Remaining frontend warnings
+  are React-compiler diagnostics requiring per-component refactors.
 - Replaced the unmaintained `clinic` profiling toolchain (which pulled in the
   deprecated `request` package and both remaining critical advisories) with
   Node's built-in profilers (`node --cpu-prof` / `--heap-prof`). Repo-wide

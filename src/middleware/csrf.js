@@ -103,7 +103,7 @@ function validateCsrfToken(req, token) {
 
 function csrfTokenGenerator(req, res, next) {
   if (!ensureSession(req, res)) {
-    return;
+    return undefined;
   }
 
   const stored = getStoredToken(req);
@@ -112,7 +112,7 @@ function csrfTokenGenerator(req, res, next) {
   }
 
   res.locals.csrfToken = req.session.csrfToken;
-  next();
+  return next();
 }
 
 function csrfTokenValidator(req, res, next) {
@@ -132,7 +132,7 @@ function csrfTokenValidator(req, res, next) {
   }
 
   if (!ensureSession(req, res)) {
-    return;
+    return undefined;
   }
 
   const token = req.headers['x-csrf-token']
@@ -194,7 +194,7 @@ function csrfTokenValidator(req, res, next) {
   }
 
   res.locals.csrfToken = req.session.csrfToken;
-  next();
+  return next();
 }
 
 function createCsrfProtection(options = {}) {
@@ -225,7 +225,7 @@ function createCsrfProtection(options = {}) {
       }
 
       if (!ensureSession(req, res)) {
-        return;
+        return undefined;
       }
 
       if (!req.session[config.sessionKey]) {
@@ -268,7 +268,7 @@ function createCsrfProtection(options = {}) {
         }
       }
 
-      next();
+      return next();
     }
   };
 }

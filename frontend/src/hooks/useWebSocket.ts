@@ -34,11 +34,11 @@ export const useWebSocket = () => {
     }
   }, [])
 
-  const emit = useCallback((event: string, ...args: any[]) => {
+  const emit = useCallback((event: string, ...args: unknown[]) => {
     webSocketService.emit(event, ...args)
   }, [])
 
-  const on = useCallback((event: string, callback: (...args: any[]) => void) => {
+  const on = useCallback((event: string, callback: (...args: unknown[]) => void) => {
     webSocketService.on(event, callback)
     return () => {
       webSocketService.off(event, callback)

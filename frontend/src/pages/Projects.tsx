@@ -22,7 +22,7 @@ export const Projects = () => {
     return matchesSearch && matchesStatus
   })
 
-  const handleCreateProject = async (data: { name: string; description?: string; settings?: any }) => {
+  const handleCreateProject = async (data: { name: string; description?: string; settings?: Record<string, unknown> }) => {
     try {
       setIsCreating(true)
       await createProjectAsync(data)

@@ -247,7 +247,7 @@ class ConversationsController {
    *
    * This endpoint supports Server-Sent Events (SSE) for streaming AI responses
    */
-  async sendMessageStream(req, res, next) {
+  async sendMessageStream(req, res, _next) {
     // Commit SSE headers synchronously before any async work so the catch
     // block can always write an error event without hitting "headers already sent"
     res.setHeader('Content-Type', 'text/event-stream');

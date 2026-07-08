@@ -27,7 +27,7 @@ let modelClient;
 async function initialize() {
   contextBus = new ContextBus({
     host: process.env.REDIS_HOST || 'localhost',
-    port: parseInt(process.env.REDIS_PORT) || 6379
+    port: parseInt(process.env.REDIS_PORT, 10) || 6379
   });
   await contextBus.connect();
 
@@ -65,7 +65,7 @@ function verifyWebhookSignature(req, res, next) {
     return res.status(401).json({ error: 'Invalid signature' });
   }
 
-  next();
+  return next();
 }
 
 // Health check
@@ -274,9 +274,9 @@ app.post('/api/resolve/:conflictId', async (req, res) => {
     }
 
     const resolution = await resolveConflict(conflictId, conflict);
-    res.json(resolution);
+    return res.json(resolution);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: error.message });
   }
 });
 
