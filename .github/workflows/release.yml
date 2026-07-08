@@ -69,6 +69,9 @@ jobs:
           exit-code: '1'
           ignore-unfixed: true
           vuln-type: 'os,library'
+          # Without this, sarif format scans ALL severities and exit-code
+          # trips on medium/low findings too
+          limit-severities-for-sarif: true
 
       - name: Upload Trivy SARIF to GitHub Security
         if: always()
