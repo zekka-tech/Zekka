@@ -110,6 +110,11 @@ RUN mkdir -p /app/logs /app/uploads /app/backups /app/temp && \
 # Security: Remove unnecessary setuid/setgid binaries
 RUN find / -xdev -type f -perm /6000 -exec chmod a-s {} \; || true
 
+# Security: The npm CLI is not needed at runtime (CMD runs node directly).
+# Removing it also removes npm's bundled dependencies (picomatch, sigstore)
+# that Trivy flags in the base image.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
+
 # Switch to non-root user
 USER nodejs
 
