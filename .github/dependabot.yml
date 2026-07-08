@@ -59,6 +59,11 @@ updates:
     labels:
       - "dependencies"
       - "docker"
+    ignore:
+      # Node base images track the LTS line (currently 22); major bumps to
+      # pre-LTS "current" releases are done deliberately, not by bot
+      - dependency-name: "node"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "docker"
     directory: "/frontend"
@@ -70,3 +75,6 @@ updates:
     labels:
       - "dependencies"
       - "docker"
+    ignore:
+      - dependency-name: "node"
+        update-types: ["version-update:semver-major"]
