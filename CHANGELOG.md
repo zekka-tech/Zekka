@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Nothing yet
+
+---
+
+## [3.2.0] - 2026-07-08
+
 ### 🔐 Security
 - PostgreSQL TLS certificate verification is now enforced by default in
   production via a shared `getDatabaseSsl()` helper (previously
