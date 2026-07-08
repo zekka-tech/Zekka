@@ -109,7 +109,7 @@ export const Analytics = () => {
     period: Period
     exportedAt: string
     data: {
-      tokenUsage: Array<{ date: string; tokens: number; cost: number }>
+      tokenUsage: Array<{ date: string; tokens: number; cost?: number }>
       costBreakdown: unknown
       agentPerformance: unknown
       stats: Record<string, number | string>

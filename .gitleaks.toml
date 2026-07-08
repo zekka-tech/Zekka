@@ -1,0 +1,17 @@
+# Gitleaks configuration
+# Extends the default ruleset; allowlists below suppress known false positives.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Test fixtures and the well-known CI test encryption key"
+paths = [
+  # Test suites use hard-coded fake tokens/keys as fixtures
+  '''tests/.*''',
+]
+regexes = [
+  # Test-only ENCRYPTION_KEY used by tests/setup.js and (historically) ci.yml.
+  # Not a real secret — documented in .env examples as a placeholder format.
+  '''6430873680cd7f7a9aca0536fca10546eaac18300aa8e6337b21836e7c2a4ca7''',
+]

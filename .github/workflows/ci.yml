@@ -50,6 +50,11 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Generate test encryption key
+        # Config validation requires exactly 64 hex characters (32 bytes);
+        # generate per-run so no key literal lives in the repo
+        run: echo "ENCRYPTION_KEY=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+
       - name: Run tests with coverage
         run: npm run test:coverage
         env:
@@ -60,8 +65,6 @@ jobs:
           REDIS_HOST: localhost
           REDIS_PORT: 6379
           VAULT_ENABLED: 'false'
-          # Must be exactly 64 hex characters (32 bytes) per config validation
-          ENCRYPTION_KEY: 6430873680cd7f7a9aca0536fca10546eaac18300aa8e6337b21836e7c2a4ca7
 
       - name: Upload coverage
         uses: codecov/codecov-action@v4
