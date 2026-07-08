@@ -31,7 +31,8 @@
       "code": 120,
       "ignoreComments": true,
       "ignoreStrings": true,
-      "ignoreTemplateLiterals": true
+      "ignoreTemplateLiterals": true,
+      "ignoreRegExpLiterals": true
     }],
     "no-multiple-empty-lines": ["error", {
       "max": 2,
@@ -53,9 +54,56 @@
     }],
     "func-names": "off",
     "no-process-exit": "off",
-    "class-methods-use-this": "off"
+    "class-methods-use-this": "off",
+    "no-plusplus": "off",
+    "no-continue": "off",
+    "no-return-await": "off",
+    "max-classes-per-file": "off",
+    "global-require": "off",
+    "no-restricted-syntax": [
+      "error",
+      {
+        "selector": "LabeledStatement",
+        "message": "Labels are a form of GOTO; using them makes code confusing and hard to maintain and understand."
+      },
+      {
+        "selector": "WithStatement",
+        "message": "`with` is disallowed in strict mode because it makes code impossible to predict and optimize."
+      }
+    ],
+    "no-await-in-loop": "off",
+    "radix": "warn",
+    "camelcase": ["warn", {
+      "properties": "never",
+      "ignoreDestructuring": true,
+      "allow": ["pull_request", "owner_id"]
+    }],
+    "no-nested-ternary": "warn",
+    "default-case": "warn",
+    "no-promise-executor-return": "warn",
+    "no-shadow": "warn",
+    "no-use-before-define": ["warn", { "functions": false }],
+    "prefer-destructuring": [
+      "error",
+      {
+        "VariableDeclarator": { "array": false, "object": true },
+        "AssignmentExpression": { "array": false, "object": false }
+      }
+    ]
   },
   "overrides": [
+    {
+      "files": ["*.ts", "*.tsx"],
+      "parser": "@typescript-eslint/parser",
+      "plugins": ["@typescript-eslint"],
+      "rules": {
+        "no-unused-vars": "off",
+        "@typescript-eslint/no-unused-vars": ["warn", {
+          "argsIgnorePattern": "^_",
+          "varsIgnorePattern": "^_"
+        }]
+      }
+    },
     {
       "files": ["*.test.js", "*.spec.js"],
       "plugins": ["jest"],

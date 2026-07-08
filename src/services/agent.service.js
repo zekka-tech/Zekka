@@ -113,20 +113,21 @@ class AgentService {
    * @returns {Promise<Array>} Array of agents with status
    */
   async listAgents() {
-    const agents = [];
+    return Promise.all(
+      Object.entries(AGENT_DEFINITIONS).map(async ([agentId, definition]) => {
+        const [status, lastActivity] = await Promise.all([
+          this.getAgentStatus(agentId),
+          this._getLastActivity(agentId)
+        ]);
 
-    for (const [agentId, definition] of Object.entries(AGENT_DEFINITIONS)) {
-      const status = await this.getAgentStatus(agentId);
-
-      agents.push({
-        agentId,
-        ...definition,
-        status: status || 'idle',
-        lastActivity: await this._getLastActivity(agentId)
-      });
-    }
-
-    return agents;
+        return {
+          agentId,
+          ...definition,
+          status: status || 'idle',
+          lastActivity
+        };
+      })
+    );
   }
 
   /**

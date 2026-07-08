@@ -2,6 +2,7 @@ const { Pool } = require('pg');
 const { v4: uuidv4 } = require('uuid');
 const axios = require('axios');
 const ModelClient = require('../services/model-client');
+const { getDatabaseSsl } = require('../config/database-ssl');
 
 /**
  * Zekka Orchestrator - Central Coordination for Multi-Agent Workflows
@@ -94,9 +95,10 @@ class ZekkaOrchestrator {
     // Uses connection pooling for efficient resource management
     this.db = new Pool({
       connectionString: process.env.DATABASE_URL,
-      ssl: {
-        rejectUnauthorized: false // Required for Supabase and similar cloud providers
-      },
+      // TLS on by default (Supabase and similar cloud providers require it).
+      // Certificate verification is enforced unless explicitly disabled via
+      // DATABASE_SSL_REJECT_UNAUTHORIZED=false; custom CAs via DATABASE_SSL_CA.
+      ssl: getDatabaseSsl({ defaultEnabled: true }),
       min: 2, // Minimum pool size
       max: 10, // Maximum pool size
       idleTimeoutMillis: 30000, // Close idle connections after 30s
@@ -469,7 +471,7 @@ Generate a brief execution plan for this task. Respond with a JSON object contai
     const task = result.rows[0];
 
     // Simulate processing time
-    await new Promise((resolve) => setTimeout(resolve, Math.random() * 2000 + 1000));
+    await new Promise((resolve) => { setTimeout(resolve, Math.random() * 2000 + 1000); });
 
     // Simulate token usage (would be real from actual API calls)
     const tokensInput = Math.floor(Math.random() * 1000) + 500;
@@ -488,7 +490,7 @@ Generate a brief execution plan for this task. Respond with a JSON object contai
     };
   }
 
-  async checkForConflicts(projectId, stage) {
+  async checkForConflicts(_projectId, _stage) {
     // Simplified conflict detection
     // In real implementation, would check file locks and modifications
     return [];
@@ -516,11 +518,11 @@ Generate a brief execution plan for this task. Respond with a JSON object contai
 
     return {
       projects: {
-        total: parseInt(totalProjects.rows[0].count)
+        total: parseInt(totalProjects.rows[0].count, 10)
       },
       tasks: {
-        running: parseInt(runningTasks.rows[0].count),
-        completed: parseInt(completedTasks.rows[0].count)
+        running: parseInt(runningTasks.rows[0].count, 10),
+        completed: parseInt(completedTasks.rows[0].count, 10)
       },
       budget: budgetStatus,
       context: contextMetrics

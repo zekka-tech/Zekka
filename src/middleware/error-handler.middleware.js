@@ -173,15 +173,14 @@ class AppError extends Error {
         message: this.message,
         category: this.category,
         severity: this.severity,
-        details: IS_PRODUCTION ? undefined : this.details,
+        details: process.env.NODE_ENV === 'production' ? undefined : this.details,
         timestamp: this.timestamp
       }
     };
   }
 }
 
-const getErrorMessage = (code) =>
-  ERROR_MESSAGES[code] || 'An error occurred';
+const getErrorMessage = (code) => ERROR_MESSAGES[code] || 'An error occurred';
 
 const createErrorResponse = (error, req) => {
   if (error instanceof AppError) {

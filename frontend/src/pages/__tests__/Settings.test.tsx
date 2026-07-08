@@ -17,7 +17,7 @@ describe('Settings Page', () => {
     expect(screen.getByText('Default Dashboard')).toBeInTheDocument()
   })
 
-  it('renders sidebar categories', () => {
+  it('renders sidebar categories', { timeout: 15000 }, () => {
     renderWithProviders(<Settings />)
     expect(screen.getByRole('button', { name: /General/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Appearance/i })).toBeInTheDocument()

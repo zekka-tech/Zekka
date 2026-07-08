@@ -5,10 +5,21 @@
  */
 
 class AppError extends Error {
-  constructor(message, statusCode = 500, isOperational = true) {
+  constructor(
+    message,
+    statusCode = 500,
+    isOperational = true,
+    details = {}
+  ) {
     super(message);
     this.statusCode = statusCode;
-    this.isOperational = isOperational;
+    this.isOperational = typeof isOperational === 'boolean'
+      ? isOperational
+      : true;
+    this.code = typeof isOperational === 'string' ? isOperational : undefined;
+    this.details = typeof isOperational === 'string'
+      ? details
+      : (details || {});
     this.timestamp = new Date().toISOString();
     Error.captureStackTrace(this, this.constructor);
   }

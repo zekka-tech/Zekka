@@ -45,6 +45,9 @@ export interface AnalyticsSummaryResponse {
 class ApiService {
   private axiosInstance: AxiosInstance
   private token: string | null = null
+  private refreshToken: string | null = null
+  private isRefreshing = false
+  private refreshQueue: Array<(token: string | null) => void> = []
   private authListeners = new Set<AuthChangeListener>()
 
   constructor() {
@@ -56,8 +59,9 @@ class ApiService {
       }
     })
 
-    // Restore token from localStorage
+    // Restore tokens from localStorage
     this.token = localStorage.getItem('auth_token')
+    this.refreshToken = localStorage.getItem('refresh_token')
 
     // Request interceptor
     this.axiosInstance.interceptors.request.use(
@@ -70,31 +74,88 @@ class ApiService {
       (error) => Promise.reject(error)
     )
 
-    // Response interceptor
+    // Response interceptor — attempt token refresh on 401 before clearing auth
     this.axiosInstance.interceptors.response.use(
       (response) => response,
-      (error: AxiosError) => {
-        if (error.response?.status === 401) {
-          // Clear auth state and let the app shell render the auth screen.
+      async (error: AxiosError) => {
+        const originalRequest = error.config as typeof error.config & { _retry?: boolean }
+
+        if (
+          error.response?.status === 401 &&
+          !originalRequest?._retry &&
+          this.refreshToken
+        ) {
+          if (this.isRefreshing) {
+            // Queue the failed request until refresh completes
+            return new Promise((resolve, reject) => {
+              this.refreshQueue.push((newToken) => {
+                if (!newToken || !originalRequest) {
+                  reject(error)
+                  return
+                }
+                originalRequest.headers = originalRequest.headers ?? {}
+                originalRequest.headers.Authorization = `Bearer ${newToken}`
+                resolve(this.axiosInstance(originalRequest))
+              })
+            })
+          }
+
+          originalRequest._retry = true
+          this.isRefreshing = true
+
+          try {
+            const response = await axios.post(`${API_BASE_URL}/api/auth/refresh-token`, {
+              refreshToken: this.refreshToken
+            })
+            const { token: newToken, refreshToken: newRefresh } = response.data
+            this.setToken(newToken, newRefresh)
+            // Retry queued requests
+            this.refreshQueue.forEach((cb) => cb(newToken))
+            this.refreshQueue = []
+            if (originalRequest) {
+              originalRequest.headers = originalRequest.headers ?? {}
+              originalRequest.headers.Authorization = `Bearer ${newToken}`
+              return this.axiosInstance(originalRequest)
+            }
+          } catch {
+            // Refresh failed — clear auth and reject queued requests
+            this.refreshQueue.forEach((cb) => cb(null))
+            this.refreshQueue = []
+            this.clearAuth()
+          } finally {
+            this.isRefreshing = false
+          }
+        }
+
+        if (error.response?.status === 401 && !this.refreshToken) {
           this.clearAuth()
         }
+
         return Promise.reject(error)
       }
     )
   }
 
-  setToken(token: string | null) {
+  setToken(token: string | null, refresh?: string | null) {
     this.token = token
     if (token) {
       localStorage.setItem('auth_token', token)
     } else {
       localStorage.removeItem('auth_token')
     }
+    if (refresh !== undefined) {
+      this.refreshToken = refresh
+      if (refresh) {
+        localStorage.setItem('refresh_token', refresh)
+      } else {
+        localStorage.removeItem('refresh_token')
+      }
+    }
     this.notifyAuthListeners()
   }
 
   clearAuth() {
-    this.setToken(null)
+    this.setToken(null, null)
   }
 
   isAuthenticated(): boolean {
@@ -124,7 +185,7 @@ class ApiService {
       name
     })
     if (response.data.token) {
-      this.setToken(response.data.token)
+      this.setToken(response.data.token, response.data.refreshToken ?? null)
     }
     return response.data
   }
@@ -135,7 +196,7 @@ class ApiService {
       password
     })
     if (response.data.token) {
-      this.setToken(response.data.token)
+      this.setToken(response.data.token, response.data.refreshToken ?? null)
     }
     return response.data
   }

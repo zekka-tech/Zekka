@@ -19,5 +19,30 @@ export default defineConfig([
       ecmaVersion: 2020,
       globals: globals.browser,
     },
+    rules: {
+      '@typescript-eslint/no-unused-vars': ['error', {
+        argsIgnorePattern: '^_',
+        varsIgnorePattern: '^_',
+        caughtErrorsIgnorePattern: '^_',
+      }],
+      // Existing `any` usages are tracked as debt; new code should type properly
+      '@typescript-eslint/no-explicit-any': 'warn',
+      // React Compiler diagnostics (react-hooks v7): advisory until the
+      // flagged components are refactored — see lint output for locations
+      'react-hooks/refs': 'warn',
+      'react-hooks/set-state-in-effect': 'warn',
+      'react-hooks/immutability': 'warn',
+      'react-hooks/purity': 'warn',
+      'react-refresh/only-export-components': 'warn',
+    },
+  },
+  {
+    // Test files legitimately use loose mock typings, and test helpers
+    // re-export non-components (fast refresh does not apply to tests)
+    files: ['**/__tests__/**', '**/*.test.{ts,tsx}', '**/*.spec.{ts,tsx}', 'src/test/**'],
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'off',
+      'react-refresh/only-export-components': 'off',
+    },
   },
 ])

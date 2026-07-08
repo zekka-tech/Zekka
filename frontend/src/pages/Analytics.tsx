@@ -105,7 +105,18 @@ export const Analytics = () => {
     downloadText(content, `analytics-${period}-${Date.now()}.${format}`, mimeType)
   }
 
-  const convertToCSV = (data: any): string => {
+  type AnalyticsExport = {
+    period: Period
+    exportedAt: string
+    data: {
+      tokenUsage: Array<{ date: string; tokens: number; cost?: number }>
+      costBreakdown: unknown
+      agentPerformance: unknown
+      stats: Record<string, number | string>
+    }
+  }
+
+  const convertToCSV = (data: AnalyticsExport): string => {
     let csv = `Analytics Export - ${data.period}\n`
     csv += `Exported: ${data.exportedAt}\n\n`
 
@@ -125,7 +136,7 @@ export const Analytics = () => {
     // Token usage
     csv += 'Token Usage\n'
     csv += 'Date,Tokens,Cost\n'
-    data.data.tokenUsage.forEach((item: any) => {
+    data.data.tokenUsage.forEach((item) => {
       csv += `${item.date},${item.tokens},${item.cost}\n`
     })
 

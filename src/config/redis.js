@@ -13,7 +13,7 @@
  */
 
 const { createClient } = require('redis');
-const config = require('./index.js');
+const config = require('./index');
 const logger = require('../utils/logger');
 
 // Cache key patterns for different data types
@@ -309,8 +309,10 @@ const cache = {
   }
 };
 
-// Auto-connect on module load
-connectRedis().catch(logger.error);
+// Auto-connect on module load (skip in test environment to avoid spurious connection errors)
+if (process.env.NODE_ENV !== 'test') {
+  connectRedis().catch(logger.error);
+}
 
 module.exports = redis;
 module.exports.connectRedis = connectRedis;
@@ -318,3 +320,5 @@ module.exports.closeRedis = closeRedis;
 module.exports.healthCheck = healthCheck;
 module.exports.getStats = getStats;
 module.exports.CACHE_KEYS = CACHE_KEYS;
+module.exports.cache = cache;
+module.exports.TTL = TTL;

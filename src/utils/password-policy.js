@@ -315,7 +315,7 @@ class PasswordPolicyManager {
    * Hash password with bcrypt
    */
   async hashPassword(password) {
-    const rounds = parseInt(process.env.BCRYPT_ROUNDS) || 12;
+    const rounds = parseInt(process.env.BCRYPT_ROUNDS, 10) || 12;
     return await bcrypt.hash(password, rounds);
   }
 

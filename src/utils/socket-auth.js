@@ -63,7 +63,7 @@ function extractToken(socket) {
  */
 async function verifyToken(token) {
   return new Promise((resolve, reject) => {
-    jwt.verify(token, config.jwtSecret, (err, decoded) => {
+    jwt.verify(token, config.jwtSecret, { algorithms: ['HS256'] }, (err, decoded) => {
       if (err) {
         reject(new Error('Invalid or expired token'));
       } else {
@@ -107,9 +107,9 @@ async function authenticateSocket(socket, next) {
       userAgent: socket.handshake.headers['user-agent']
     };
 
-    next();
+    return next();
   } catch (error) {
-    next(new Error(`Authentication failed: ${error.message}`));
+    return next(new Error(`Authentication failed: ${error.message}`));
   }
 }
 

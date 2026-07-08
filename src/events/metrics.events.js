@@ -155,19 +155,19 @@ function setupMetricsEvents(io, socket, logger) {
             business: businessMetrics
               ? {
                 projects: {
-                  total: parseInt(businessMetrics.total_projects) || 0,
+                  total: parseInt(businessMetrics.total_projects, 10) || 0,
                   active: 0, // Not directly available
                   completed: 0 // Not directly available
                 },
                 conversations:
-                    parseInt(businessMetrics.total_conversations) || 0,
-                messages: parseInt(businessMetrics.total_messages) || 0,
+                    parseInt(businessMetrics.total_conversations, 10) || 0,
+                messages: parseInt(businessMetrics.total_messages, 10) || 0,
                 tokens: {
-                  input: parseInt(businessMetrics.total_input_tokens) || 0,
-                  output: parseInt(businessMetrics.total_output_tokens) || 0,
+                  input: parseInt(businessMetrics.total_input_tokens, 10) || 0,
+                  output: parseInt(businessMetrics.total_output_tokens, 10) || 0,
                   total:
-                      (parseInt(businessMetrics.total_input_tokens) || 0)
-                      + (parseInt(businessMetrics.total_output_tokens) || 0)
+                      (parseInt(businessMetrics.total_input_tokens, 10) || 0)
+                      + (parseInt(businessMetrics.total_output_tokens, 10) || 0)
                 },
                 costs: {
                   total: parseFloat(businessMetrics.total_cost) || 0,
@@ -175,10 +175,10 @@ function setupMetricsEvents(io, socket, logger) {
                   period: analyticsPeriod
                 },
                 agents: {
-                  used: parseInt(businessMetrics.agents_used) || 0
+                  used: parseInt(businessMetrics.agents_used, 10) || 0
                 },
                 models: {
-                  used: parseInt(businessMetrics.models_used) || 0
+                  used: parseInt(businessMetrics.models_used, 10) || 0
                 }
               }
               : null

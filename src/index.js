@@ -1,43 +1,75 @@
 require('dotenv').config();
+
+// ── Sentry / OpenTelemetry (optional) ─────────────────────────────────────────
+// Must be initialised before any other require so instrumentation patches work.
+if (process.env.SENTRY_DSN) {
+  try {
+    // Optional peer: only loaded when SENTRY_DSN is set; absence is handled below
+    // eslint-disable-next-line import/no-extraneous-dependencies, import/no-unresolved
+    const Sentry = require('@sentry/node');
+    Sentry.init({
+      dsn: process.env.SENTRY_DSN,
+      environment: process.env.NODE_ENV || 'production',
+      tracesSampleRate: parseFloat(
+        process.env.SENTRY_TRACES_SAMPLE_RATE || '0.1'
+      ),
+      // Attach request context to every event
+      integrations: [
+        new Sentry.Integrations.Http({ tracing: true }),
+        new Sentry.Integrations.Express({ app: undefined }) // wired below
+      ]
+    });
+    // Expose on global so route error handlers can call Sentry.captureException
+    global.Sentry = Sentry;
+  } catch (sentryErr) {
+    // @sentry/node not installed — continue without error reporting
+    console.warn(
+      '[Sentry] Package not installed, skipping init:',
+      sentryErr.message
+    );
+  }
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
+const compression = require('compression');
+const crypto = require('crypto');
 const express = require('express');
 const fs = require('fs');
 const http = require('http');
 const path = require('path');
 const cors = require('cors');
 const session = require('express-session');
-const RedisStoreFactory = require('connect-redis');
+const { RedisStore } = require('connect-redis');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const { createLogger, format, transports } = require('winston');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./swagger');
 const redisClient = require('./config/redis');
+const config = require('./config');
+const {
+  healthCheck: databaseHealthCheck,
+  getDetailedPoolStats
+} = require('./config/database');
+const { healthCheck: redisHealthCheck, closeRedis } = require('./config/redis');
+const { initVault, shutdownVault } = require('./config/vault');
 
 const ContextBus = require('./shared/context-bus');
 const TokenEconomics = require('./shared/token-economics');
 const ZekkaOrchestrator = require('./orchestrator/orchestrator');
-const { initVault } = require('./config/vault');
 
 // Middleware
-const {
-  apiLimiter,
-  createProjectLimiter
-} = require('./middleware/rateLimit');
-const {
-  authenticate,
-  optionalAuth
-} = require('./middleware/auth');
+const { apiLimiter, createProjectLimiter } = require('./middleware/rateLimit');
+const { optionalAuth } = require('./middleware/auth');
 const {
   metricsMiddleware,
   getMetrics,
-  trackProject,
-  trackAgent,
-  trackCost
+  trackProject
 } = require('./middleware/metrics');
+
 const websocket = require('./middleware/websocket');
 const { csrfTokenGenerator, csrfTokenValidator } = require('./middleware/csrf');
 const { createCsrfRouteGuard } = require('./middleware/csrf-route-guard');
-const RedisStore = RedisStoreFactory(session);
 
 // API Routes
 const projectsRoutes = require('./routes/projects.routes');
@@ -47,6 +79,7 @@ const agentsRoutes = require('./routes/agents.routes');
 const sourcesRoutes = require('./routes/sources.routes');
 const preferencesRoutes = require('./routes/preferences.routes');
 const authRoutes = require('./routes/auth.routes');
+const usersRoutes = require('./routes/users.routes');
 
 // Logger setup
 const logger = createLogger({
@@ -78,8 +111,88 @@ const sessionStore = new RedisStore({
 
 // Middleware
 app.set('trust proxy', 1);
+
+// ── Response compression (H14) ────────────────────────────────────────────────
+// Compress all JSON/text responses. Must come before static-file middleware.
+app.use(compression());
+
+// ── Active-request counter for graceful drain (H7) ───────────────────────────
+// Use a single flag per response to prevent double-decrement when both the
+// 'finish' and 'close' events fire for the same response (e.g. on abrupt close).
+let activeRequests = 0;
+app.use((req, res, next) => {
+  activeRequests++;
+  let counted = true;
+  const decrement = () => {
+    if (counted) {
+      counted = false;
+      activeRequests--;
+    }
+  };
+  res.on('finish', decrement);
+  res.on('close', decrement);
+  next();
+});
+
+// ── Request ID middleware (H1) ─────────────────────────────────────────────────
+// Generate a unique ID for every request, propagate as X-Request-ID, and
+// attach to res.locals so downstream middleware / error handlers can log it.
+app.use((req, res, next) => {
+  const id = req.headers['x-request-id'] || crypto.randomUUID();
+  req.requestId = id;
+  res.setHeader('X-Request-ID', id);
+  next();
+});
+
+// ── W3C Trace Context propagation (M16) ──────────────────────────────────────
+// Accept and forward traceparent / tracestate headers for distributed tracing.
+// If no traceparent is supplied, generate a minimal W3C-compatible one.
+app.use((req, res, next) => {
+  const traceparent = req.headers.traceparent
+    || `00-${crypto.randomUUID().replace(/-/g, '')}-${req.requestId.replace(/-/g, '').slice(0, 16)}-01`;
+  const tracestate = req.headers.tracestate || '';
+  req.traceparent = traceparent;
+  req.tracestate = tracestate;
+  // Echo downstream so callers can correlate
+  res.setHeader('traceparent', traceparent);
+  if (tracestate) res.setHeader('tracestate', tracestate);
+  next();
+});
+
+// ── Per-request child logger (C6) ─────────────────────────────────────────────
+// Attach a child logger with requestId / traceId so all service log calls
+// automatically include the request context without manual prop-drilling.
+app.use((req, res, next) => {
+  req.logger = logger.child({
+    requestId: req.requestId,
+    traceId: (req.traceparent || '').split('-')[1] || req.requestId
+  });
+  next();
+});
+
+// Sentry request handler must come before any other middleware
+if (global.Sentry) {
+  app.use(global.Sentry.Handlers.requestHandler());
+  app.use(global.Sentry.Handlers.tracingHandler());
+}
+
 app.use(helmet());
-app.use(cors());
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (!origin) {
+        return callback(null, true);
+      }
+
+      if (config.cors.origins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error('Origin not allowed by CORS'));
+    },
+    credentials: true
+  })
+);
 app.use(
   session({
     store: sessionStore,
@@ -98,8 +211,8 @@ app.use(
     }
   })
 );
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: config.limits.json }));
+app.use(express.urlencoded({ extended: true, limit: config.limits.urlEncoded }));
 app.use(
   morgan('combined', { stream: { write: (msg) => logger.info(msg.trim()) } })
 );
@@ -109,11 +222,15 @@ app.use(metricsMiddleware);
 app.use('/api', csrfTokenGenerator); // Generate CSRF tokens for API requests
 app.use('/api', createCsrfRouteGuard(csrfTokenValidator));
 
+// Idempotency middleware
+const { idempotency } = require('./middleware/idempotency');
+
 // Initialize core services
 let contextBus;
 let tokenEconomics;
 let orchestrator;
 let vault;
+let isShuttingDown = false;
 
 async function initializeServices() {
   try {
@@ -129,6 +246,13 @@ async function initializeServices() {
         logger.info('✅ Vault service ready');
       }
     } catch (vaultError) {
+      if (
+        process.env.NODE_ENV === 'production'
+        && process.env.VAULT_ENABLED === 'true'
+      ) {
+        throw vaultError;
+      }
+
       logger.warn(
         '⚠️  Vault initialization failed, using environment variables:',
         vaultError.message
@@ -138,7 +262,7 @@ async function initializeServices() {
     // Initialize Context Bus (Redis) with password authentication
     contextBus = new ContextBus({
       host: process.env.REDIS_HOST || 'localhost',
-      port: parseInt(process.env.REDIS_PORT) || 6379,
+      port: parseInt(process.env.REDIS_PORT, 10) || 6379,
       password: process.env.REDIS_PASSWORD || ''
     });
     await contextBus.connect();
@@ -162,7 +286,8 @@ async function initializeServices() {
         anthropicKey: process.env.ANTHROPIC_API_KEY,
         openaiKey: process.env.OPENAI_API_KEY,
         ollamaHost: process.env.OLLAMA_HOST || 'http://localhost:11434',
-        maxConcurrentAgents: parseInt(process.env.MAX_CONCURRENT_AGENTS) || 10,
+        maxConcurrentAgents:
+          parseInt(process.env.MAX_CONCURRENT_AGENTS, 10) || 10,
         defaultModel: process.env.DEFAULT_MODEL || 'ollama'
       }
     });
@@ -201,6 +326,40 @@ app.get('/metrics', async (req, res) => {
   }
 });
 
+function buildHealthPayload(checks) {
+  // Each value is either a boolean or an object with a `healthy` boolean property
+  const allHealthy = Object.values(checks).every(
+    (service) => service === true
+      || (typeof service === 'object'
+        && service !== null
+        && service.healthy === true)
+  );
+
+  return {
+    status: allHealthy ? 'healthy' : 'unhealthy',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    services: checks
+  };
+}
+
+async function respondWithHealth(res, checksPromise) {
+  if (isShuttingDown) {
+    return res.status(503).json({
+      status: 'shutting_down',
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      services: {
+        shutdown: false
+      }
+    });
+  }
+
+  const checks = await checksPromise;
+  const health = buildHealthPayload(checks);
+  return res.status(health.status === 'healthy' ? 200 : 503).json(health);
+}
+
 // Health check endpoint
 /**
  * @swagger
@@ -218,42 +377,66 @@ app.get('/metrics', async (req, res) => {
  *       503:
  *         description: System is unhealthy
  */
-app.get('/health', (req, res) => {
-  const health = {
+app.get('/livez', (_req, res) => {
+  res.status(200).json({
     status: 'healthy',
     timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    services: {
-      contextBus: contextBus?.isConnected() || false,
-      orchestrator: orchestrator?.isReady() || false
-    }
-  };
-
-  const allHealthy = Object.values(health.services).every((s) => s === true);
-  const statusCode = allHealthy ? 200 : 503;
-
-  res.status(statusCode).json(health);
+    uptime: process.uptime()
+  });
 });
-app.get('/api/health', (req, res) => {
-  const health = {
-    status: 'healthy',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    services: {
+
+app.get('/readyz', async (_req, res) => {
+  await respondWithHealth(
+    res,
+    Promise.all([databaseHealthCheck(), redisHealthCheck()]).then(
+      ([database, redis]) => {
+        // Pool exhaustion check (H6): fail readiness if ≥80% of connections are waiting
+        const poolStats = getDetailedPoolStats();
+        const poolHealthy = poolStats.waiting < poolStats.max * 0.8;
+
+        return {
+          database,
+          redis,
+          pool: {
+            healthy: poolHealthy,
+            total: poolStats.total,
+            idle: poolStats.idle,
+            waiting: poolStats.waiting,
+            max: poolStats.max
+          },
+          contextBus: contextBus?.isConnected() || false,
+          orchestrator: orchestrator?.isReady() || false
+        };
+      }
+    )
+  );
+});
+
+app.get('/health', async (_req, res) => {
+  await respondWithHealth(
+    res,
+    Promise.resolve({
       contextBus: contextBus?.isConnected() || false,
       orchestrator: orchestrator?.isReady() || false
-    }
-  };
+    })
+  );
+});
 
-  const allHealthy = Object.values(health.services).every((s) => s === true);
-  const statusCode = allHealthy ? 200 : 503;
-
-  res.status(statusCode).json(health);
+app.get('/api/health', async (_req, res) => {
+  await respondWithHealth(
+    res,
+    Promise.resolve({
+      contextBus: contextBus?.isConnected() || false,
+      orchestrator: orchestrator?.isReady() || false
+    })
+  );
 });
 
 // API Routes
 
 app.use('/api/auth', authRoutes);
+app.use('/api/v1/auth', authRoutes);
+app.use('/api/users', usersRoutes);
 
 // Create new project
 /**
@@ -295,6 +478,7 @@ app.post(
   apiLimiter,
   createProjectLimiter,
   optionalAuth,
+  idempotency(),
   async (req, res) => {
     try {
       const {
@@ -325,10 +509,10 @@ app.post(
       });
 
       logger.info(`📋 Project created: ${project.projectId}`);
-      res.status(201).json(project);
+      return res.status(201).json(project);
     } catch (error) {
       logger.error('Error creating project:', error);
-      res.status(500).json({ error: error.message });
+      return res.status(500).json({ error: error.message });
     }
   }
 );
@@ -416,10 +600,10 @@ app.get(
         return res.status(404).json({ error: 'Project not found' });
       }
 
-      res.json(project);
+      return res.json(project);
     } catch (error) {
       logger.error('Error fetching project:', error);
-      res.status(500).json({ error: error.message });
+      return res.status(500).json({ error: error.message });
     }
   }
 );
@@ -540,8 +724,13 @@ app.use((req, res) => {
   res.status(404).json({ error: 'Not found' });
 });
 
+// Sentry error handler must come before the generic error handler
+if (global.Sentry) {
+  app.use(global.Sentry.Handlers.errorHandler());
+}
+
 // Error handler
-app.use((err, req, res, next) => {
+app.use((err, req, res, _next) => {
   logger.error('Unhandled error:', err);
   res.status(500).json({
     error: 'Internal server error',
@@ -549,18 +738,92 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Graceful shutdown
-process.on('SIGTERM', async () => {
-  logger.info('SIGTERM received, shutting down gracefully...');
-
-  if (vault) {
-    const { shutdownVault } = require('./config/vault');
-    await shutdownVault();
+async function shutdown(signal) {
+  if (isShuttingDown) {
+    return;
   }
-  if (contextBus) await contextBus.disconnect();
-  if (orchestrator) await orchestrator.shutdown();
 
-  process.exit(0);
+  isShuttingDown = true;
+  logger.info(`${signal} received, shutting down gracefully...`);
+
+  const timeoutMs = parseInt(process.env.SHUTDOWN_TIMEOUT_MS || '10000', 10);
+  const forceExit = setTimeout(() => {
+    logger.error(`Graceful shutdown timed out after ${timeoutMs}ms`);
+    process.exit(1);
+  }, timeoutMs);
+
+  try {
+    // Stop accepting new connections
+    await new Promise((resolve, reject) => {
+      server.close((error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        resolve();
+      });
+    });
+
+    // H7: Drain in-flight requests before proceeding
+    if (activeRequests > 0) {
+      logger.info(
+        `Waiting for ${activeRequests} in-flight request(s) to finish...`
+      );
+      await new Promise((resolve) => {
+        const drainCheck = setInterval(() => {
+          if (activeRequests <= 0) {
+            clearInterval(drainCheck);
+            resolve();
+          }
+        }, 100);
+      });
+    }
+
+    if (vault) {
+      await shutdownVault();
+    }
+    if (contextBus) await contextBus.disconnect();
+    if (orchestrator) await orchestrator.shutdown();
+    await closeRedis();
+
+    clearTimeout(forceExit);
+    process.exit(0);
+  } catch (error) {
+    clearTimeout(forceExit);
+    logger.error('Graceful shutdown failed:', error);
+    process.exit(1);
+  }
+}
+
+process.on('SIGTERM', () => {
+  shutdown('SIGTERM');
+});
+
+process.on('SIGINT', () => {
+  shutdown('SIGINT');
+});
+
+// ── Process-level error handlers (C1) ─────────────────────────────────────────
+// Node 15+ turns unhandledRejection into a fatal exit but without useful
+// context. Capture and log before that happens.
+process.on('unhandledRejection', (reason, promise) => {
+  logger.error('Unhandled promise rejection', {
+    promise: String(promise),
+    reason:
+      reason instanceof Error
+        ? { message: reason.message, stack: reason.stack }
+        : reason
+  });
+  if (global.Sentry) global.Sentry.captureException(reason);
+});
+
+process.on('uncaughtException', (error) => {
+  logger.error('Uncaught exception — process will exit', {
+    message: error.message,
+    stack: error.stack
+  });
+  if (global.Sentry) global.Sentry.captureException(error);
+  process.exit(1);
 });
 
 // Start server
@@ -570,7 +833,9 @@ async function start() {
   server.listen(PORT, '0.0.0.0', () => {
     logger.info(`🌐 Zekka Framework listening on http://0.0.0.0:${PORT}`);
     logger.info(`📊 Health check: http://localhost:${PORT}/health`);
-    logger.info(`📊 Compatibility health check: http://localhost:${PORT}/api/health`);
+    logger.info(
+      `📊 Compatibility health check: http://localhost:${PORT}/api/health`
+    );
     logger.info(`📚 API docs: http://localhost:${PORT}/api/docs`);
     logger.info(`📚 Compatibility API docs: http://localhost:${PORT}/api-docs`);
     logger.info(`📈 Prometheus metrics: http://localhost:${PORT}/metrics`);

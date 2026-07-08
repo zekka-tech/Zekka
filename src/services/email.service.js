@@ -142,7 +142,7 @@ class EmailService {
   /**
    * Get verification email template
    */
-  getVerificationEmailTemplate(verificationUrl, token) {
+  getVerificationEmailTemplate(verificationUrl, _token) {
     return `
       <!DOCTYPE html>
       <html>
@@ -193,7 +193,7 @@ class EmailService {
   /**
    * Get password reset email template
    */
-  getPasswordResetEmailTemplate(resetUrl, token) {
+  getPasswordResetEmailTemplate(resetUrl, _token) {
     return `
       <!DOCTYPE html>
       <html>
@@ -242,6 +242,43 @@ class EmailService {
       </body>
       </html>
     `;
+  }
+
+  /**
+   * Send a security alert email to one or more operators.
+   * Recipients should be a string (comma-separated) or string[].
+   */
+  async sendAlertEmail(recipients, alert) {
+    if (!this.initialized) {
+      logger.warn('Email service not initialized; skipping security alert email', {
+        alertType: alert?.type
+      });
+      return { success: false, message: 'Email service not configured' };
+    }
+
+    const to = Array.isArray(recipients) ? recipients.join(',') : recipients;
+    if (!to) {
+      return { success: false, message: 'No recipients provided' };
+    }
+
+    const subject = `[Zekka Security] ${alert?.severity?.toUpperCase() ?? 'ALERT'} — ${alert?.type ?? 'unknown'}`;
+    const body = '<p>A security alert has fired.</p>'
+      + `<pre style="font-family: monospace; background:#f4f4f4; padding:12px; border-radius:4px;">${
+        String(JSON.stringify(alert ?? {}, null, 2)).replace(/</g, '&lt;').slice(0, 4000)
+      }</pre>`;
+
+    try {
+      const info = await this.transporter.sendMail({
+        from: process.env.SMTP_FROM || process.env.SMTP_USER,
+        to,
+        subject,
+        html: body
+      });
+      return { success: true, messageId: info.messageId };
+    } catch (error) {
+      logger.error('Failed to send security alert email', { error: error?.message });
+      return { success: false, message: error?.message };
+    }
   }
 
   /**

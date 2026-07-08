@@ -8,6 +8,7 @@
 
 const { Pool } = require('pg');
 const config = require('./index');
+const { getDatabaseSsl } = require('./database-ssl');
 const logger = require('../utils/logger');
 
 let reconnectAttempts = 0;
@@ -21,7 +22,7 @@ const pool = new Pool({
   max: config.database.poolMax || 20,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,
-  ssl: config.isProduction ? { rejectUnauthorized: false } : false,
+  ssl: getDatabaseSsl({ defaultEnabled: config.isProduction }),
   // Additional pool configuration
   allowExitOnIdle: false,
   maxUses: 7500,
@@ -43,7 +44,7 @@ pool.on('connect', (client) => {
   });
 });
 
-pool.on('error', (err, client) => {
+pool.on('error', (err, _client) => {
   logger.error('❌ Unexpected database pool error:', err);
 
   // Attempt reconnection for connection errors
@@ -99,7 +100,7 @@ async function handleReconnection() {
 async function testConnection() {
   try {
     const client = await pool.connect();
-    const result = await client.query('SELECT NOW()');
+    await client.query('SELECT NOW()');
     client.release();
     logger.info('✅ Database connection test successful');
     return true;
@@ -172,7 +173,7 @@ async function queryWithRetry(text, params, retries = 3) {
         `⚠️  Query failed (attempt ${i + 1}/${retries}), retrying...`,
         error.message
       );
-      await new Promise((resolve) => setTimeout(resolve, 1000 * (i + 1))); // Exponential backoff
+      await new Promise((resolve) => { setTimeout(resolve, 1000 * (i + 1)); }); // Exponential backoff
     }
   }
 
@@ -246,8 +247,8 @@ function getDetailedPoolStats() {
   };
 }
 
-// Convenience wrapper to use pool.query directly
-const query = (text, values) => pool.query(text, values);
+// All service calls go through queryWithRetry (C2: transient DB failure retry)
+const query = (text, values) => queryWithRetry(text, values);
 const getClient = () => pool.connect();
 
 module.exports = {

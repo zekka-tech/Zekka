@@ -23,9 +23,9 @@ const disallowedPatterns = [
   }
 ];
 
+// The deprecated files themselves were removed; the disallowed patterns above
+// stay so references to them cannot be reintroduced.
 const skipFiles = new Set([
-  path.join('src', 'index.secure.js'),
-  path.join('src', 'utils', 'database-migrations.js'),
   path.join('scripts', 'verify-entrypoints.js')
 ]);
 

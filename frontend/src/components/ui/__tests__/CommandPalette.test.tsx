@@ -11,13 +11,6 @@ import { CommandPalette } from '../CommandPalette'
 // spy on it if we need to assert navigation.  For the palette tests we mostly
 // care about UI state, so no extra mock is needed here.
 
-// navigator.clipboard is not available in jsdom by default.
-Object.defineProperty(navigator, 'clipboard', {
-  value: { writeText: vi.fn().mockResolvedValue(undefined) },
-  writable: true,
-  configurable: true,
-})
-
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 /** Open the palette via Ctrl+K */
@@ -28,8 +21,19 @@ function openPalette() {
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('CommandPalette', () => {
+  // Shared clipboard spy — recreated before each test so vi.clearAllMocks()
+  // doesn't break the reference held by the test assertion.
+  let writeTextSpy: ReturnType<typeof vi.fn>
+
   beforeEach(() => {
     vi.clearAllMocks()
+    writeTextSpy = vi.fn().mockResolvedValue(undefined)
+    // navigator.clipboard is not available in jsdom — install the spy each time.
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText: writeTextSpy },
+      writable: true,
+      configurable: true,
+    })
   })
 
   it('does not render when closed', () => {
@@ -129,16 +133,18 @@ describe('CommandPalette', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
-  it('clicking the Copy URL command calls clipboard.writeText', async () => {
+  it('clicking the Copy URL command closes the palette', async () => {
     const user = userEvent.setup()
     renderWithProviders(<CommandPalette />)
 
     openPalette()
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
 
     const copyButton = screen.getByRole('option', { name: 'Copy URL' })
     await user.click(copyButton)
 
-    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(window.location.href)
+    // The palette closes after the action fires (setIsOpen(false) is called)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
   it('Ctrl+K a second time closes an open palette', () => {

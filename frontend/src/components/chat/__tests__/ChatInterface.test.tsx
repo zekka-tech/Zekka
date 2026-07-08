@@ -98,7 +98,7 @@ describe('ChatInterface', () => {
     fireEvent.click(screen.getByTitle('Send message (Enter)'))
 
     await waitFor(() => {
-      expect(sendMessage).toHaveBeenCalledWith('Hello world')
+      expect(sendMessage).toHaveBeenCalledWith('Hello world', undefined)
     })
   })
 })

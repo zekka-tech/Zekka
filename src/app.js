@@ -4,23 +4,18 @@ const fs = require('fs');
 const path = require('path');
 const cors = require('cors');
 const session = require('express-session');
-const RedisStoreFactory = require('connect-redis');
+const { RedisStore } = require('connect-redis');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const { createLogger, format, transports } = require('winston');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./swagger');
 const redisClient = require('./config/redis');
+const config = require('./config');
 
 // Middleware
-const {
-  apiLimiter,
-  createProjectLimiter
-} = require('./middleware/rateLimit');
-const {
-  authenticate,
-  optionalAuth
-} = require('./middleware/auth');
+const { apiLimiter, createProjectLimiter } = require('./middleware/rateLimit');
+const { optionalAuth } = require('./middleware/auth');
 const {
   metricsMiddleware,
   getMetrics,
@@ -28,8 +23,6 @@ const {
 } = require('./middleware/metrics');
 const { csrfTokenGenerator, csrfTokenValidator } = require('./middleware/csrf');
 const { createCsrfRouteGuard } = require('./middleware/csrf-route-guard');
-const RedisStore = RedisStoreFactory(session);
-
 // API Routes
 const projectsRoutes = require('./routes/projects.routes');
 const conversationsRoutes = require('./routes/conversations.routes');
@@ -38,6 +31,7 @@ const agentsRoutes = require('./routes/agents.routes');
 const sourcesRoutes = require('./routes/sources.routes');
 const preferencesRoutes = require('./routes/preferences.routes');
 const authRoutes = require('./routes/auth.routes');
+const usersRoutes = require('./routes/users.routes');
 
 // Logger setup
 const logger = createLogger({
@@ -58,10 +52,17 @@ if (!sessionSecret) {
   throw new Error('SESSION_SECRET is required for CSRF session protection');
 }
 
-const sessionStore = new RedisStore({
-  client: redisClient,
-  prefix: 'zekka:session:'
-});
+// In test environment use the default in-process MemoryStore so that supertest
+// requests don't attempt to talk to a real Redis instance.
+const sessionStore = process.env.NODE_ENV !== 'test'
+  ? new RedisStore({
+    client: redisClient,
+    prefix: 'zekka:session:'
+  })
+  : undefined; // express-session falls back to MemoryStore when undefined
+
+// Idempotency middleware for write endpoints
+const { idempotency } = require('./middleware/idempotency');
 
 // Service references — populated by index.js via setServices() after init
 let contextBus;
@@ -83,7 +84,16 @@ const app = express();
 // Middleware
 app.set('trust proxy', 1);
 app.use(helmet());
-app.use(cors());
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (!origin) return callback(null, true);
+      if (config.cors.origins.includes(origin)) return callback(null, true);
+      return callback(new Error('Origin not allowed by CORS'));
+    },
+    credentials: true
+  })
+);
 app.use(
   session({
     store: sessionStore,
@@ -102,8 +112,8 @@ app.use(
     }
   })
 );
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: config.limits.json }));
+app.use(express.urlencoded({ extended: true, limit: config.limits.urlEncoded }));
 app.use(
   morgan('combined', { stream: { write: (msg) => logger.info(msg.trim()) } })
 );
@@ -191,6 +201,8 @@ app.get('/api/health', (req, res) => {
 // API Routes
 
 app.use('/api/auth', authRoutes);
+app.use('/api/v1/auth', authRoutes);
+app.use('/api/users', usersRoutes);
 
 // Create new project
 /**
@@ -232,6 +244,7 @@ app.post(
   apiLimiter,
   createProjectLimiter,
   optionalAuth,
+  idempotency(),
   async (req, res) => {
     try {
       const {
@@ -264,10 +277,10 @@ app.post(
       });
 
       logger.info(`Project created: ${project.projectId}`);
-      res.status(201).json(project);
+      return res.status(201).json(project);
     } catch (error) {
       logger.error('Error creating project:', error);
-      res.status(500).json({ error: error.message });
+      return res.status(500).json({ error: error.message });
     }
   }
 );
@@ -355,10 +368,10 @@ app.get(
         return res.status(404).json({ error: 'Project not found' });
       }
 
-      res.json(project);
+      return res.json(project);
     } catch (error) {
       logger.error('Error fetching project:', error);
-      res.status(500).json({ error: error.message });
+      return res.status(500).json({ error: error.message });
     }
   }
 );
@@ -480,7 +493,7 @@ app.use((req, res) => {
 });
 
 // Error handler
-app.use((err, req, res, next) => {
+app.use((err, req, res, _next) => {
   logger.error('Unhandled error:', err);
   res.status(500).json({
     error: 'Internal server error',

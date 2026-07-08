@@ -48,6 +48,7 @@ const Joi = require('joi');
 
 // Load configuration
 const config = require('../config');
+const { getDatabaseSsl } = require('../config/database-ssl');
 const logger = require('../utils/logger');
 
 // Constants from configuration (no defaults for security-critical values)
@@ -65,7 +66,7 @@ const PASSWORD_POLICY = {
 // Database connection pool for user persistence
 const pool = new Pool({
   connectionString: config.database.url,
-  ssl: config.isProduction ? { rejectUnauthorized: false } : false,
+  ssl: getDatabaseSsl({ defaultEnabled: config.isProduction }),
   min: 2,
   max: 10,
   idleTimeoutMillis: 30000,
@@ -246,7 +247,7 @@ function generateToken(userId, email, additionalClaims = {}) {
       iat: Math.floor(Date.now() / 1000)
     },
     JWT_SECRET,
-    { expiresIn: JWT_EXPIRATION }
+    { expiresIn: JWT_EXPIRATION, algorithm: 'HS256' }
   );
 }
 
@@ -264,7 +265,7 @@ function generateToken(userId, email, additionalClaims = {}) {
  */
 function verifyToken(token) {
   try {
-    return jwt.verify(token, JWT_SECRET);
+    return jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
   } catch (error) {
     // Log for debugging but don't expose details
     if (error.name === 'TokenExpiredError') {
@@ -313,7 +314,7 @@ function authenticate(req, res, next) {
   }
 
   req.user = decoded;
-  next();
+  return next();
 }
 
 /**

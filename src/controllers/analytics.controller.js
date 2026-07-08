@@ -4,7 +4,6 @@
  */
 
 const { getAnalyticsService } = require('../services/analytics.service');
-const { AppError } = require('../utils/errors');
 
 const analyticsService = getAnalyticsService();
 
@@ -19,9 +18,11 @@ class AnalyticsController {
       const { userId } = req.user;
       const { period = 'month' } = req.query;
 
+      // Pass userId so the service can enforce ownership — prevents IDOR
       const analytics = await analyticsService.getProjectAnalytics(
         projectId,
-        period
+        period,
+        userId
       );
 
       res.status(200).json({
@@ -39,11 +40,12 @@ class AnalyticsController {
    */
   async getTokenUsage(req, res, next) {
     try {
-      const { projectId } = req.params;
       const { userId } = req.user;
       const { period = 'month' } = req.query;
 
-      const usage = await analyticsService.getTokenUsage(projectId, period);
+      // Service expects userId (not projectId) to scope results to the
+      // authenticated user's own projects.
+      const usage = await analyticsService.getTokenUsage(userId, period);
 
       res.status(200).json({
         success: true,
@@ -60,10 +62,11 @@ class AnalyticsController {
    */
   async getCostBreakdown(req, res, next) {
     try {
-      const { projectId } = req.params;
       const { userId } = req.user;
+      const { period = 'month' } = req.query;
 
-      const costs = await analyticsService.getCostsBreakdown(projectId);
+      // Service expects userId (not projectId) to scope results.
+      const costs = await analyticsService.getCostsBreakdown(userId, period);
 
       res.status(200).json({
         success: true,

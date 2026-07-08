@@ -117,7 +117,7 @@ class MigrationManager {
         }
 
         // Lock is held, wait and retry
-        await new Promise((resolve) => setTimeout(resolve, retryDelay));
+        await new Promise((resolve) => { setTimeout(resolve, retryDelay); });
       } catch (error) {
         throw new Error(`Failed to acquire migration lock: ${error.message}`);
       }
@@ -152,7 +152,7 @@ class MigrationManager {
         .map((filename) => {
           const match = filename.match(/^(\d+)_(.+)\.(js|sql|ts)$/);
           return {
-            version: parseInt(match[1]),
+            version: parseInt(match[1], 10),
             name: match[2],
             filename,
             filepath: path.join(this.config.migrationsDir, filename),
@@ -229,6 +229,8 @@ class MigrationManager {
    * Execute JavaScript/TypeScript migration
    */
   async executeJsMigration(filepath, direction = 'up') {
+    // Migration files are discovered at runtime from the migrations directory
+    // eslint-disable-next-line import/no-dynamic-require
     const migration = require(filepath);
 
     if (typeof migration[direction] !== 'function') {
@@ -423,9 +425,9 @@ class MigrationManager {
       const allMigrations = await this.getMigrationFiles();
       const results = [];
 
-      for (const executed of toRollback) {
+      for (const executedMigration of toRollback) {
         const migration = allMigrations.find(
-          (m) => m.version === executed.version
+          (m) => m.version === executedMigration.version
         );
         if (migration) {
           const result = await this.rollbackMigration(migration);
@@ -459,11 +461,10 @@ class MigrationManager {
 
     for (const migration of allMigrations) {
       const exec = executedMap.get(migration.version);
-      const status = exec
-        ? exec.rolled_back
-          ? '⏪ ROLLED BACK'
-          : '✅ EXECUTED'
-        : '⏳ PENDING';
+      let status = '⏳ PENDING';
+      if (exec) {
+        status = exec.rolled_back ? '⏪ ROLLED BACK' : '✅ EXECUTED';
+      }
       const executedAt = exec && !exec.rolled_back
         ? new Date(exec.executed_at).toLocaleString()
         : '-';

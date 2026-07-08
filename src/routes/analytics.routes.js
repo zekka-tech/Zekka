@@ -34,6 +34,17 @@ router.get('/costs', analyticsController.getCosts);
 router.get('/costs/breakdown', analyticsController.getCostsBreakdown);
 
 /**
+ * @route   GET /api/v1/analytics/agents/:agentId
+ * @desc    Get agent metrics
+ * @access  Private
+ * @param   {string} agentId - Agent ID
+ *
+ * NOTE: must be registered before /:projectId so Express does not treat
+ * "agents" as a projectId value.
+ */
+router.get('/agents/:agentId', analyticsController.getAgentMetrics);
+
+/**
  * @route   GET /api/v1/analytics/:projectId
  * @desc    Get project analytics
  * @access  Private
@@ -56,13 +67,5 @@ router.get('/:projectId/tokens', analyticsController.getTokenUsage);
  * @param   {string} projectId - Project ID
  */
 router.get('/:projectId/costs', analyticsController.getCostBreakdown);
-
-/**
- * @route   GET /api/v1/analytics/agents/:agentId
- * @desc    Get agent metrics
- * @access  Private
- * @param   {string} agentId - Agent ID
- */
-router.get('/agents/:agentId', analyticsController.getAgentMetrics);
 
 module.exports = router;

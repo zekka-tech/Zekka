@@ -319,23 +319,24 @@ class AuditLogger {
   /**
    * Log API call
    */
-  logApiCall(method, path, statusCode, actor, requestId, additionalData = {}) {
+  logApiCall(method, requestPath, statusCode, actor, requestId, additionalData = {}) {
     const outcome = statusCode >= 200 && statusCode < 400
       ? AuditOutcome.SUCCESS
       : AuditOutcome.FAILURE;
 
-    const severity = statusCode >= 500
-      ? AuditSeverity.ERROR
-      : statusCode >= 400
-        ? AuditSeverity.WARNING
-        : AuditSeverity.INFO;
+    let severity = AuditSeverity.INFO;
+    if (statusCode >= 500) {
+      severity = AuditSeverity.ERROR;
+    } else if (statusCode >= 400) {
+      severity = AuditSeverity.WARNING;
+    }
 
     return this.log({
       category: AuditCategory.API_CALL,
       severity,
       outcome,
-      action: `${method} ${path}`,
-      message: `API call: ${method} ${path} - ${statusCode}`,
+      action: `${method} ${requestPath}`,
+      message: `API call: ${method} ${requestPath} - ${statusCode}`,
       actor,
       requestId,
       additionalData: {

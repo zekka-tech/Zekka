@@ -3,7 +3,28 @@
  * Handles file/source upload and management endpoints
  */
 
+const Joi = require('joi');
 const { getSourceService } = require('../services/source.service');
+
+// Validation schemas used by this controller
+const uploadSourceSchema = Joi.object({
+  projectId: Joi.string().required(),
+  name: Joi.string().min(1).max(255).optional(),
+  type: Joi.string()
+    .valid('file', 'url', 'text', 'github', 'database', 'api')
+    .optional(),
+  url: Joi.string().uri().optional(),
+  metadata: Joi.object().optional()
+}).options({ allowUnknown: false, stripUnknown: true });
+
+const updateSourceSchema = Joi.object({
+  name: Joi.string().min(1).max(255).optional(),
+  description: Joi.string().max(1000).optional(),
+  status: Joi.string()
+    .valid('pending', 'processing', 'completed', 'failed', 'archived')
+    .optional(),
+  metadata: Joi.object().optional()
+}).min(1).options({ allowUnknown: false, stripUnknown: true });
 
 const sourceService = getSourceService();
 
@@ -46,10 +67,19 @@ class SourcesController {
   async uploadSource(req, res, next) {
     try {
       const { userId } = req.user;
+      const { file } = req;
+
+      const { error, value } = uploadSourceSchema.validate(req.body);
+      if (error) {
+        return res.status(400).json({
+          success: false,
+          error: error.details.map((d) => d.message).join('; ')
+        });
+      }
+
       const {
         projectId, name, type, url, metadata
-      } = req.body;
-      const { file } = req;
+      } = value;
 
       const source = await sourceService.createSource(userId, {
         projectId,
@@ -60,13 +90,13 @@ class SourcesController {
         metadata
       });
 
-      res.status(201).json({
+      return res.status(201).json({
         success: true,
         data: source,
         message: 'Source uploaded successfully'
       });
     } catch (error) {
-      next(error);
+      return next(error);
     }
   }
 
@@ -98,17 +128,24 @@ class SourcesController {
     try {
       const { userId } = req.user;
       const { id } = req.params;
-      const updates = req.body;
 
-      const source = await sourceService.updateSource(id, userId, updates);
+      const { error, value } = updateSourceSchema.validate(req.body);
+      if (error) {
+        return res.status(400).json({
+          success: false,
+          error: error.details.map((d) => d.message).join('; ')
+        });
+      }
 
-      res.status(200).json({
+      const source = await sourceService.updateSource(id, userId, value);
+
+      return res.status(200).json({
         success: true,
         data: source,
         message: 'Source updated successfully'
       });
     } catch (error) {
-      next(error);
+      return next(error);
     }
   }
 

@@ -209,10 +209,9 @@ function rateLimitHandler(handler, options = {}) {
             userId: socket.user?.userId
           });
 
-          throw {
-            message,
-            code: 'RATE_LIMIT_EXCEEDED'
-          };
+          const rateLimitError = new Error(message);
+          rateLimitError.code = 'RATE_LIMIT_EXCEEDED';
+          throw rateLimitError;
         }
 
         // Add current request
@@ -269,7 +268,7 @@ async function retryWithBackoff(operation, options = {}) {
 
       if (attempt < maxRetries && shouldRetry(error)) {
         const delay = calculateBackoff(attempt, baseDelay, maxDelay);
-        await new Promise((resolve) => setTimeout(resolve, delay));
+        await new Promise((resolve) => { setTimeout(resolve, delay); });
       }
     }
   }

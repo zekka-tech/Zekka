@@ -5,6 +5,7 @@ import {
   type ConversationStreamDeltaData,
   type ConversationStreamEvent
 } from '@/services/api'
+import { useToast } from '@/components/ui/Toast'
 import type { Conversation, Message } from '@/types/chat.types'
 
 type ConversationRecord = {
@@ -113,6 +114,7 @@ const createConversationTitle = (content: string, projectName?: string) => {
 
 export const useConversations = (projectId?: string | null) => {
   const queryClient = useQueryClient()
+  const { error: toastError } = useToast()
   const conversationKey = ['conversations', projectId ?? 'all']
 
   const { data, isLoading, error } = useQuery({
@@ -138,6 +140,9 @@ export const useConversations = (projectId?: string | null) => {
           ...((old ?? []).filter((conversation) => conversation.id !== newConversation.id))
         ]
       )
+    },
+    onError: (err: Error) => {
+      toastError('Failed to create conversation', err.message)
     }
   })
 
@@ -153,6 +158,7 @@ export const useConversations = (projectId?: string | null) => {
 
 export const useConversation = (conversationId: string | null) => {
   const queryClient = useQueryClient()
+  const { error: toastError } = useToast()
 
   const { data: conversationData, isLoading, error } = useQuery({
     queryKey: ['conversations', conversationId],
@@ -189,6 +195,9 @@ export const useConversation = (conversationId: string | null) => {
       queryClient.invalidateQueries({
         queryKey: ['conversations', conversationId, 'messages']
       })
+    },
+    onError: (err: Error) => {
+      toastError('Failed to send message', err.message)
     }
   })
 

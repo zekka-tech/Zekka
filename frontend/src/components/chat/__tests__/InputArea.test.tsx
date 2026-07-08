@@ -34,7 +34,7 @@ describe('InputArea', () => {
     await user.keyboard('{Enter}')
 
     expect(onSubmit).toHaveBeenCalledOnce()
-    expect(onSubmit).toHaveBeenCalledWith('Send this')
+    expect(onSubmit).toHaveBeenCalledWith('Send this', undefined)
   })
 
   it('pressing Shift+Enter does NOT submit and adds a newline', async () => {
@@ -94,6 +94,6 @@ describe('InputArea', () => {
     const sendButton = screen.getByTitle('Send message (Enter)')
     await user.click(sendButton)
 
-    expect(onSubmit).toHaveBeenCalledWith('Via button')
+    expect(onSubmit).toHaveBeenCalledWith('Via button', undefined)
   })
 })

@@ -41,6 +41,14 @@ export class ErrorBoundary extends Component<Props, State> {
       errorCount: prevState.errorCount + 1
     }))
 
+    // Report to Sentry if available
+    if (window.Sentry) {
+      window.Sentry.withScope((scope) => {
+        scope.setExtra('componentStack', errorInfo.componentStack)
+        window.Sentry!.captureException(error)
+      })
+    }
+
     // Send error to logging service (if available)
     if (window.__errorLogger) {
       window.__errorLogger({
@@ -173,9 +181,13 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 }
 
-// Type augmentation for error logger
+// Type augmentation for error logger and Sentry
 declare global {
   interface Window {
-    __errorLogger?: (error: any) => void
+    __errorLogger?: (error: { error: Error; errorInfo: ErrorInfo; timestamp: string }) => void
+    Sentry?: {
+      captureException: (error: Error) => void
+      withScope: (callback: (scope: { setExtra: (key: string, value: unknown) => void }) => void) => void
+    }
   }
 }

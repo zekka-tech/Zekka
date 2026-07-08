@@ -4,6 +4,69 @@
  * Comprehensive test environment setup with database mocking and utilities
  */
 
+// ── Global module mocks ───────────────────────────────────────────────────────
+// These provide safe defaults for HTTP-level (supertest) tests that do not
+// declare their own jest.mock() calls. Unit/integration tests that need
+// different behaviour override these in their own files — per-file jest.mock
+// calls always win over setup-file mocks.
+
+jest.mock('pg', () => {
+  // A minimal but realistic user row returned by INSERT … RETURNING *.
+  // SELECT queries (findByEmail / findById lookups) return rows:[] which
+  // the repositories interpret as "not found" — that's the safe default
+  // for auth tests where we don't want to simulate an existing user.
+  const fakeUserRow = {
+    id: 1,
+    user_id: 'u-test-00000000',
+    email: 'test@example.com',
+    password_hash: '$2b$12$placeholderhashedpassword',
+    name: 'Test User',
+    is_active: true,
+    email_verified: false,
+    login_attempts: 0,
+    failed_login_attempts: 0,
+    locked_until: null,
+    last_login: null,
+    metadata: {},
+    phone: null,
+    telegram_id: null,
+    username: null,
+    auth_method: 'password',
+    verified: false,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+
+  // INSERT queries (text contains 'INSERT') return the fake row so that
+  // repository.create() succeeds. All other queries return empty rows.
+  function makeQueryFn() {
+    return jest.fn().mockImplementation((queryTextOrConfig) => {
+      const text =
+        typeof queryTextOrConfig === 'string'
+          ? queryTextOrConfig
+          : (queryTextOrConfig && queryTextOrConfig.text) || '';
+      if (text.trim().toUpperCase().startsWith('INSERT')) {
+        return Promise.resolve({ rows: [fakeUserRow], rowCount: 1 });
+      }
+      return Promise.resolve({ rows: [], rowCount: 0 });
+    });
+  }
+
+  const mockClient = {
+    query: makeQueryFn(),
+    release: jest.fn(),
+  };
+  const mockPool = {
+    query: makeQueryFn(),
+    connect: jest.fn().mockResolvedValue(mockClient),
+    end: jest.fn().mockResolvedValue(undefined),
+    on: jest.fn(),
+  };
+  return { Pool: jest.fn(() => mockPool) };
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 const { faker } = require('@faker-js/faker');
 
 // Extend Jest matchers
@@ -274,7 +337,11 @@ global.testUtils = {
     updateLastLogin: jest.fn(),
     updatePassword: jest.fn(),
     storeResetToken: jest.fn(),
-    checkPasswordHistory: jest.fn()
+    checkPasswordHistory: jest.fn(),
+    storeVerificationToken: jest.fn(),
+    findByResetToken: jest.fn(),
+    findByVerificationToken: jest.fn(),
+    markEmailVerified: jest.fn()
   }),
 
   /**

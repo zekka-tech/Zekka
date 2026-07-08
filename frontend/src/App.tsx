@@ -5,6 +5,7 @@ import { RootLayout } from '@/components/layout/RootLayout'
 import { ErrorBoundary } from '@/components/layout/ErrorBoundary'
 import { ThemeProvider } from '@/contexts/ThemeContext'
 import { ToastProvider } from '@/components/ui/Toast'
+import { OfflineBanner } from '@/components/ui/OfflineBanner'
 import { useAuth } from '@/hooks/useAuth'
 import { useTheme } from '@/contexts/ThemeContext'
 import './styles/globals.css'
@@ -36,6 +37,17 @@ const queryClient = new QueryClient({
     queries: {
       staleTime: 1000 * 60 * 5, // 5 minutes
       gcTime: 1000 * 60 * 10, // 10 minutes (formerly cacheTime)
+      retry: (failureCount, error) => {
+        // Do not retry on auth errors or client errors
+        if (error instanceof Error && 'status' in error) {
+          const status = (error as Error & { status?: number }).status
+          if (status && status >= 400 && status < 500) return false
+        }
+        return failureCount < 2
+      },
+    },
+    mutations: {
+      retry: false,
     },
   },
 })
@@ -75,10 +87,10 @@ function AppContentInner() {
         <RootLayout>
           <Suspense fallback={<AppLoadingFallback />}>
             <Routes>
-              <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/projects" element={<ProjectsPage />} />
-              <Route path="/analytics" element={<AnalyticsPage />} />
-              <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/dashboard" element={<ErrorBoundary><DashboardPage /></ErrorBoundary>} />
+              <Route path="/projects" element={<ErrorBoundary><ProjectsPage /></ErrorBoundary>} />
+              <Route path="/analytics" element={<ErrorBoundary><AnalyticsPage /></ErrorBoundary>} />
+              <Route path="/settings" element={<ErrorBoundary><SettingsPage /></ErrorBoundary>} />
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
             </Routes>
           </Suspense>
@@ -98,6 +110,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <ToastProvider>
+          <OfflineBanner />
           <Router>
             <AppContentInner />
           </Router>

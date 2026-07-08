@@ -24,8 +24,11 @@ export const GlobalSearch = ({
   const inputRef = useRef<HTMLInputElement>(null)
   const { history, addToHistory } = useSearchHistory()
 
+  const searchCategories = ['projects', 'conversations', 'agents', 'all'] as const
+  const category = searchCategories.find(c => c === filters.category)
+
   const searchResults = useUnifiedSearch(query, {
-    category: filters.category as any,
+    category,
     limit: 10
   })
 

@@ -14,6 +14,7 @@
  */
 
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const pool = require('../config/database');
 const redis = require('../config/redis');
 const auditService = require('../services/audit-service');
@@ -45,8 +46,8 @@ const authenticate = async (req, res, next) => {
 
     const token = authHeader.substring(7);
 
-    // Verify token
-    const decoded = jwt.verify(token, JWT_SECRET);
+    // Verify token — pin algorithm to block alg:none and HS/RS confusion attacks
+    const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
 
     // Get user from database
     const result = await pool.query(
@@ -74,7 +75,7 @@ const authenticate = async (req, res, next) => {
     // Attach user to request
     req.user = user;
 
-    next();
+    return next();
   } catch (error) {
     if (error.name === 'JsonWebTokenError') {
       return res.status(401).json({
@@ -91,7 +92,7 @@ const authenticate = async (req, res, next) => {
     }
 
     logger.error('Authentication error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Authentication failed'
     });
@@ -131,7 +132,7 @@ const requireRole = (...roles) => (req, res, next) => {
     });
   }
 
-  next();
+  return next();
 };
 
 /**
@@ -173,11 +174,11 @@ const checkPasswordExpiration = async (req, res, next) => {
       };
     }
 
-    next();
+    return next();
   } catch (error) {
     logger.error('Password expiration check error:', error);
     // Don't block request on error
-    next();
+    return next();
   }
 };
 
@@ -207,18 +208,16 @@ const checkForcePasswordReset = async (req, res, next) => {
       });
     }
 
-    next();
+    return next();
   } catch (error) {
     logger.error('Force password reset check error:', error);
-    next();
+    return next();
   }
 };
 
 /**
  * Rate limiting per user
  */
-const rateLimitStore = new Map();
-
 const rateLimitByUser = (maxRequests = 100, windowMs = 60000) => async (req, res, next) => {
   try {
     const userId = req.user?.id || req.ip;
@@ -227,7 +226,7 @@ const rateLimitByUser = (maxRequests = 100, windowMs = 60000) => async (req, res
     // Get current count from Redis
     const count = await redis.get(key);
 
-    if (count && parseInt(count) >= maxRequests) {
+    if (count && parseInt(count, 10) >= maxRequests) {
       // Log rate limit exceeded
       await auditService.log({
         userId: req.user?.id,
@@ -257,11 +256,11 @@ const rateLimitByUser = (maxRequests = 100, windowMs = 60000) => async (req, res
       await redis.setex(key, Math.ceil(windowMs / 1000), '1');
     }
 
-    next();
+    return next();
   } catch (error) {
     logger.error('Rate limiting error:', error);
     // Don't block request on error
-    next();
+    return next();
   }
 };
 
@@ -274,7 +273,7 @@ const rateLimitByIP = (maxRequests = 100, windowMs = 60000) => async (req, res, 
 
     const count = await redis.get(key);
 
-    if (count && parseInt(count) >= maxRequests) {
+    if (count && parseInt(count, 10) >= maxRequests) {
       // Log rate limit exceeded
       await auditService.log({
         action: 'rate_limit_exceeded_ip',
@@ -301,10 +300,10 @@ const rateLimitByIP = (maxRequests = 100, windowMs = 60000) => async (req, res, 
       await redis.setex(key, Math.ceil(windowMs / 1000), '1');
     }
 
-    next();
+    return next();
   } catch (error) {
     logger.error('IP rate limiting error:', error);
-    next();
+    return next();
   }
 };
 
@@ -357,7 +356,7 @@ const auditMiddleware = async (req, res, next) => {
     }
   });
 
-  next();
+  return next();
 };
 
 /**
@@ -383,7 +382,7 @@ const validateBody = (schema) => (req, res, next) => {
   }
 
   req.body = value;
-  next();
+  return next();
 };
 
 /**
@@ -405,7 +404,7 @@ const sanitizeInputs = (req, res, next) => {
     req.params = sanitizeObject(req.params);
   }
 
-  next();
+  return next();
 };
 
 /**
@@ -456,7 +455,7 @@ const addPasswordWarning = (req, res, next) => {
     originalJson.call(this, data);
   };
 
-  next();
+  return next();
 };
 
 /**
@@ -475,6 +474,9 @@ const corsOptions = {
  * Security headers
  */
 const securityHeaders = (req, res, next) => {
+  const cspNonce = crypto.randomBytes(16).toString('base64');
+  res.locals.cspNonce = cspNonce;
+
   // Prevent clickjacking
   res.setHeader('X-Frame-Options', 'DENY');
 
@@ -490,7 +492,7 @@ const securityHeaders = (req, res, next) => {
   // Content Security Policy
   res.setHeader(
     'Content-Security-Policy',
-    'default-src \'self\'; script-src \'self\' \'unsafe-inline\'; style-src \'self\' \'unsafe-inline\'; img-src \'self\' data: https:; font-src \'self\' data:;'
+    `default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; script-src 'self' 'nonce-${cspNonce}'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https: wss:;`
   );
 
   // Strict Transport Security (HTTPS only)
@@ -501,7 +503,7 @@ const securityHeaders = (req, res, next) => {
     );
   }
 
-  next();
+  return next();
 };
 
 /**
@@ -516,7 +518,7 @@ const optionalAuth = async (req, res, next) => {
     }
 
     const token = authHeader.substring(7);
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
 
     const result = await pool.query(
       'SELECT id, email, name, role, is_active FROM users WHERE id = $1',
@@ -527,10 +529,10 @@ const optionalAuth = async (req, res, next) => {
       req.user = result.rows[0];
     }
 
-    next();
+    return next();
   } catch (error) {
     // Silently fail for optional auth
-    next();
+    return next();
   }
 };
 
@@ -562,7 +564,7 @@ const checkIPWhitelist = (whitelist = []) => (req, res, next) => {
     });
   }
 
-  next();
+  return next();
 };
 
 /**
@@ -587,10 +589,10 @@ const checkMaintenance = async (req, res, next) => {
       });
     }
 
-    next();
+    return next();
   } catch (error) {
     logger.error('Maintenance check error:', error);
-    next();
+    return next();
   }
 };
 

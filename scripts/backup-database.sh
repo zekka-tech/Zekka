@@ -167,12 +167,18 @@ upload_to_s3() {
 
 cleanup_old_backups() {
     log "Cleaning up old backups (retention: ${BACKUP_RETENTION_DAYS} days)..."
-    
+
+    local before_count=0
+    if [ -d "$BACKUP_DIR" ]; then
+        before_count=$(find "$BACKUP_DIR" -name "zekka_backup_*.sql.gz" -type f | wc -l)
+    fi
+
     # Find and delete old backups
     find "$BACKUP_DIR" -name "zekka_backup_*.sql.gz" -type f -mtime +"$BACKUP_RETENTION_DAYS" -delete
-    
-    local deleted_count=$(find "$BACKUP_DIR" -name "zekka_backup_*.sql.gz" -type f -mtime +"$BACKUP_RETENTION_DAYS" | wc -l)
-    
+
+    local after_count=$(find "$BACKUP_DIR" -name "zekka_backup_*.sql.gz" -type f | wc -l)
+    local deleted_count=$((before_count - after_count))
+
     if [ "$deleted_count" -gt 0 ]; then
         log "Deleted $deleted_count old backup(s)"
     else
@@ -191,6 +197,17 @@ cleanup_old_backups() {
                 local file_date=$(echo "$file" | grep -oP '\d{8}')
                 # Add proper date comparison logic here if needed
             done
+    fi
+}
+
+write_checksum() {
+    local checksum_file="${BACKUP_PATH}.sha256"
+
+    if command -v sha256sum >/dev/null 2>&1; then
+        sha256sum "$BACKUP_PATH" > "$checksum_file"
+        log "Backup checksum written: $checksum_file"
+    else
+        log "WARNING: sha256sum not found; skipping checksum generation"
     fi
 }
 
@@ -234,6 +251,7 @@ main() {
     # Perform backup
     perform_backup
     verify_backup
+    write_checksum
     
     # Upload to cloud storage
     upload_to_s3

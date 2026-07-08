@@ -17,7 +17,6 @@ const pool = require('../config/database');
 const auditService = require('./audit-service');
 const logger = require('../utils/logger');
 
-const SALT_ROUNDS = 10;
 
 // Password policy configuration
 const POLICY = {
@@ -84,7 +83,7 @@ class PasswordService {
     if (POLICY.requireNumbers && !/[0-9]/.test(password)) {
       errors.push('Password must contain at least one number');
     }
-    if (POLICY.requireSpecialChars && !/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
+    if (POLICY.requireSpecialChars && !/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(password)) {
       errors.push('Password must contain at least one special character');
     }
 
@@ -117,7 +116,8 @@ class PasswordService {
     if (/(.)\1{2,}/.test(password)) {
       warnings.push('Password contains repeated characters');
     }
-    if (/(?:abc|bcd|cde|def|efg|fgh|ghi|hij|ijk|jkl|klm|lmn|mno|nop|opq|pqr|qrs|rst|stu|tuv|uvw|vwx|wxy|xyz)/i.test(password)) {
+    const sequentialPattern = /(?:abc|bcd|cde|def|efg|fgh|ghi|hij|ijk|jkl|klm|lmn|mno|nop|opq|pqr|qrs|rst|stu|tuv|uvw|vwx|wxy|xyz)/i;
+    if (sequentialPattern.test(password)) {
       warnings.push('Password contains sequential characters');
     }
     if (/(?:012|123|234|345|456|567|678|789|890)/.test(password)) {
@@ -153,7 +153,7 @@ class PasswordService {
     if (/[a-z]/.test(password)) score += 10;
     if (/[A-Z]/.test(password)) score += 10;
     if (/[0-9]/.test(password)) score += 10;
-    if (/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) score += 10;
+    if (/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(password)) score += 10;
 
     const uniqueChars = new Set(password).size;
     if (uniqueChars >= 8) score += 10;

@@ -38,7 +38,7 @@ class TokenEconomics {
     // Initialize DB connection
     this.db = new Pool({
       host: process.env.POSTGRES_HOST || 'localhost',
-      port: parseInt(process.env.POSTGRES_PORT) || 5432,
+      port: parseInt(process.env.POSTGRES_PORT, 10) || 5432,
       database: process.env.POSTGRES_DB || 'zekka',
       user: process.env.POSTGRES_USER || 'zekka',
       password: process.env.POSTGRES_PASSWORD
@@ -200,7 +200,7 @@ class TokenEconomics {
   // Cost Reporting
   // ========================================
 
-  async getCostSummary(projectId = null, period = 'daily') {
+  async getCostSummary(projectId = null, _period = 'daily') {
     const budgetStatus = await this.getBudgetStatus(projectId);
 
     // Get cost breakdown by model

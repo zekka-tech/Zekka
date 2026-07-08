@@ -21,8 +21,36 @@ export interface UnifiedSearchResult {
   total: number
 }
 
+// Structural types for the raw API payloads these converters consume
+interface ProjectPayload {
+  id: string
+  name: string
+  description?: string
+  tags?: string[]
+  type?: string
+  status?: string
+}
+
+interface ConversationPayload {
+  id: string
+  title?: string
+  lastMessage?: { content?: string }
+  tags?: string[]
+  projectId?: string
+  messageCount?: number
+}
+
+interface AgentPayload {
+  id: string
+  name: string
+  description?: string
+  tags?: string[]
+  status?: string
+  type?: string
+}
+
 // Convert projects to searchable items
-const projectsToSearchable = (projects: any[]): SearchableItem[] => {
+const projectsToSearchable = (projects: ProjectPayload[]): SearchableItem[] => {
   return projects.map(p => ({
     id: p.id,
     title: p.name,
@@ -34,7 +62,7 @@ const projectsToSearchable = (projects: any[]): SearchableItem[] => {
 }
 
 // Convert conversations to searchable items
-const conversationsToSearchable = (conversations: any[]): SearchableItem[] => {
+const conversationsToSearchable = (conversations: ConversationPayload[]): SearchableItem[] => {
   return conversations.map(c => ({
     id: c.id,
     title: c.title || 'Untitled',
@@ -46,7 +74,7 @@ const conversationsToSearchable = (conversations: any[]): SearchableItem[] => {
 }
 
 // Convert agents to searchable items
-const agentsToSearchable = (agents: any[]): SearchableItem[] => {
+const agentsToSearchable = (agents: AgentPayload[]): SearchableItem[] => {
   return agents.map(a => ({
     id: a.id,
     title: a.name,

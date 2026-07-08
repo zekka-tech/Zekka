@@ -7,8 +7,65 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-- Future features in development
+### 🔐 Security
+- PostgreSQL TLS certificate verification is now enforced by default in
+  production via a shared `getDatabaseSsl()` helper (previously
+  `rejectUnauthorized: false` in all three connection pools). New env vars:
+  `DATABASE_SSL`, `DATABASE_SSL_REJECT_UNAUTHORIZED`, `DATABASE_SSL_CA`.
+- Dependency vulnerability remediation: backend production vulnerabilities
+  reduced 19 → 2 moderate (remaining: `ip-address` XSS via geoip-lite in
+  HTML-emitting methods the code never calls). Frontend: 14 → 0. Notable
+  bumps: nodemailer 8 → 9 (GHSA-p6gq-j5cr-w38f), uuid 9 → 11 (incl. an
+  override for bull's transitive copy), `ws`/engine.io/socket.io-adapter,
+  @typescript-eslint 6 → 8.
+- Pinned all `:latest` images in `docker-compose.prod.yml` (Vault,
+  Prometheus, Grafana, exporters, nginx).
+
+### 🐛 Fixed
+- Converted `audit-service`, `encryption-service`, and
+  `api-versioning.middleware` from ES modules to CommonJS. Consumers using
+  `require()` previously received a module-namespace object, so calls such
+  as `auditService.log(...)` were silently broken (and crashed outright on
+  Node < 22).
+- Declared `ioredis` and `lru-cache` as real dependencies (previously only
+  transitive), and re-enabled `npm prune --omit=dev` in the Docker build so
+  production images no longer ship dev dependencies.
+- CI `ENCRYPTION_KEY` was not a valid 64-hex-character key, failing config
+  validation in the backend test job.
+- Removed unreachable modules that required uninstalled packages
+  (`aws-sdk`, `bcrypt`, `express-validator`): `config/services.js`,
+  `utils/password.js`, `utils/validation.js`, `services/audit-dr-service.js`,
+  `services/performance-optimization.service.js`.
+- Fixed a potential NaN in agent-zero teacher complexity scoring, a thrown
+  object literal in the socket rate limiter, `isNaN` → `Number.isNaN`, and
+  case-block lexical declarations.
+
+### 🔧 Changed
+- Stripped 61 unmounted "framework" modules (agent-zero/astron/dev-agents
+  scaffolds, simulated ml/devops/analytics/monitoring/reporting integrations,
+  unused schemas and util variants) plus the deprecated `src/index.secure.js`
+  and `src/utils/database-migrations.js`, after require-graph reachability
+  analysis from all real entrypoints, tests, and scripts.
+- Lint warning burndown: backend 447 → 0 (radix, unused vars, shadowed
+  identifiers, promise-executor returns, nested ternaries, consistent-return
+  in middleware); frontend 59 → 21 (typed all production-code `any`s, fixed a
+  stale-closure bug in ToastProvider, converted CommandPalette's reset-effect
+  to the state-during-render pattern). `no-await-in-loop` disabled after
+  reviewing all 46 sites — every remaining loop is sequential by design
+  (retry backoff, Redis SCAN cursors, transaction-scoped queries, ordered
+  migrations); two parallelizable loops were parallelized instead
+  (agent listing, analytics cache invalidation). Remaining frontend warnings
+  are React-compiler diagnostics requiring per-component refactors.
+- Replaced the unmaintained `clinic` profiling toolchain (which pulled in the
+  deprecated `request` package and both remaining critical advisories) with
+  Node's built-in profilers (`node --cpu-prof` / `--heap-prof`). Repo-wide
+  audit is now 0 critical / 0 high (18 moderate, all in dev tooling chains).
+- Backend and frontend ESLint now pass with 0 errors and run clean in CI;
+  legacy stylistic debt is downgraded to warnings, correctness rules remain
+  errors. TypeScript files are linted with @typescript-eslint.
+- Docker images upgraded from EOL Node 18/20 to Node 22; `engines.node`
+  floor raised to >= 20. TypeScript build failures are no longer masked in
+  the Docker build (`npm run build || echo` removed).
 
 ---
 

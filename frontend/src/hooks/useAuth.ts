@@ -29,7 +29,7 @@ export const useAuth = () => {
   const loginMutation = useMutation({
     mutationFn: (credentials: { email: string; password: string }) =>
       apiService.login(credentials.email, credentials.password),
-    onSuccess: (data: any) => {
+    onSuccess: (data: { user?: unknown } & Record<string, unknown>) => {
       queryClient.setQueryData(['auth', 'user'], data.user || data)
       // Invalidate all queries to refresh
       queryClient.invalidateQueries()
@@ -40,7 +40,7 @@ export const useAuth = () => {
   const registerMutation = useMutation({
     mutationFn: (data: { email: string; password: string; name: string }) =>
       apiService.register(data.email, data.password, data.name),
-    onSuccess: (data: any) => {
+    onSuccess: (data: { user?: unknown } & Record<string, unknown>) => {
       queryClient.setQueryData(['auth', 'user'], data.user || data)
       queryClient.invalidateQueries()
     }

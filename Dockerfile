@@ -4,7 +4,7 @@
 # ===================================================================
 # Stage 1: Dependencies
 # ===================================================================
-FROM node:18-alpine AS dependencies
+FROM node:22-alpine AS dependencies
 
 LABEL maintainer="Zekka Technologies <devops@zekka.io>"
 LABEL description="Zekka Framework - Enterprise AI Orchestration Platform"
@@ -31,7 +31,7 @@ RUN npm ci --legacy-peer-deps --ignore-scripts && \
 # ===================================================================
 # Stage 2: Builder
 # ===================================================================
-FROM node:18-alpine AS builder
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
@@ -47,7 +47,12 @@ COPY scripts ./scripts
 COPY public ./public
 
 # Build TypeScript and prepare for production
-RUN npm run build || echo "Build step completed"
+RUN npm run build
+
+# Remove dev dependencies so the production stage ships runtime deps only.
+# All runtime requires are declared in "dependencies" (enforced by
+# eslint-plugin-import's no-extraneous-dependencies rule in CI).
+RUN npm prune --omit=dev --legacy-peer-deps
 
 # ===================================================================
 # Stage 2b: Frontend Builder
@@ -62,14 +67,10 @@ RUN npm ci
 COPY frontend ./
 RUN npm run build
 
-# Note: Skipping npm prune --production to preserve transitive runtime dependencies
-# Some packages like lru-cache are required at runtime but not in direct dependencies
-# RUN npm prune --production --legacy-peer-deps
-
 # ===================================================================
 # Stage 3: Production Runtime
 # ===================================================================
-FROM node:18-alpine AS production
+FROM node:22-alpine AS production
 
 # Security: Install only necessary runtime dependencies
 RUN apk add --no-cache \

@@ -112,7 +112,7 @@ export const usePreferences = () => {
     setPreferences(prev => ({
       ...prev,
       [section]: {
-        ...(prev[section] as any),
+        ...(prev[section] as Record<string, unknown>),
         ...updates
       }
     }))
@@ -142,7 +142,7 @@ export const usePreferences = () => {
           const imported = JSON.parse(event.target?.result as string)
           setPreferences(prev => ({ ...prev, ...imported }))
           resolve()
-        } catch (error) {
+        } catch {
           reject(new Error('Failed to parse preferences file'))
         }
       }

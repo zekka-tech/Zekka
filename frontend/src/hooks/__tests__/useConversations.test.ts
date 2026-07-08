@@ -3,6 +3,7 @@ import { renderHook, waitFor, act } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createElement, type ReactNode } from 'react'
 import { useConversationRuntime } from '../useConversations'
+import { ToastProvider } from '@/components/ui/Toast'
 import { apiService } from '@/services/api'
 
 vi.mock('@/services/api', () => ({
@@ -25,7 +26,11 @@ const createWrapper = () => {
   })
 
   return ({ children }: { children: ReactNode }) => (
-    createElement(QueryClientProvider, { client: queryClient }, children)
+    createElement(
+      QueryClientProvider,
+      { client: queryClient },
+      createElement(ToastProvider, null, children)
+    )
   )
 }
 

@@ -24,7 +24,7 @@ const validateBody = (schema) => (req, res, next) => {
   }
 
   req.body = value;
-  next();
+  return next();
 };
 
 /**
@@ -46,7 +46,7 @@ const validateQuery = (schema) => (req, res, next) => {
   }
 
   req.query = value;
-  next();
+  return next();
 };
 
 /**
@@ -68,7 +68,7 @@ const validateParams = (schema) => (req, res, next) => {
   }
 
   req.params = value;
-  next();
+  return next();
 };
 
 module.exports = {
