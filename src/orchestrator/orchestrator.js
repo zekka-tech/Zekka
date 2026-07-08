@@ -2,6 +2,7 @@ const { Pool } = require('pg');
 const { v4: uuidv4 } = require('uuid');
 const axios = require('axios');
 const ModelClient = require('../services/model-client');
+const { getDatabaseSsl } = require('../config/database-ssl');
 
 /**
  * Zekka Orchestrator - Central Coordination for Multi-Agent Workflows
@@ -94,9 +95,10 @@ class ZekkaOrchestrator {
     // Uses connection pooling for efficient resource management
     this.db = new Pool({
       connectionString: process.env.DATABASE_URL,
-      ssl: {
-        rejectUnauthorized: false // Required for Supabase and similar cloud providers
-      },
+      // TLS on by default (Supabase and similar cloud providers require it).
+      // Certificate verification is enforced unless explicitly disabled via
+      // DATABASE_SSL_REJECT_UNAUTHORIZED=false; custom CAs via DATABASE_SSL_CA.
+      ssl: getDatabaseSsl({ defaultEnabled: true }),
       min: 2, // Minimum pool size
       max: 10, // Maximum pool size
       idleTimeoutMillis: 30000, // Close idle connections after 30s

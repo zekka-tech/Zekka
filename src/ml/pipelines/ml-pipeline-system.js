@@ -399,7 +399,7 @@ class MLPipelineSystem extends EventEmitter {
       };
       break;
 
-    case 'training':
+    case 'training': {
       result.output = {
         algorithm: pipeline.config.algorithm,
         epochs: Math.floor(Math.random() * 50) + 10,
@@ -416,8 +416,9 @@ class MLPipelineSystem extends EventEmitter {
       pipeline.results.modelId = modelId;
       result.output.modelId = modelId;
       break;
+    }
 
-    case 'evaluation':
+    case 'evaluation': {
       const metrics = this.generateMetrics(pipeline.template);
       result.output = {
         metrics,
@@ -429,6 +430,7 @@ class MLPipelineSystem extends EventEmitter {
 
       pipeline.results.metrics = metrics;
       break;
+    }
 
     case 'registry':
       result.output = {

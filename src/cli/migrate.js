@@ -14,9 +14,9 @@
  * @version 1.0.0
  */
 
-const MigrationManager = require('../utils/migration-manager');
 const fs = require('fs').promises;
 const path = require('path');
+const MigrationManager = require('../utils/migration-manager');
 
 // Parse DATABASE_URL if individual DB_* variables aren't set
 function parseDatabaseConfig() {

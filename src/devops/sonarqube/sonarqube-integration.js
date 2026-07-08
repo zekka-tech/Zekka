@@ -414,8 +414,8 @@ class SonarCubeIntegration extends EventEmitter {
 
     for (const vuln of vulnerabilities) {
       const effort = vuln.effort || '30min';
-      const minutes = parseInt(effort);
-      totalMinutes += isNaN(minutes) ? 30 : minutes;
+      const minutes = parseInt(effort, 10);
+      totalMinutes += Number.isNaN(minutes) ? 30 : minutes;
     }
 
     const hours = Math.floor(totalMinutes / 60);
@@ -427,8 +427,8 @@ class SonarCubeIntegration extends EventEmitter {
   /**
    * Get quality gate status
    */
-  async getQualityGate(projectKey = null) {
-    projectKey = projectKey || this.config.projectKey;
+  async getQualityGate(requestedProjectKey = null) {
+    const projectKey = requestedProjectKey || this.config.projectKey;
 
     // In production, fetch from SonarCube API
 
@@ -468,8 +468,8 @@ class SonarCubeIntegration extends EventEmitter {
   /**
    * Get project issues
    */
-  async getProjectIssues(projectKey = null, filters = {}) {
-    projectKey = projectKey || this.config.projectKey;
+  async getProjectIssues(requestedProjectKey = null, filters = {}) {
+    const projectKey = requestedProjectKey || this.config.projectKey;
 
     const allIssues = [];
     for (const scan of this.scans.values()) {

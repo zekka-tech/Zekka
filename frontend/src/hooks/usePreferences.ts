@@ -142,7 +142,7 @@ export const usePreferences = () => {
           const imported = JSON.parse(event.target?.result as string)
           setPreferences(prev => ({ ...prev, ...imported }))
           resolve()
-        } catch (error) {
+        } catch {
           reject(new Error('Failed to parse preferences file'))
         }
       }

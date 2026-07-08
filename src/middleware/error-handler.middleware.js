@@ -180,8 +180,7 @@ class AppError extends Error {
   }
 }
 
-const getErrorMessage = (code) =>
-  ERROR_MESSAGES[code] || 'An error occurred';
+const getErrorMessage = (code) => ERROR_MESSAGES[code] || 'An error occurred';
 
 const createErrorResponse = (error, req) => {
   if (error instanceof AppError) {

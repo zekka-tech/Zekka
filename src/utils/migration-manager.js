@@ -229,6 +229,8 @@ class MigrationManager {
    * Execute JavaScript/TypeScript migration
    */
   async executeJsMigration(filepath, direction = 'up') {
+    // Migration files are discovered at runtime from the migrations directory
+    // eslint-disable-next-line import/no-dynamic-require
     const migration = require(filepath);
 
     if (typeof migration[direction] !== 'function') {

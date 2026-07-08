@@ -14,9 +14,9 @@
  * - GDPR compliance (right to be forgotten)
  */
 
-import geoip from 'geoip-lite';
-import pool from '../config/database.js';
-import logger from '../utils/logger.js';
+const geoip = require('geoip-lite');
+const pool = require('../config/database');
+const logger = require('../utils/logger');
 
 class AuditService {
   /**
@@ -554,4 +554,4 @@ class AuditService {
   }
 }
 
-export default new AuditService();
+module.exports = new AuditService();

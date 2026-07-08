@@ -24,28 +24,28 @@ class MentorAgent extends BaseAgentZero {
         'Document complex logic',
         'Use meaningful variable names'
       ],
-      'testing': [
+      testing: [
         'Write tests before code (TDD)',
         'Aim for high code coverage',
         'Test edge cases and error conditions',
         'Keep tests independent',
         'Use descriptive test names'
       ],
-      'security': [
+      security: [
         'Never expose sensitive data',
         'Validate all inputs',
         'Use parameterized queries',
         'Keep dependencies updated',
         'Implement proper authentication'
       ],
-      'performance': [
+      performance: [
         'Profile before optimizing',
         'Cache expensive operations',
         'Use appropriate data structures',
         'Minimize database queries',
         'Implement pagination for large datasets'
       ],
-      'collaboration': [
+      collaboration: [
         'Communicate clearly and often',
         'Document decisions and rationale',
         'Provide constructive feedback',
@@ -60,16 +60,16 @@ class MentorAgent extends BaseAgentZero {
    */
   async executeTask(task) {
     switch (task.type) {
-      case 'mentor':
-        return await this.startMentorship(task.menteeId);
-      case 'advise':
-        return await this.provideAdvice(task.menteeId, task.situation);
-      case 'review':
-        return await this.careerReview(task.menteeId);
-      case 'bestPractices':
-        return await this.teachBestPractices(task.menteeId, task.area);
-      default:
-        throw new Error(`Unknown task type: ${task.type}`);
+    case 'mentor':
+      return await this.startMentorship(task.menteeId);
+    case 'advise':
+      return await this.provideAdvice(task.menteeId, task.situation);
+    case 'review':
+      return await this.careerReview(task.menteeId);
+    case 'bestPractices':
+      return await this.teachBestPractices(task.menteeId, task.area);
+    default:
+      throw new Error(`Unknown task type: ${task.type}`);
     }
   }
 
@@ -99,7 +99,7 @@ class MentorAgent extends BaseAgentZero {
     this.mentorships.set(menteeId, mentorship);
 
     // Notify about new mentorship
-    await this.contextBus.publish(`agent.mentor.mentorship-started`, {
+    await this.contextBus.publish('agent.mentor.mentorship-started', {
       menteeId,
       goals: mentorship.goals.length,
       timestamp: new Date().toISOString()
@@ -377,7 +377,7 @@ class MentorAgent extends BaseAgentZero {
       progress[goal.id] = {
         title: goal.title,
         completion: Math.floor(Math.random() * 100), // Simplified for demo
-        milestones: goal.milestones.map(m => ({
+        milestones: goal.milestones.map((m) => ({
           milestone: m,
           completed: Math.random() > 0.5
         }))
@@ -453,7 +453,7 @@ class MentorAgent extends BaseAgentZero {
   }
 
   explainHow(area, practice) {
-    return `To implement this practice, start by... [detailed explanation would be provided based on the specific practice]`;
+    return 'To implement this practice, start by... [detailed explanation would be provided based on the specific practice]';
   }
 
   generatePracticeExamples(area) {

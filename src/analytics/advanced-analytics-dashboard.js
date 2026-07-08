@@ -583,9 +583,10 @@ class AdvancedAnalyticsDashboard extends EventEmitter {
       return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}-${date.getHours()}`;
     case 'daily':
       return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
-    case 'weekly':
+    case 'weekly': {
       const weekNum = Math.floor(date.getDate() / 7);
       return `${date.getFullYear()}-${date.getMonth() + 1}-W${weekNum}`;
+    }
     case 'monthly':
       return `${date.getFullYear()}-${date.getMonth() + 1}`;
     default:

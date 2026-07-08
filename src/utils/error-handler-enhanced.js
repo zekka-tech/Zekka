@@ -312,15 +312,15 @@ class ErrorHandler {
     }
 
     // Convert to ApplicationError if needed
-    if (!(error instanceof ApplicationError)) {
-      error = this.normalizeError(error);
-    }
+    const normalizedError = error instanceof ApplicationError
+      ? error
+      : this.normalizeError(error);
 
     // Build response
-    const response = this.buildResponse(error, req);
+    const response = this.buildResponse(normalizedError, req);
 
     // Send response
-    res.status(error.statusCode || 500).json(response);
+    res.status(normalizedError.statusCode || 500).json(response);
   }
 
   /**

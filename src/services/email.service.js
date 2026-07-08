@@ -262,11 +262,10 @@ class EmailService {
     }
 
     const subject = `[Zekka Security] ${alert?.severity?.toUpperCase() ?? 'ALERT'} — ${alert?.type ?? 'unknown'}`;
-    const body =
-      `<p>A security alert has fired.</p>` +
-      `<pre style="font-family: monospace; background:#f4f4f4; padding:12px; border-radius:4px;">` +
-      String(JSON.stringify(alert ?? {}, null, 2)).replace(/</g, '&lt;').slice(0, 4000) +
-      `</pre>`;
+    const body = '<p>A security alert has fired.</p>'
+      + `<pre style="font-family: monospace; background:#f4f4f4; padding:12px; border-radius:4px;">${
+        String(JSON.stringify(alert ?? {}, null, 2)).replace(/</g, '&lt;').slice(0, 4000)
+      }</pre>`;
 
     try {
       const info = await this.transporter.sendMail({

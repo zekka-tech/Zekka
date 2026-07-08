@@ -27,6 +27,9 @@ data:
   POSTGRES_HOST: "postgres-service"
   POSTGRES_PORT: "5432"
   POSTGRES_DB: "zekka_production"
+  # In-cluster Postgres does not terminate TLS; set to "true" (with
+  # DATABASE_SSL_CA if needed) when pointing at a managed database.
+  DATABASE_SSL: "false"
   APP_URL: "https://zekka.yourdomain.com"
   ALLOWED_ORIGINS: "https://zekka.yourdomain.com"
   SHUTDOWN_TIMEOUT_MS: "15000"

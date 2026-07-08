@@ -464,11 +464,11 @@ class ExternalAPIClient {
    * @param {Object} options - Request options
    * @yields {{type: 'delta', text: string} | {type: 'complete', data: Object}}
    */
-  async *streamOllama(payload, options = {}) {
-    yield * this._iterateOllamaStream(payload, options);
+  async* streamOllama(payload, options = {}) {
+    yield* this._iterateOllamaStream(payload, options);
   }
 
-  async *_iterateOllamaStream(payload, options = {}) {
+  async* _iterateOllamaStream(payload, options = {}) {
     const ollamaHost = process.env.OLLAMA_HOST || 'http://localhost:11434';
     validateExternalUrl(ollamaHost, 'OLLAMA_HOST');
     const startTime = Date.now();
@@ -556,7 +556,7 @@ class ExternalAPIClient {
     }
   }
 
-  async *_iterateSseStream(stream) {
+  async* _iterateSseStream(stream) {
     let buffer = '';
     let eventName = null;
 
@@ -618,7 +618,7 @@ class ExternalAPIClient {
     }
   }
 
-  async *_iterateOpenAIStream(payload, options = {}) {
+  async* _iterateOpenAIStream(payload, options = {}) {
     const startTime = Date.now();
     let responseStream;
     let lastEvent = null;
@@ -870,7 +870,7 @@ class ExternalAPIClient {
     // Ollama
     try {
       const ollamaHost = process.env.OLLAMA_HOST || 'http://localhost:11434';
-    validateExternalUrl(ollamaHost, 'OLLAMA_HOST');
+      validateExternalUrl(ollamaHost, 'OLLAMA_HOST');
       await axios.get(`${ollamaHost}/api/tags`, { timeout: 5000 });
       checks.ollama = {
         status: 'healthy',

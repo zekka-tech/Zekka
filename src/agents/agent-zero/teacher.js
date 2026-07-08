@@ -250,10 +250,11 @@ class TeacherAgent extends BaseAgentZero {
    */
   analyzeComplexity(workflow) {
     const stageCount = workflow.stages?.length || 0;
-    const avgDependencies = workflow.stages?.reduce(
+    const totalDependencies = (workflow.stages || []).reduce(
       (sum, s) => sum + (s.dependencies?.length || 0),
       0
-    ) / stageCount || 0;
+    );
+    const avgDependencies = stageCount > 0 ? totalDependencies / stageCount : 0;
 
     if (stageCount > 8 || avgDependencies > 3) return 'high';
     if (stageCount > 5 || avgDependencies > 2) return 'medium';

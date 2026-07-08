@@ -6,7 +6,7 @@
  * @module types
  */
 
-import { Request, Response, NextFunction } from "express";
+import { Request, Response, NextFunction } from 'express';
 
 // ============================================================================
 // Core Types
@@ -42,25 +42,25 @@ export interface User {
 }
 
 export enum UserRole {
-  SUPER_ADMIN = "super_admin",
-  ADMIN = "admin",
-  USER = "user",
-  GUEST = "guest",
+  SUPER_ADMIN = 'super_admin',
+  ADMIN = 'admin',
+  USER = 'user',
+  GUEST = 'guest',
 }
 
 export enum UserStatus {
-  ACTIVE = "active",
-  INACTIVE = "inactive",
-  SUSPENDED = "suspended",
-  DELETED = "deleted",
+  ACTIVE = 'active',
+  INACTIVE = 'inactive',
+  SUSPENDED = 'suspended',
+  DELETED = 'deleted',
 }
 
 export interface AuthToken {
   access_token: JWT;
   refresh_token: JWT;
-  token_type: "Bearer";
+  token_type: 'Bearer';
   expires_in: number;
-  user: Omit<User, "password_hash" | "mfa_secret">;
+  user: Omit<User, 'password_hash' | 'mfa_secret'>;
 }
 
 export interface MFASetup {
@@ -119,21 +119,21 @@ export interface SecurityEvent {
 }
 
 export enum SecurityEventType {
-  FAILED_LOGIN = "failed_login",
-  SUSPICIOUS_ACTIVITY = "suspicious_activity",
-  UNUSUAL_IP = "unusual_ip",
-  MFA_FAILED = "mfa_failed",
-  PASSWORD_CHANGE = "password_change",
-  PRIVILEGE_ESCALATION = "privilege_escalation",
-  DATA_EXPORT = "data_export",
-  UNAUTHORIZED_ACCESS = "unauthorized_access",
+  FAILED_LOGIN = 'failed_login',
+  SUSPICIOUS_ACTIVITY = 'suspicious_activity',
+  UNUSUAL_IP = 'unusual_ip',
+  MFA_FAILED = 'mfa_failed',
+  PASSWORD_CHANGE = 'password_change',
+  PRIVILEGE_ESCALATION = 'privilege_escalation',
+  DATA_EXPORT = 'data_export',
+  UNAUTHORIZED_ACCESS = 'unauthorized_access',
 }
 
 export enum SecuritySeverity {
-  LOW = "low",
-  MEDIUM = "medium",
-  HIGH = "high",
-  CRITICAL = "critical",
+  LOW = 'low',
+  MEDIUM = 'medium',
+  HIGH = 'high',
+  CRITICAL = 'critical',
 }
 
 // ============================================================================
@@ -185,7 +185,7 @@ export interface PaginationParams {
   page: number;
   limit: number;
   sort_by?: string;
-  sort_order?: "asc" | "desc";
+  sort_order?: 'asc' | 'desc';
 }
 
 export interface PaginatedResponse<T> {
@@ -246,7 +246,7 @@ export interface Metric {
 }
 
 export interface HealthCheck {
-  status: "healthy" | "unhealthy" | "degraded";
+  status: 'healthy' | 'unhealthy' | 'degraded';
   version: string;
   uptime: number;
   checks: {
@@ -258,7 +258,7 @@ export interface HealthCheck {
 }
 
 export interface ComponentHealth {
-  status: "up" | "down" | "degraded";
+  status: 'up' | 'down' | 'degraded';
   latency_ms?: number;
   error?: string;
   last_check: ISODateTime;
@@ -289,19 +289,19 @@ export interface DataSubjectRequest {
 }
 
 export enum DSRType {
-  ACCESS = "access",
-  PORTABILITY = "portability",
-  ERASURE = "erasure",
-  RECTIFICATION = "rectification",
-  RESTRICTION = "restriction",
-  OBJECTION = "objection",
+  ACCESS = 'access',
+  PORTABILITY = 'portability',
+  ERASURE = 'erasure',
+  RECTIFICATION = 'rectification',
+  RESTRICTION = 'restriction',
+  OBJECTION = 'objection',
 }
 
 export enum DSRStatus {
-  PENDING = "pending",
-  IN_PROGRESS = "in_progress",
-  COMPLETED = "completed",
-  REJECTED = "rejected",
+  PENDING = 'pending',
+  IN_PROGRESS = 'in_progress',
+  COMPLETED = 'completed',
+  REJECTED = 'rejected',
 }
 
 export interface ConsentRecord {
@@ -345,46 +345,46 @@ export class ZekkaError extends Error {
     message: string,
     public code: string,
     public status_code: number = 500,
-    public details?: Record<string, unknown>,
+    public details?: Record<string, unknown>
   ) {
     super(message);
-    this.name = "ZekkaError";
+    this.name = 'ZekkaError';
     Error.captureStackTrace(this, this.constructor);
   }
 }
 
 export class ValidationError extends ZekkaError {
   constructor(message: string, details?: Record<string, unknown>) {
-    super(message, "VALIDATION_ERROR", 400, details);
-    this.name = "ValidationError";
+    super(message, 'VALIDATION_ERROR', 400, details);
+    this.name = 'ValidationError';
   }
 }
 
 export class AuthenticationError extends ZekkaError {
-  constructor(message: string = "Authentication failed") {
-    super(message, "AUTHENTICATION_ERROR", 401);
-    this.name = "AuthenticationError";
+  constructor(message: string = 'Authentication failed') {
+    super(message, 'AUTHENTICATION_ERROR', 401);
+    this.name = 'AuthenticationError';
   }
 }
 
 export class AuthorizationError extends ZekkaError {
-  constructor(message: string = "Insufficient permissions") {
-    super(message, "AUTHORIZATION_ERROR", 403);
-    this.name = "AuthorizationError";
+  constructor(message: string = 'Insufficient permissions') {
+    super(message, 'AUTHORIZATION_ERROR', 403);
+    this.name = 'AuthorizationError';
   }
 }
 
 export class NotFoundError extends ZekkaError {
   constructor(resource: string) {
-    super(`${resource} not found`, "NOT_FOUND", 404);
-    this.name = "NotFoundError";
+    super(`${resource} not found`, 'NOT_FOUND', 404);
+    this.name = 'NotFoundError';
   }
 }
 
 export class RateLimitError extends ZekkaError {
   constructor(retry_after: number) {
-    super("Rate limit exceeded", "RATE_LIMIT_EXCEEDED", 429, { retry_after });
-    this.name = "RateLimitError";
+    super('Rate limit exceeded', 'RATE_LIMIT_EXCEEDED', 429, { retry_after });
+    this.name = 'RateLimitError';
   }
 }
 
@@ -425,10 +425,10 @@ export interface MockService {
 // ============================================================================
 
 export interface AppConfig {
-  env: "development" | "staging" | "production";
+  env: 'development' | 'staging' | 'production';
   port: number;
   host: string;
-  log_level: "debug" | "info" | "warn" | "error";
+  log_level: 'debug' | 'info' | 'warn' | 'error';
   database: DatabaseConfig;
   redis: RedisConfig;
   jwt: JWTConfig;

@@ -276,20 +276,21 @@ class ConversationService {
     };
   }
 
-  normalizeUsage(usage = {}, prompt, completion) {
-    const inputTokens = usage.input_tokens
-      || usage.inputTokens
-      || usage.promptTokens
+  normalizeUsage(usage, prompt, completion) {
+    const tokenUsage = usage || {};
+    const inputTokens = tokenUsage.input_tokens
+      || tokenUsage.inputTokens
+      || tokenUsage.promptTokens
       || Math.max(1, Math.ceil(prompt.length / 4));
-    const outputTokens = usage.output_tokens
-      || usage.outputTokens
-      || usage.completionTokens
+    const outputTokens = tokenUsage.output_tokens
+      || tokenUsage.outputTokens
+      || tokenUsage.completionTokens
       || Math.max(1, Math.ceil(completion.length / 4));
 
     return {
       input: inputTokens,
       output: outputTokens,
-      total: usage.totalTokens || inputTokens + outputTokens
+      total: tokenUsage.totalTokens || inputTokens + outputTokens
     };
   }
 
@@ -416,7 +417,7 @@ class ConversationService {
   }
 
   async trackAssistantUsage(projectId, conversationId, assistantReply) {
-    const tokens = assistantReply.tokens;
+    const { tokens } = assistantReply;
     if (!tokens || !this.analyticsService) {
       return;
     }
@@ -963,8 +964,7 @@ class ConversationService {
           userId,
           userMessage,
           metadata
-        }
-        ,
+        },
         {
           onToken: async (chunk) => {
             if (handlers.onAssistantDelta) {

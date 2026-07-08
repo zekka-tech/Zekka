@@ -8,6 +8,7 @@
 
 const { Pool } = require('pg');
 const config = require('./index');
+const { getDatabaseSsl } = require('./database-ssl');
 const logger = require('../utils/logger');
 
 let reconnectAttempts = 0;
@@ -21,7 +22,7 @@ const pool = new Pool({
   max: config.database.poolMax || 20,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,
-  ssl: config.isProduction ? { rejectUnauthorized: false } : false,
+  ssl: getDatabaseSsl({ defaultEnabled: config.isProduction }),
   // Additional pool configuration
   allowExitOnIdle: false,
   maxUses: 7500,

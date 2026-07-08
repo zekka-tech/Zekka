@@ -14,10 +14,10 @@
  * - Key expiration and audit trail
  */
 
-import crypto from 'crypto';
-import pool from '../config/database.js';
-import auditService from './audit-service.js';
-import logger from '../utils/logger.js';
+const crypto = require('crypto');
+const pool = require('../config/database');
+const auditService = require('./audit-service');
+const logger = require('../utils/logger');
 
 const ALGORITHM = 'aes-256-gcm';
 const KEY_LENGTH = 32; // 256 bits
@@ -50,11 +50,9 @@ class EncryptionService {
   /**
    * Encrypt data with current key
    */
-  async encrypt(plaintext, context = {}) {
+  async encrypt(data, context = {}) {
     try {
-      if (typeof plaintext !== 'string') {
-        plaintext = JSON.stringify(plaintext);
-      }
+      const plaintext = typeof data === 'string' ? data : JSON.stringify(data);
 
       // Get current encryption key
       const keyData = await this.getCurrentKey();
@@ -497,4 +495,4 @@ class EncryptionService {
 
 // Export singleton instance
 const encryptionService = new EncryptionService();
-export default encryptionService;
+module.exports = encryptionService;

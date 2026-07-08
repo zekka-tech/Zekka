@@ -5,4 +5,4 @@ logger.warn(
   + 'Update any remaining scripts to use the main server entrypoint.'
 );
 
-require('./index.js');
+require('./index');

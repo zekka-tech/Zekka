@@ -60,7 +60,8 @@ jobs:
           REDIS_HOST: localhost
           REDIS_PORT: 6379
           VAULT_ENABLED: 'false'
-          ENCRYPTION_KEY: ci-test-encryption-key-minimum-32-chars-long
+          # Must be exactly 64 hex characters (32 bytes) per config validation
+          ENCRYPTION_KEY: 6430873680cd7f7a9aca0536fca10546eaac18300aa8e6337b21836e7c2a4ca7
 
       - name: Upload coverage
         uses: codecov/codecov-action@v4

@@ -1,4 +1,4 @@
-'use strict';
+
 
 /**
  * SSRF Guard — validate that a URL does not resolve to a private/loopback
@@ -27,7 +27,7 @@ const ALLOWED_DOMAINS = new Set([
   'api.anthropic.com',
   'generativelanguage.googleapis.com',
   'api.openai.com',
-  'api.github.com',
+  'api.github.com'
 ]);
 
 /**
@@ -37,15 +37,15 @@ const ALLOWED_DOMAINS = new Set([
  */
 function isBlockedIPv4(ip) {
   const parts = ip.split('.').map(Number);
-  if (parts.length !== 4 || parts.some(isNaN)) return false;
+  if (parts.length !== 4 || parts.some(Number.isNaN)) return false;
 
   const [a, b] = parts;
   return (
-    a === 127 ||                          // 127.0.0.0/8  loopback
-    a === 10 ||                           // 10.0.0.0/8   private
-    (a === 172 && b >= 16 && b <= 31) ||  // 172.16.0.0/12 private
-    (a === 192 && b === 168) ||           // 192.168.0.0/16 private
-    (a === 169 && b === 254)              // 169.254.0.0/16 link-local / metadata
+    a === 127 // 127.0.0.0/8  loopback
+    || a === 10 // 10.0.0.0/8   private
+    || (a === 172 && b >= 16 && b <= 31) // 172.16.0.0/12 private
+    || (a === 192 && b === 168) // 192.168.0.0/16 private
+    || (a === 169 && b === 254) // 169.254.0.0/16 link-local / metadata
   );
 }
 
@@ -87,8 +87,8 @@ function validateExternalUrl(rawUrl, label = 'URL') {
   // IPv4 block-list
   if (isBlockedIPv4(hostname)) {
     throw new Error(
-      `${label} points to a blocked private/loopback address "${hostname}". ` +
-      'Set the URL to a public endpoint or explicitly allowlist it.'
+      `${label} points to a blocked private/loopback address "${hostname}". `
+      + 'Set the URL to a public endpoint or explicitly allowlist it.'
     );
   }
 }
@@ -112,7 +112,7 @@ async function validateExternalUrlAsync(rawUrl, label = 'URL') {
     return; // already caught above
   }
 
-  const hostname = parsed.hostname;
+  const { hostname } = parsed;
   // Skip DNS lookup for IP literals
   if (isBlockedIPv4(hostname)) return; // already blocked by sync check
 

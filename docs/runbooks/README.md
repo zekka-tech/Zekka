@@ -121,7 +121,7 @@ Redis memory > 90% of max for 5 min.
 Node CPU > 80% for 5 min.
 
 - Correlate with pod-level CPU (`kubectl top pods`).
-- If a specific pod: profile with `clinic flame` on a staging replica.
+- If a specific pod: profile with `node --cpu-prof` (`npm run profile:cpu`) on a staging replica and inspect the profile in Chrome DevTools.
 - Consider increasing HPA target or scaling node pool.
 
 ## HighMemoryUsage

@@ -657,7 +657,7 @@ class ThreeTierSecurity extends EventEmitter {
 
     if (
       this.config.appSecurity.passwordRequireSpecial
-      && !/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)
+      && !/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(password)
     ) {
       errors.push('Password must contain at least one special character');
     }
@@ -678,7 +678,7 @@ class ThreeTierSecurity extends EventEmitter {
     if (/[a-z]/.test(password)) strength += 10;
     if (/[A-Z]/.test(password)) strength += 10;
     if (/\d/.test(password)) strength += 10;
-    if (/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) strength += 20;
+    if (/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(password)) strength += 20;
 
     if (strength < 40) return 'weak';
     if (strength < 70) return 'medium';

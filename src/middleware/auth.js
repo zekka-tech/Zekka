@@ -48,6 +48,7 @@ const Joi = require('joi');
 
 // Load configuration
 const config = require('../config');
+const { getDatabaseSsl } = require('../config/database-ssl');
 const logger = require('../utils/logger');
 
 // Constants from configuration (no defaults for security-critical values)
@@ -65,7 +66,7 @@ const PASSWORD_POLICY = {
 // Database connection pool for user persistence
 const pool = new Pool({
   connectionString: config.database.url,
-  ssl: config.isProduction ? { rejectUnauthorized: false } : false,
+  ssl: getDatabaseSsl({ defaultEnabled: config.isProduction }),
   min: 2,
   max: 10,
   idleTimeoutMillis: 30000,

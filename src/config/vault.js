@@ -53,9 +53,9 @@ async function initVault(logger = console) {
   // silently fall back to plain env vars for sensitive secrets.
   if (isProduction && vaultAddrSet && !vaultEnabled) {
     throw new Error(
-      'VAULT_ADDR is set but VAULT_ENABLED is not "true". ' +
-      'Set VAULT_ENABLED=true to use Vault, or remove VAULT_ADDR to explicitly ' +
-      'opt out of Vault in production.'
+      'VAULT_ADDR is set but VAULT_ENABLED is not "true". '
+      + 'Set VAULT_ENABLED=true to use Vault, or remove VAULT_ADDR to explicitly '
+      + 'opt out of Vault in production.'
     );
   }
 

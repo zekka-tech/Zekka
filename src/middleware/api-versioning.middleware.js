@@ -16,8 +16,8 @@
  * - OpenAPI 3.0 compatibility
  */
 
-import auditService from '../services/audit-service.js';
-import logger from '../utils/logger.js';
+const auditService = require('../services/audit-service');
+const logger = require('../utils/logger');
 
 // Supported API versions
 const SUPPORTED_VERSIONS = ['v1', 'v2'];
@@ -46,7 +46,7 @@ const VERSION_DEPRECATION = {
  * 4. Query parameter (?version=v1)
  * 5. Default version
  */
-export const extractVersion = (req) => {
+const extractVersion = (req) => {
   // 1. Check URL path
   const urlMatch = req.path.match(/^\/api\/(v\d+)\//);
   if (urlMatch && SUPPORTED_VERSIONS.includes(urlMatch[1])) {
@@ -83,7 +83,7 @@ export const extractVersion = (req) => {
 /**
  * Validate API version
  */
-export const validateVersion = (version) => {
+const validateVersion = (version) => {
   if (!SUPPORTED_VERSIONS.includes(version)) {
     return {
       valid: false,
@@ -97,17 +97,17 @@ export const validateVersion = (version) => {
 /**
  * Check if version is deprecated
  */
-export const isDeprecated = (version) => DEPRECATED_VERSIONS.includes(version);
+const isDeprecated = (version) => DEPRECATED_VERSIONS.includes(version);
 
 /**
  * Get deprecation info for version
  */
-export const getDeprecationInfo = (version) => VERSION_DEPRECATION[version] || null;
+const getDeprecationInfo = (version) => VERSION_DEPRECATION[version] || null;
 
 /**
  * Calculate days until sunset
  */
-export const daysUntilSunset = (version) => {
+const daysUntilSunset = (version) => {
   const deprecationInfo = getDeprecationInfo(version);
   if (!deprecationInfo) return null;
 
@@ -125,7 +125,7 @@ export const daysUntilSunset = (version) => {
  * Attaches version information to request object and
  * adds deprecation warnings to response headers
  */
-export const apiVersioning = async (req, res, next) => {
+const apiVersioning = async (req, res, next) => {
   try {
     // Extract version from request
     const version = extractVersion(req);
@@ -218,7 +218,7 @@ export const apiVersioning = async (req, res, next) => {
  *   v2: async (req, res) => { ... }
  * }));
  */
-export const versionHandler = (handlers) => async (req, res, next) => {
+const versionHandler = (handlers) => async (req, res, next) => {
   const version = req.apiVersion || DEFAULT_VERSION;
   const handler = handlers[version];
 
@@ -242,7 +242,7 @@ export const versionHandler = (handlers) => async (req, res, next) => {
  *
  * Suggests upgrades when new versions are available
  */
-export const suggestUpgrade = (req, res, next) => {
+const suggestUpgrade = (req, res, next) => {
   const currentVersion = req.apiVersion || DEFAULT_VERSION;
 
   if (currentVersion !== LATEST_VERSION) {
@@ -262,7 +262,7 @@ export const suggestUpgrade = (req, res, next) => {
  *
  * Transforms responses to maintain backward compatibility
  */
-export const ensureCompatibility = (req, res, next) => {
+const ensureCompatibility = (req, res, next) => {
   const version = req.apiVersion || DEFAULT_VERSION;
 
   if (version === 'v1') {
@@ -290,7 +290,7 @@ export const ensureCompatibility = (req, res, next) => {
 /**
  * Get API version info
  */
-export const getVersionInfo = () => ({
+const getVersionInfo = () => ({
   supportedVersions: SUPPORTED_VERSIONS,
   latestVersion: LATEST_VERSION,
   defaultVersion: DEFAULT_VERSION,
@@ -304,7 +304,7 @@ export const getVersionInfo = () => ({
 /**
  * API version documentation endpoint
  */
-export const versionDocsHandler = (req, res) => {
+const versionDocsHandler = (req, res) => {
   const versionInfo = getVersionInfo();
 
   res.json({
@@ -325,7 +325,7 @@ export const versionDocsHandler = (req, res) => {
   });
 };
 
-export default {
+module.exports = {
   extractVersion,
   validateVersion,
   isDeprecated,

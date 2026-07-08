@@ -9,6 +9,7 @@ describe('cn utility', () => {
   })
 
   it('handles conditional classes', () => {
+    // eslint-disable-next-line no-constant-binary-expression -- constants exercise cn()'s falsy filtering
     const result = cn('px-2', false && 'py-1', true && 'text-lg')
     expect(result).toContain('px-2')
     expect(result).toContain('text-lg')

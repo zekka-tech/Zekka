@@ -1,4 +1,4 @@
-'use strict';
+
 
 /**
  * Wraps an async Express route handler to forward any rejection to next().

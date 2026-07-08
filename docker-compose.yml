@@ -49,6 +49,8 @@ services:
       - PORT=3000
       - DB_HOST=postgres
       - DB_PORT=5432
+      # Postgres runs on the internal compose network without TLS
+      - DATABASE_SSL=false
       - REDIS_HOST=redis
       - REDIS_PORT=6379
     env_file:

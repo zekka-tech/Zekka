@@ -1,9 +1,9 @@
-const { AuthService } = require("../services/auth.service");
-const Joi = require("joi");
+const Joi = require('joi');
+const { AuthService } = require('../services/auth.service');
 
 const loginSchema = Joi.object({
   email: Joi.string().email({ minDomainSegments: 2 }).max(254).required(),
-  password: Joi.string().max(4096).required(),
+  password: Joi.string().max(4096).required()
 });
 
 const registerSchema = Joi.object({
@@ -11,16 +11,17 @@ const registerSchema = Joi.object({
   password: Joi.string()
     .min(8)
     .max(4096)
-    .pattern(/[A-Z]/, "uppercase letter")
-    .pattern(/[a-z]/, "lowercase letter")
-    .pattern(/[0-9]/, "number")
+    .pattern(/[A-Z]/, 'uppercase letter')
+    .pattern(/[a-z]/, 'lowercase letter')
+    .pattern(/[0-9]/, 'number')
     .required()
     .messages({
-      "string.min": "Password must be at least 8 characters",
-      "string.pattern.name":
-        "Password must contain at least one {#name}",
+      'string.min': 'Password must be at least 8 characters',
+      'string.pattern.name':
+        'Password must contain at least one {#name}'
     }),
-  name: Joi.string().trim().min(2).max(100).required(),
+  name: Joi.string().trim().min(2).max(100)
+    .required()
 });
 
 class AuthController {
@@ -42,12 +43,12 @@ class AuthController {
     try {
       const { error, value } = registerSchema.validate(req.body, {
         abortEarly: false,
-        stripUnknown: true,
+        stripUnknown: true
       });
 
       if (error) {
         return res.status(400).json({
-          error: error.details.map((detail) => detail.message).join("; "),
+          error: error.details.map((detail) => detail.message).join('; ')
         });
       }
 
@@ -57,8 +58,8 @@ class AuthController {
         name: value.name,
         metadata: {
           ipAddress: req.ip,
-          userAgent: req.get("user-agent"),
-        },
+          userAgent: req.get('user-agent')
+        }
       });
 
       return res.status(201).json(result);
@@ -71,18 +72,18 @@ class AuthController {
     try {
       const { error, value } = loginSchema.validate(req.body, {
         abortEarly: false,
-        stripUnknown: true,
+        stripUnknown: true
       });
 
       if (error) {
         return res.status(400).json({
-          error: error.details.map((detail) => detail.message).join("; "),
+          error: error.details.map((detail) => detail.message).join('; ')
         });
       }
 
       const result = await this.authService.login(value.email, value.password, {
         ipAddress: req.ip,
-        userAgent: req.get("user-agent"),
+        userAgent: req.get('user-agent')
       });
 
       return res.json(result);
@@ -102,19 +103,19 @@ class AuthController {
 
   async logout(req, res, next) {
     try {
-      const authHeader = req.headers.authorization || "";
-      const token = authHeader.startsWith("Bearer ")
+      const authHeader = req.headers.authorization || '';
+      const token = authHeader.startsWith('Bearer ')
         ? authHeader.slice(7)
         : null;
 
       if (!token) {
-        return res.status(400).json({ error: "Missing bearer token" });
+        return res.status(400).json({ error: 'Missing bearer token' });
       }
 
       const result = await this.authService.logout(
         req.user.userId,
         token,
-        req.body?.refreshToken || null,
+        req.body?.refreshToken || null
       );
       return res.json(result);
     } catch (error) {
@@ -128,14 +129,14 @@ class AuthController {
 
       if (!currentPassword || !newPassword) {
         return res.status(400).json({
-          error: "currentPassword and newPassword are required",
+          error: 'currentPassword and newPassword are required'
         });
       }
 
       const result = await this.authService.changePassword(
         req.user.userId,
         currentPassword,
-        newPassword,
+        newPassword
       );
 
       return res.json(result);
@@ -149,7 +150,7 @@ class AuthController {
       const { email } = req.body;
 
       if (!email) {
-        return res.status(400).json({ error: "Email is required" });
+        return res.status(400).json({ error: 'Email is required' });
       }
 
       const result = await this.authService.requestPasswordReset(email);
@@ -165,7 +166,7 @@ class AuthController {
 
       if (!token || !newPassword) {
         return res.status(400).json({
-          error: "token and newPassword are required",
+          error: 'token and newPassword are required'
         });
       }
 
@@ -181,7 +182,7 @@ class AuthController {
       const { token } = req.body;
 
       if (!token) {
-        return res.status(400).json({ error: "token is required" });
+        return res.status(400).json({ error: 'token is required' });
       }
 
       const result = await this.authService.verifyEmail(token);
@@ -196,7 +197,7 @@ class AuthController {
       const { email } = req.body;
 
       if (!email) {
-        return res.status(400).json({ error: "Email is required" });
+        return res.status(400).json({ error: 'Email is required' });
       }
 
       const result = await this.authService.resendVerificationEmail(email);
@@ -211,12 +212,12 @@ class AuthController {
       const { refreshToken } = req.body;
 
       if (!refreshToken) {
-        return res.status(400).json({ error: "refreshToken is required" });
+        return res.status(400).json({ error: 'refreshToken is required' });
       }
 
       const result = await this.authService.refreshAccessToken(refreshToken, {
         ipAddress: req.ip,
-        userAgent: req.get("user-agent"),
+        userAgent: req.get('user-agent')
       });
       return res.json(result);
     } catch (error) {

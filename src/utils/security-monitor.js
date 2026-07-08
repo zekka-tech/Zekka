@@ -337,7 +337,7 @@ class SecurityMonitor extends EventEmitter {
             { title: 'Timestamp', value: new Date().toISOString(), short: false },
             {
               title: 'Details',
-              value: '```' + JSON.stringify(alert ?? {}, null, 2).slice(0, 2500) + '```',
+              value: `\`\`\`${JSON.stringify(alert ?? {}, null, 2).slice(0, 2500)}\`\`\``,
               short: false
             }
           ]

@@ -84,7 +84,7 @@ class PasswordService {
     if (POLICY.requireNumbers && !/[0-9]/.test(password)) {
       errors.push('Password must contain at least one number');
     }
-    if (POLICY.requireSpecialChars && !/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
+    if (POLICY.requireSpecialChars && !/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(password)) {
       errors.push('Password must contain at least one special character');
     }
 
@@ -153,7 +153,7 @@ class PasswordService {
     if (/[a-z]/.test(password)) score += 10;
     if (/[A-Z]/.test(password)) score += 10;
     if (/[0-9]/.test(password)) score += 10;
-    if (/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) score += 10;
+    if (/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(password)) score += 10;
 
     const uniqueChars = new Set(password).size;
     if (uniqueChars >= 8) score += 10;

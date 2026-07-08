@@ -168,6 +168,8 @@ services:
       - DB_USER=${POSTGRES_USER:-zekka_admin}
       - DB_PASSWORD=${POSTGRES_PASSWORD}
       - DB_SSL=false
+      # Postgres runs on the internal compose network without TLS
+      - DATABASE_SSL=false
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_PASSWORD=${REDIS_PASSWORD}
@@ -226,7 +228,7 @@ services:
   # Nginx Reverse Proxy
   # ===================================================================
   nginx:
-    image: nginx:alpine
+    image: nginx:1.27-alpine
     container_name: zekka-nginx-prod
     restart: always
     ports:
@@ -264,7 +266,7 @@ services:
   # HashiCorp Vault (Production)
   # ===================================================================
   vault:
-    image: hashicorp/vault:latest
+    image: hashicorp/vault:1.17
     container_name: zekka-vault-prod
     restart: always
     user: "0:0"  # Run as root to avoid permission issues with volume
@@ -301,7 +303,7 @@ services:
   # Prometheus Monitoring
   # ===================================================================
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:v2.53.0
     container_name: zekka-prometheus-prod
     restart: always
     command:
@@ -339,7 +341,7 @@ services:
   # Grafana Dashboards
   # ===================================================================
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:11.1.0
     container_name: zekka-grafana-prod
     restart: always
     environment:
@@ -379,7 +381,7 @@ services:
   # Node Exporter (System Metrics)
   # ===================================================================
   node-exporter:
-    image: prom/node-exporter:latest
+    image: prom/node-exporter:v1.8.1
     container_name: zekka-node-exporter-prod
     restart: always
     command:
@@ -405,7 +407,7 @@ services:
   # Redis Exporter (Redis Metrics)
   # ===================================================================
   redis-exporter:
-    image: oliver006/redis_exporter:latest
+    image: oliver006/redis_exporter:v1.61.0
     container_name: zekka-redis-exporter-prod
     restart: always
     environment:
@@ -428,7 +430,7 @@ services:
   # Postgres Exporter (Database Metrics)
   # ===================================================================
   postgres-exporter:
-    image: prometheuscommunity/postgres-exporter:latest
+    image: prometheuscommunity/postgres-exporter:v0.15.0
     container_name: zekka-postgres-exporter-prod
     restart: always
     environment:
