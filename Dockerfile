@@ -4,7 +4,7 @@
 # ===================================================================
 # Stage 1: Dependencies
 # ===================================================================
-FROM node:22-alpine AS dependencies
+FROM node:26-alpine AS dependencies
 
 LABEL maintainer="Zekka Technologies <devops@zekka.io>"
 LABEL description="Zekka Framework - Enterprise AI Orchestration Platform"
@@ -31,7 +31,7 @@ RUN npm ci --legacy-peer-deps --ignore-scripts && \
 # ===================================================================
 # Stage 2: Builder
 # ===================================================================
-FROM node:22-alpine AS builder
+FROM node:26-alpine AS builder
 
 WORKDIR /app
 
@@ -57,7 +57,7 @@ RUN npm prune --omit=dev --legacy-peer-deps
 # ===================================================================
 # Stage 2b: Frontend Builder
 # ===================================================================
-FROM node:22-alpine AS frontend-builder
+FROM node:26-alpine AS frontend-builder
 
 WORKDIR /frontend
 
@@ -70,7 +70,7 @@ RUN npm run build
 # ===================================================================
 # Stage 3: Production Runtime
 # ===================================================================
-FROM node:22-alpine AS production
+FROM node:26-alpine AS production
 
 # Security: Install only necessary runtime dependencies
 RUN apk add --no-cache \
