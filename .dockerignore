@@ -147,7 +147,12 @@ Thumbs.db
 ehthumbs.db
 
 # Project specific
-frontend/
+# NOTE: frontend/ must stay in the build context — the Dockerfile's
+# frontend-builder stage builds it. Exclude only its heavy artifacts.
+frontend/node_modules/
+frontend/dist/
+frontend/coverage/
+frontend/playwright-report/
 projects/
 examples/
 samples/
