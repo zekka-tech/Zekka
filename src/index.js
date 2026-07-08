@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('dotenv').config({ quiet: true });
 
 // ── Sentry / OpenTelemetry (optional) ─────────────────────────────────────────
 // Must be initialised before any other require so instrumentation patches work.

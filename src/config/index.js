@@ -6,7 +6,7 @@
  */
 
 const joi = require('joi');
-require('dotenv').config();
+require('dotenv').config({ quiet: true });
 const logger = require('../utils/logger');
 
 function parseAllowedOrigins(value) {
