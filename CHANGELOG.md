@@ -12,6 +12,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.2.1] - 2026-07-09
+
+Dependency maintenance release. No application code changes.
+
+### 🔐 Security
+- **geoip-lite 1 → 2** pulls a fixed `ip-address`, clearing the last
+  documented backend production vulnerability — `npm audit --omit=dev` is
+  now 0 findings.
+
+### ⬆️ Dependencies
+- **Backend production**: express 4 → 5, redis 4 → 6, connect-redis 8 → 9,
+  express-session 1.19, express-rate-limit 8, rate-limit-redis 5, joi 18,
+  helmet 8, opossum 10, dotenv 16 → 17 (`{ quiet: true }` at all
+  `config()` sites), winston-daily-rotate-file 5, plus cors/fuse.js/
+  lru-cache/morgan/pg/swagger-jsdoc bumps. uuid held at 11 (v14 is
+  ESM-only and breaks the CommonJS test harness / Node 20 `require()`).
+- **Backend dev**: ESLint 8 → 9 with a **flat-config migration**
+  (`.eslintrc.json` → `eslint.config.js`; dropped the unmaintained,
+  eslint-8-only `eslint-config-airbnb-base` for explicit rules).
+  TypeScript 5.3 → 6.0 (removed deprecated `baseUrl` and
+  `downlevelIteration`; `ignoreDeprecations: "6.0"` retains the node10
+  resolver pending a dedicated node16/nodenext migration). Jest 29 → 30
+  (`--testPathPattern` → `--testPathPatterns`), ts-node 1.x → 10.9,
+  @types/jest 30, @types/node 26, supertest 7, husky 9, lint-staged 17,
+  prettier 3.9, nodemon 3.1, snyk bump. @faker-js/faker held at 8
+  (v9+ is ESM-only).
+- **Frontend dev**: TypeScript 6, Vite 8, @vitejs/plugin-react 6,
+  jsdom 29, tailwindcss 4.3, @playwright/test 1.61, jsdom/globals bumps.
+  Removed unused `@pact-foundation/pact`. Migrated `tsconfig.app.json`
+  off deprecated `baseUrl`. eslint held at 9 across both packages
+  (`@typescript-eslint` 8.x does not support eslint 10 yet).
+- **CI / infra**: nginx 1.27 → 1.31; workflow actions
+  gitleaks-action 2 → 3, setup-node 4 → 6, codeql-action 3 → 4,
+  login-action 3 → 4, codecov-action 4 → 7, build-push-action 5 → 7,
+  actions/checkout 4 → 7, setup-buildx-action 3 → 4. Dependabot configured
+  to keep Node base images on the LTS line (ignores semver-major bumps).
+
+### ⏸️ Deferred (tracked)
+- eslint 10 (blocked on `@typescript-eslint` support), TypeScript 7
+  (pre-release), uuid 14 / @faker-js/faker 9+ (ESM-only vs. the CommonJS
+  test harness), and the TypeScript node16/nodenext resolver migration.
+
+---
+
 ## [3.2.0] - 2026-07-08
 
 ### 🔐 Security
