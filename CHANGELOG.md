@@ -12,6 +12,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.2.2] - 2026-07-09
+
+### 🐛 Fixed
+- **IPv6 rate-limit bypass under express-rate-limit 8.** The 7 → 8 bump in
+  v3.2.1 made express-rate-limit reject custom `keyGenerator`s that key on a
+  raw `req.ip`: an unnormalized IPv6 address lets a single client rotate the
+  low-order bits to get a fresh key per request and evade per-IP limits.
+  The errors were non-fatal (the app booted healthy and logged
+  `ERR_ERL_KEY_GEN_IPV6`), so the IP-keyed limiters silently degraded.
+  All four IP-keyed limiters now route through a shared `userOrIpKey` helper
+  that normalizes the address via express-rate-limit's `ipKeyGenerator`
+  (collapses IPv6 to its subnet, leaves IPv4 unchanged). Verified against the
+  published release image: 0 boot errors, `/readyz` healthy, `RateLimit-*`
+  headers present and decrementing.
+
+---
+
 ## [3.2.1] - 2026-07-09
 
 Dependency maintenance release. No application code changes.

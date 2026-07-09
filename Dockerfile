@@ -8,7 +8,7 @@ FROM node:22-alpine AS dependencies
 
 LABEL maintainer="Zekka Technologies <devops@zekka.io>"
 LABEL description="Zekka Framework - Enterprise AI Orchestration Platform"
-LABEL version="3.2.1"
+LABEL version="3.2.2"
 
 # Install build dependencies
 RUN apk add --no-cache \
