@@ -9,6 +9,14 @@
  */
 
 const rateLimit = require('express-rate-limit');
+const { ipKeyGenerator } = rateLimit;
+
+// Rate-limit key: authenticated user id when present, otherwise the client IP
+// normalized via ipKeyGenerator. The helper collapses an IPv6 address to its
+// subnet so a single client cannot rotate low-order bits to escape per-IP
+// limits — express-rate-limit v8 rejects a raw req.ip keyGenerator for this
+// reason (ERR_ERL_KEY_GEN_IPV6).
+const userOrIpKey = (req) => req.user?.id || ipKeyGenerator(req.ip);
 
 let RedisStore;
 let redisClient;
@@ -56,7 +64,7 @@ const apiLimiter = rateLimit({
   max: 100,
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => req.user?.id || req.ip || req.connection.remoteAddress,
+  keyGenerator: userOrIpKey,
   handler: standardHandler('Too many requests from this IP, please try again after 15 minutes', 900),
   store: makeStore('api'),
   skip: skipInTest
@@ -80,7 +88,7 @@ const createProjectLimiter = rateLimit({
   max: 10,
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => req.user?.id || req.ip,
+  keyGenerator: userOrIpKey,
   handler: standardHandler('Project creation limit reached. Please try again later.', 3600),
   store: makeStore('project-create')
 });
@@ -131,7 +139,7 @@ const aiOperationLimiter = rateLimit({
   max: 100,
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => req.user?.id || req.ip,
+  keyGenerator: userOrIpKey,
   handler: standardHandler('You have reached the hourly limit for AI operations.', 3600),
   store: makeStore('ai-operation')
 });
@@ -145,7 +153,7 @@ function createRateLimiter(options = {}) {
     max = 100,
     message = 'Too many requests',
     keyPrefix = 'custom',
-    keyGenerator = (req) => req.user?.id || req.ip,
+    keyGenerator = userOrIpKey,
     skipSuccessfulRequests = false,
     skipFailedRequests = false
   } = options;
