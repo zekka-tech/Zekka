@@ -16,8 +16,8 @@
 
 const crypto = require('crypto');
 const pool = require('../config/database');
-const auditService = require('./audit-service');
 const logger = require('../utils/logger');
+const auditService = require('./audit-service');
 
 const ALGORITHM = 'aes-256-gcm';
 const KEY_LENGTH = 32; // 256 bits

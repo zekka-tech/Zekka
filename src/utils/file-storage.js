@@ -219,7 +219,7 @@ async function uploadToS3(fileData, filename, subfolder = '') {
     if (fileData && typeof fileData.pipe === 'function') {
       // Convert stream to buffer
       const chunks = [];
-      // eslint-disable-next-line no-restricted-syntax
+
       for await (const chunk of fileData) {
         chunks.push(chunk);
       }
@@ -532,11 +532,11 @@ async function getStorageStats() {
       let totalSize = 0;
       let fileCount = 0;
 
-      // eslint-disable-next-line no-restricted-syntax
+
       for (const file of files) {
         const filePath = path.join(STORAGE_CONFIG.local.uploadDir, file);
         try {
-          // eslint-disable-next-line no-await-in-loop
+
           const stats = await fs.stat(filePath);
           if (stats.isFile()) {
             totalSize += stats.size;
@@ -575,11 +575,11 @@ async function getStorageStats() {
           ContinuationToken: continuationToken
         });
 
-        // eslint-disable-next-line no-await-in-loop
+
         const response = await client.send(command);
 
         if (response.Contents) {
-          // eslint-disable-next-line no-restricted-syntax
+
           for (const object of response.Contents) {
             totalSize += object.Size || 0;
             fileCount += 1;

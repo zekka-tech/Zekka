@@ -21,7 +21,7 @@ const generateId = () => {
   // Try to use uuid if available, otherwise use timestamp-based ID
   try {
     return uuidv4();
-  } catch (e) {
+  } catch {
     return `proj_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   }
 };

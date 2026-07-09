@@ -11,9 +11,9 @@
  * - Geographic tracking (optional)
  */
 
+const crypto = require('crypto');
 const expressSession = require('express-session');
 const { RedisStore } = require('connect-redis');
-const crypto = require('crypto');
 
 class SessionManager {
   constructor(redisClient, options = {}) {
@@ -303,7 +303,7 @@ class SessionManager {
         userAgent: parsed.userAgent,
         metadata: parsed.metadata
       };
-    } catch (error) {
+    } catch {
       return null;
     }
   }

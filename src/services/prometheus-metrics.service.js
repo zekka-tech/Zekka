@@ -15,8 +15,8 @@
  * @module services/prometheus-metrics
  */
 
-const promClient = require('prom-client');
 const os = require('os');
+const promClient = require('prom-client');
 
 class PrometheusMetricsService {
   constructor() {

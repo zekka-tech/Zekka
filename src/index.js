@@ -5,7 +5,7 @@ require('dotenv').config({ quiet: true });
 if (process.env.SENTRY_DSN) {
   try {
     // Optional peer: only loaded when SENTRY_DSN is set; absence is handled below
-    // eslint-disable-next-line import/no-extraneous-dependencies, import/no-unresolved
+    // eslint-disable-next-line import/no-extraneous-dependencies
     const Sentry = require('@sentry/node');
     Sentry.init({
       dsn: process.env.SENTRY_DSN,
@@ -31,12 +31,12 @@ if (process.env.SENTRY_DSN) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const compression = require('compression');
 const crypto = require('crypto');
-const express = require('express');
 const fs = require('fs');
 const http = require('http');
 const path = require('path');
+const express = require('express');
+const compression = require('compression');
 const cors = require('cors');
 const session = require('express-session');
 const { RedisStore } = require('connect-redis');

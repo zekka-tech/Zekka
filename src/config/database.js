@@ -7,9 +7,9 @@
  */
 
 const { Pool } = require('pg');
-const config = require('./index');
-const { getDatabaseSsl } = require('./database-ssl');
 const logger = require('../utils/logger');
+const { getDatabaseSsl } = require('./database-ssl');
+const config = require('./index');
 
 let reconnectAttempts = 0;
 const MAX_RECONNECT_ATTEMPTS = 10;

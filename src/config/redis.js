@@ -13,8 +13,8 @@
  */
 
 const { createClient } = require('redis');
-const config = require('./index');
 const logger = require('../utils/logger');
+const config = require('./index');
 
 // Cache key patterns for different data types
 const CACHE_KEYS = {

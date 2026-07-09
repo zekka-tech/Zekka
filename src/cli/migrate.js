@@ -181,7 +181,7 @@ const commands = {
     // Create migrations directory if it doesn't exist
     try {
       await fs.mkdir(config.migrationsDir, { recursive: true });
-    } catch (error) {
+    } catch {
       // Directory might already exist
     }
 

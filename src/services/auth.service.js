@@ -10,8 +10,8 @@
  * - Account security
  */
 
-const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
+const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { AppError, ErrorCodes } = require('../utils/errors');
 const { AuditLogger } = require('../utils/audit-logger');

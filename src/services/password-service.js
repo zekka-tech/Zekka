@@ -14,8 +14,8 @@
 
 const bcryptjs = require('bcryptjs');
 const pool = require('../config/database');
-const auditService = require('./audit-service');
 const logger = require('../utils/logger');
+const auditService = require('./audit-service');
 
 
 // Password policy configuration

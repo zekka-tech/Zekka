@@ -16,16 +16,16 @@ const { AppError } = require('../utils/errors');
 const db = require('../config/database');
 const { getIO } = require('../middleware/websocket');
 const logger = require('../utils/logger');
+const { calculateCost } = require('../utils/pricing');
 const ModelClient = require('./model-client');
 const analyticsService = require('./analytics.service');
-const { calculateCost } = require('../utils/pricing');
 
 // Simple ID generator for compatibility
 const generateId = () => {
   // Try to use uuid if available, otherwise use timestamp-based ID
   try {
     return uuidv4();
-  } catch (e) {
+  } catch {
     return `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   }
 };

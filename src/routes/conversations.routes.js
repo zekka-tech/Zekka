@@ -15,9 +15,9 @@
  * DELETE /api/v1/conversations/:id/messages/:msgId - Delete a message
  */
 
+const path = require('path');
 const express = require('express');
 const multer = require('multer');
-const path = require('path');
 
 const router = express.Router();
 const conversationsController = require('../controllers/conversations.controller');

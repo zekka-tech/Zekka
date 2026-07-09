@@ -145,7 +145,7 @@ async function optionalSocketAuth(socket, next) {
     };
 
     next();
-  } catch (error) {
+  } catch {
     // If token is invalid, still allow connection but without user data
     socket.user = null;
     socket.metadata = {

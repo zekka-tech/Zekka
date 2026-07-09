@@ -10,10 +10,10 @@
  * - Performance optimized with batching
  */
 
-const { createLogger, format, transports } = require('winston');
-require('winston-daily-rotate-file');
 const path = require('path');
 const fs = require('fs');
+const { createLogger, format, transports } = require('winston');
+require('winston-daily-rotate-file');
 
 // Audit event categories
 const AuditCategory = {
@@ -69,7 +69,7 @@ class AuditLogger {
     if (!fs.existsSync(this.logDir)) {
       try {
         fs.mkdirSync(this.logDir, { recursive: true });
-      } catch (err) {
+      } catch {
         // Fall back to /tmp if we can't write to logs directory
         console.warn(`Cannot write to ${this.logDir}, falling back to /tmp`);
         this.logDir = path.join('/tmp', 'zekka-logs', 'audit');

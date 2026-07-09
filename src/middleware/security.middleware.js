@@ -13,8 +13,8 @@
  * - Audit logging
  */
 
-const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
+const jwt = require('jsonwebtoken');
 const pool = require('../config/database');
 const redis = require('../config/redis');
 const auditService = require('../services/audit-service');
@@ -530,7 +530,7 @@ const optionalAuth = async (req, res, next) => {
     }
 
     return next();
-  } catch (error) {
+  } catch {
     // Silently fail for optional auth
     return next();
   }
