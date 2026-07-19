@@ -1,8 +1,13 @@
+const { promisify } = require('util');
+const childProcess = require('child_process');
 const { Pool } = require('pg');
 const { v4: uuidv4 } = require('uuid');
 const axios = require('axios');
 const ModelClient = require('../services/model-client');
 const { getDatabaseSsl } = require('../config/database-ssl');
+const { createDefaultRegistry } = require('./tools');
+const { AgentRunner } = require('./agent-runner');
+const { extractJsonObject } = require('./parse-action');
 
 /**
  * Zekka Orchestrator - Central Coordination for Multi-Agent Workflows
@@ -85,6 +90,27 @@ class ZekkaOrchestrator {
       tokenEconomics: this.tokenEconomics,
       contextBus: this.contextBus
     });
+
+    // Agent tooling + loop. Agents operate inside a sandboxed workspace; the
+    // write tools are gated behind stage-level conflict detection (checkForConflicts).
+    this.workspaceRoot = this.config.workspaceRoot || process.cwd();
+    this.toolRegistry = options.toolRegistry
+      || createDefaultRegistry({ logger: this.logger, includeWrite: true });
+    this.agentRunner = options.agentRunner
+      || new AgentRunner({
+        modelClient: this.modelClient,
+        toolRegistry: this.toolRegistry,
+        tokenEconomics: this.tokenEconomics,
+        contextBus: this.contextBus,
+        logger: this.logger,
+        maxSteps: this.config.agentMaxSteps,
+        toolContext: {
+          workspaceRoot: this.workspaceRoot,
+          testCommand: this.config.testCommand,
+          exec: promisify(childProcess.exec),
+          execFile: promisify(childProcess.execFile)
+        }
+      });
 
     // Validate required environment variables
     if (!process.env.DATABASE_URL) {
@@ -328,19 +354,13 @@ class ZekkaOrchestrator {
       tasks.push(task);
     }
 
-    // Execute tasks (simplified simulation)
+    // Run each agent's loop.
     for (const task of tasks) {
-      await this.executeTask(task.task_id, model, projectId);
+      await this.executeTask(task.task_id, projectId, { complexity, stageName: name });
     }
 
-    // Check for conflicts
-    const conflicts = await this.checkForConflicts(projectId, number);
-    if (conflicts.length > 0) {
-      this.logger.warn(
-        `⚠️  ${conflicts.length} conflict(s) detected in stage ${number}`
-      );
-      // Conflicts would be handled by Arbitrator Agent
-    }
+    // Detect + resolve conflicts between agents that touched the same files.
+    await this.resolveStageConflicts(projectId, number);
 
     this.logger.info(`✅ Stage ${number} completed`);
   }
@@ -372,75 +392,60 @@ class ZekkaOrchestrator {
     return { task_id: taskId, agent_name: agentName, status: 'pending' };
   }
 
-  async executeTask(taskId, model, projectId) {
-    // Execute task using the Model Client for AI coordination
+  /**
+   * Run a single agent's loop for a task, driven by AgentRunner.
+   *
+   * @param {string} taskId
+   * @param {string} projectId
+   * @param {Object} [opts] - { complexity, stageName }
+   * @returns {Promise<Object>} AgentRunner result summary.
+   */
+  async executeTask(taskId, projectId, opts = {}) {
     const startTime = Date.now();
 
-    // Update task status
     await this.db.query(
       'UPDATE tasks SET status = $1, started_at = CURRENT_TIMESTAMP WHERE task_id = $2',
       ['running', taskId]
     );
 
     try {
-      // Get task details
       const taskResult = await this.db.query(
         'SELECT * FROM tasks WHERE task_id = $1',
         [taskId]
       );
       const task = taskResult.rows[0];
+      const goal = await this.buildTaskGoal(task, projectId, opts.stageName);
 
-      // Generate task execution plan using the Orchestrator's model (Gemini Pro)
-      // This uses the unified Model Client which handles fallback automatically
-      const prompt = `You are the Zekka Orchestrator coordinating task execution.
+      // Drive the perceive → plan → act → observe loop.
+      const result = await this.agentRunner.run({
+        taskId,
+        projectId,
+        agentName: task.agent_name,
+        stage: task.stage,
+        complexity: opts.complexity,
+        goal
+      });
 
-Task Details:
-- Task ID: ${taskId}
-- Agent: ${task.agent_name}
-- Stage: ${task.stage}
-- Project: ${projectId}
+      // Persist the agent's file footprint so stage-level conflict detection can
+      // compare it against sibling agents.
+      await this.contextBus.setAgentState(taskId, task.agent_name, {
+        status: result.status,
+        stage: task.stage,
+        filesWritten: result.filesWritten
+      });
 
-Generate a brief execution plan for this task. Respond with a JSON object containing:
-- steps: array of execution steps
-- estimatedDuration: estimated duration in seconds
-- dependencies: any dependencies needed`;
-
-      const response = await this.modelClient.generateOrchestratorResponse(
-        prompt,
-        {
-          projectId,
-          taskId,
-          maxTokens: 500,
-          temperature: 0.7
-        }
-      );
-
-      // Simulate AI call (would actually call agent model here)
-      const result = await this.simulateAgentWork(taskId, model, response);
-
-      // Cost is already recorded by modelClient.generateOrchestratorResponse
-      // Record additional cost for agent work if tokenEconomics is available
-      if (this.tokenEconomics) {
-        await this.tokenEconomics.recordCost({
-          projectId: result.projectId,
-          taskId,
-          agentName: result.agentName,
-          model,
-          tokensInput: result.tokensInput,
-          tokensOutput: result.tokensOutput
-        });
-      }
-
-      // Complete task
+      const dbStatus = result.status === 'completed' ? 'completed' : 'failed';
       await this.db.query(
         `UPDATE tasks SET status = $1, completed_at = CURRENT_TIMESTAMP, output_data = $2
          WHERE task_id = $3`,
         [
-          'completed',
+          dbStatus,
           JSON.stringify({
-            ...result,
-            orchestratorModel: response.model,
-            fallbackUsed: response.fallbackUsed
+            status: result.status,
+            reason: result.reason,
+            steps: result.steps,
+            result: result.result,
+            filesWritten: result.filesWritten
           }),
           taskId
         ]
@@ -448,7 +453,7 @@ Generate a brief execution plan for this task. Respond with a JSON object contai
 
       const duration = Date.now() - startTime;
       this.logger.info(
-        `✅ Task ${taskId} completed in ${duration}ms using ${response.model}`
+        `✅ Task ${taskId} ${result.status} in ${duration}ms (${result.steps} steps)`
       );
 
       return result;
@@ -462,38 +467,150 @@ Generate a brief execution plan for this task. Respond with a JSON object contai
     }
   }
 
-  async simulateAgentWork(taskId, model, orchestratorResponse) {
-    // Get task details
-    const result = await this.db.query(
-      'SELECT * FROM tasks WHERE task_id = $1',
-      [taskId]
-    );
-    const task = result.rows[0];
+  /**
+   * Compose the agent's goal from the project requirements and the current stage.
+   * @returns {Promise<string>}
+   */
+  async buildTaskGoal(task, projectId, stageName) {
+    let requirements = [];
+    try {
+      const ctx = await this.contextBus.getProjectContext(projectId);
+      if (ctx && Array.isArray(ctx.requirements)) requirements = ctx.requirements;
+    } catch {
+      // Context is best-effort; fall back to a stage-only goal.
+    }
 
-    // Simulate processing time
-    await new Promise((resolve) => { setTimeout(resolve, Math.random() * 2000 + 1000); });
-
-    // Simulate token usage (would be real from actual API calls)
-    const tokensInput = Math.floor(Math.random() * 1000) + 500;
-    const tokensOutput = Math.floor(Math.random() * 2000) + 1000;
-
-    return {
-      projectId: task.project_id,
-      taskId,
-      agentName: task.agent_name,
-      stage: task.stage,
-      tokensInput,
-      tokensOutput,
-      result: `Simulated output for task ${taskId} using ${model}`,
-      orchestratorPlan: orchestratorResponse.text.substring(0, 200), // First 200 chars
-      model
-    };
+    const stageLabel = stageName || `stage ${task.stage}`;
+    const reqLine = requirements.length
+      ? `\nProject requirements:\n- ${requirements.join('\n- ')}`
+      : '';
+    return `As agent "${task.agent_name}", carry out the "${stageLabel}" work for `
+      + `project ${projectId}.${reqLine}`;
   }
 
-  async checkForConflicts(_projectId, _stage) {
-    // Simplified conflict detection
-    // In real implementation, would check file locks and modifications
-    return [];
+  // ========================================
+  // Conflict Detection & Arbitration
+  // ========================================
+
+  /**
+   * Detect conflicts within a stage: files written by more than one agent.
+   *
+   * Reads each stage task's file footprint from the Context Bus (populated by
+   * executeTask) and groups by path. Any path touched by 2+ agents is a conflict.
+   *
+   * @param {string} projectId
+   * @param {number} stage
+   * @returns {Promise<Array<{ file: string, agents: Array<{taskId, agentName}> }>>}
+   */
+  async checkForConflicts(projectId, stage) {
+    const { rows } = await this.db.query(
+      'SELECT task_id, agent_name FROM tasks WHERE project_id = $1 AND stage = $2',
+      [projectId, stage]
+    );
+
+    const byFile = new Map();
+    for (const row of rows) {
+      let state;
+      try {
+        state = await this.contextBus.getAgentState(row.task_id, row.agent_name);
+      } catch {
+        state = null;
+      }
+      const files = state && Array.isArray(state.filesWritten) ? state.filesWritten : [];
+      for (const file of files) {
+        if (!byFile.has(file)) byFile.set(file, []);
+        byFile.get(file).push({ taskId: row.task_id, agentName: row.agent_name });
+      }
+    }
+
+    const conflicts = [];
+    for (const [file, agents] of byFile.entries()) {
+      if (agents.length > 1) conflicts.push({ file, agents });
+    }
+    return conflicts;
+  }
+
+  /**
+   * Detect and resolve stage conflicts. For each conflicted file the Arbitrator
+   * model picks a winning agent; the losing agents' tasks are re-queued (reset to
+   * pending) so they can redo their work against the winner's version.
+   *
+   * @param {string} projectId
+   * @param {number} stage
+   * @returns {Promise<{ conflicts: number, requeued: string[] }>}
+   */
+  async resolveStageConflicts(projectId, stage) {
+    const conflicts = await this.checkForConflicts(projectId, stage);
+    if (conflicts.length === 0) return { conflicts: 0, requeued: [] };
+
+    this.logger.warn(
+      `⚠️  ${conflicts.length} conflict(s) detected in stage ${stage}`
+    );
+
+    const requeued = new Set();
+    for (const conflict of conflicts) {
+      const winner = await this.arbitrateConflict(projectId, stage, conflict);
+      for (const agent of conflict.agents) {
+        if (agent.taskId !== winner) {
+          await this.requeueTask(agent.taskId, conflict.file, winner);
+          requeued.add(agent.taskId);
+        }
+      }
+    }
+
+    return { conflicts: conflicts.length, requeued: [...requeued] };
+  }
+
+  /**
+   * Ask the Arbitrator model to pick the winning task for a conflicted file.
+   * Falls back to the first agent if the ruling can't be parsed.
+   *
+   * @returns {Promise<string>} winning taskId
+   */
+  async arbitrateConflict(projectId, stage, conflict) {
+    const candidates = conflict.agents
+      .map((a) => `- taskId "${a.taskId}" (agent ${a.agentName})`)
+      .join('\n');
+    const prompt = `You are the Zekka Arbitrator resolving a file-write conflict.
+
+Project: ${projectId}, stage ${stage}.
+File "${conflict.file}" was written by multiple agents:
+${candidates}
+
+Choose exactly one task to keep. Reply with a single JSON object:
+{"winner": "<taskId>", "reason": "<brief>"}`;
+
+    let winner = null;
+    try {
+      const response = await this.modelClient.generateArbitratorResponse(prompt, {
+        projectId
+      });
+      const ruling = extractJsonObject(response && response.text ? response.text : '');
+      if (ruling) {
+        const parsed = JSON.parse(ruling);
+        if (typeof parsed.winner === 'string') winner = parsed.winner;
+      }
+    } catch (err) {
+      this.logger.warn(`arbitration failed, defaulting winner: ${err.message}`);
+    }
+
+    // Guard: winner must be one of the candidates; otherwise keep the first.
+    const valid = conflict.agents.some((a) => a.taskId === winner);
+    return valid ? winner : conflict.agents[0].taskId;
+  }
+
+  /**
+   * Re-queue a losing task: reset it to pending and record why, so a subsequent
+   * execution pass redoes the work against the winner's changes.
+   */
+  async requeueTask(taskId, file, winnerTaskId) {
+    await this.db.query(
+      `UPDATE tasks
+       SET status = 'pending', completed_at = NULL, error_message = $2
+       WHERE task_id = $1`,
+      [taskId, `re-queued: lost conflict on ${file} to ${winnerTaskId}`]
+    );
+    this.logger.info(`↩️  Re-queued task ${taskId} (lost "${file}" to ${winnerTaskId})`);
   }
 
   // ========================================
