@@ -25,10 +25,14 @@ const {
   validateParams
 } = require('../middleware/validate');
 const { authenticate } = require('../middleware/auth');
+const { optionalTenantContext } = require('../middleware/tenant-context');
 const { idempotency } = require('../middleware/idempotency');
 
 // Apply authentication to all project routes
 router.use(authenticate);
+
+// Resolve tenant scoping when an X-Tenant-Id header is supplied (SaaS mode)
+router.use(optionalTenantContext);
 
 /**
  * @route   GET /api/v1/projects

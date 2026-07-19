@@ -26,6 +26,7 @@ class ProjectsController {
       const filters = {};
       if (status) filters.status = status;
       if (search) filters.search = search;
+      if (req.tenant) filters.tenantId = req.tenant.id;
 
       const pagination = {
         limit: parseInt(limit, 10) || 20,
@@ -60,7 +61,8 @@ class ProjectsController {
       const project = await projectService.createProject(userId, {
         name,
         description,
-        settings
+        settings,
+        tenantId: req.tenant?.id
       });
 
       res.status(201).json({

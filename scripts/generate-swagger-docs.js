@@ -380,7 +380,8 @@ const options = {
     './src/routes/*.js',
     './src/routes/**/*.js',
     './src/middleware/*.js',
-    './src/index.js',
+    './src/index.ts',
+    './src/routes/*.ts',
   ],
 };
 

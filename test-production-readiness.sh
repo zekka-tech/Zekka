@@ -190,7 +190,7 @@ for dir in "${REQUIRED_DIRS[@]}"; do
 done
 
 # Check for key files
-REQUIRED_FILES=("src/index.js" "package.json" "README.md")
+REQUIRED_FILES=("src/index.ts" "package.json" "README.md")
 for file in "${REQUIRED_FILES[@]}"; do
   if [ -f "$file" ]; then
     print_result "File $file exists" "PASS"

@@ -1,17 +1,18 @@
+// dotenv must load before any module that reads process.env at require time,
+// so this stays a bare require ahead of the import declarations below.
 require('dotenv').config({ quiet: true });
 
 // ── Sentry / OpenTelemetry (optional) ─────────────────────────────────────────
 // Must be initialised before any other require so instrumentation patches work.
-if (process.env.SENTRY_DSN) {
+if (process.env['SENTRY_DSN']) {
   try {
     // Optional peer: only loaded when SENTRY_DSN is set; absence is handled below
-    // eslint-disable-next-line import/no-extraneous-dependencies
     const Sentry = require('@sentry/node');
     Sentry.init({
-      dsn: process.env.SENTRY_DSN,
-      environment: process.env.NODE_ENV || 'production',
+      dsn: process.env['SENTRY_DSN'],
+      environment: process.env['NODE_ENV'] || 'production',
       tracesSampleRate: parseFloat(
-        process.env.SENTRY_TRACES_SAMPLE_RATE || '0.1'
+        process.env['SENTRY_TRACES_SAMPLE_RATE'] || '0.1'
       ),
       // Attach request context to every event
       integrations: [
@@ -25,65 +26,68 @@ if (process.env.SENTRY_DSN) {
     // @sentry/node not installed — continue without error reporting
     console.warn(
       '[Sentry] Package not installed, skipping init:',
-      sentryErr.message
+      (sentryErr as Error).message
     );
   }
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const crypto = require('crypto');
-const fs = require('fs');
-const http = require('http');
-const path = require('path');
-const express = require('express');
-const compression = require('compression');
-const cors = require('cors');
-const session = require('express-session');
-const { RedisStore } = require('connect-redis');
-const helmet = require('helmet');
-const morgan = require('morgan');
-const { createLogger, format, transports } = require('winston');
-const swaggerUi = require('swagger-ui-express');
-const swaggerSpec = require('./swagger');
-const redisClient = require('./config/redis');
-const config = require('./config');
-const {
-  healthCheck: databaseHealthCheck,
-  getDetailedPoolStats
-} = require('./config/database');
-const { healthCheck: redisHealthCheck, closeRedis } = require('./config/redis');
-const { initVault, shutdownVault } = require('./config/vault');
+import crypto = require('crypto');
+import fs = require('fs');
+import http = require('http');
+import path = require('path');
+import express = require('express');
+import compression = require('compression');
+import cors = require('cors');
+import session = require('express-session');
+import { RedisStore } from 'connect-redis';
+import helmet from 'helmet';
+import morgan = require('morgan');
+import { createLogger, format, transports } from 'winston';
+import swaggerUi = require('swagger-ui-express');
+import swaggerSpec = require('./swagger');
+import redisClient = require('./config/redis');
+import config = require('./config');
 
-const ContextBus = require('./shared/context-bus');
-const TokenEconomics = require('./shared/token-economics');
-const ZekkaOrchestrator = require('./orchestrator/orchestrator');
+import {
+  healthCheck as databaseHealthCheck,
+  getDetailedPoolStats
+} from './config/database';
+import { healthCheck as redisHealthCheck, closeRedis } from './config/redis';
+import { initVault, shutdownVault } from './config/vault';
+
+import ContextBus = require('./shared/context-bus');
+import TokenEconomics = require('./shared/token-economics');
+import ZekkaOrchestrator = require('./orchestrator/orchestrator');
 
 // Middleware
-const { apiLimiter, createProjectLimiter } = require('./middleware/rateLimit');
-const { optionalAuth } = require('./middleware/auth');
-const {
+import { apiLimiter, createProjectLimiter } from './middleware/rateLimit';
+import { optionalAuth } from './middleware/auth';
+import {
   metricsMiddleware,
   getMetrics,
   trackProject
-} = require('./middleware/metrics');
+} from './middleware/metrics';
 
-const websocket = require('./middleware/websocket');
-const { csrfTokenGenerator, csrfTokenValidator } = require('./middleware/csrf');
-const { createCsrfRouteGuard } = require('./middleware/csrf-route-guard');
+import websocket = require('./middleware/websocket');
+import { csrfTokenGenerator, csrfTokenValidator } from './middleware/csrf';
+import { createCsrfRouteGuard } from './middleware/csrf-route-guard';
+import { idempotency } from './middleware/idempotency';
 
 // API Routes
-const projectsRoutes = require('./routes/projects.routes');
-const conversationsRoutes = require('./routes/conversations.routes');
-const analyticsRoutes = require('./routes/analytics.routes');
-const agentsRoutes = require('./routes/agents.routes');
-const sourcesRoutes = require('./routes/sources.routes');
-const preferencesRoutes = require('./routes/preferences.routes');
-const authRoutes = require('./routes/auth.routes');
-const usersRoutes = require('./routes/users.routes');
+import projectsRoutes = require('./routes/projects.routes');
+import conversationsRoutes = require('./routes/conversations.routes');
+import analyticsRoutes = require('./routes/analytics.routes');
+import agentsRoutes = require('./routes/agents.routes');
+import sourcesRoutes = require('./routes/sources.routes');
+import preferencesRoutes = require('./routes/preferences.routes');
+import authRoutes = require('./routes/auth.routes');
+import usersRoutes = require('./routes/users.routes');
+import tenantsRoutes = require('./routes/tenants.routes');
 
 // Logger setup
 const logger = createLogger({
-  level: process.env.LOG_LEVEL || 'info',
+  level: process.env['LOG_LEVEL'] || 'info',
   format: format.combine(format.timestamp(), format.json()),
   transports: [
     new transports.File({ filename: 'logs/error.log', level: 'error' }),
@@ -97,8 +101,8 @@ const logger = createLogger({
 // Initialize app and HTTP server
 const app = express();
 const server = http.createServer(app);
-const PORT = process.env.PORT || 3000;
-const sessionSecret = process.env.SESSION_SECRET;
+const PORT = parseInt(process.env['PORT'] || '', 10) || 3000;
+const sessionSecret = process.env['SESSION_SECRET'];
 
 if (!sessionSecret) {
   throw new Error('SESSION_SECRET is required for CSRF session protection');
@@ -120,7 +124,7 @@ app.use(compression());
 // Use a single flag per response to prevent double-decrement when both the
 // 'finish' and 'close' events fire for the same response (e.g. on abrupt close).
 let activeRequests = 0;
-app.use((req, res, next) => {
+app.use((_req, res, next) => {
   activeRequests++;
   let counted = true;
   const decrement = () => {
@@ -138,7 +142,8 @@ app.use((req, res, next) => {
 // Generate a unique ID for every request, propagate as X-Request-ID, and
 // attach to res.locals so downstream middleware / error handlers can log it.
 app.use((req, res, next) => {
-  const id = req.headers['x-request-id'] || crypto.randomUUID();
+  const headerId = req.headers['x-request-id'];
+  const id = (Array.isArray(headerId) ? headerId[0] : headerId) || crypto.randomUUID();
   req.requestId = id;
   res.setHeader('X-Request-ID', id);
   next();
@@ -148,9 +153,11 @@ app.use((req, res, next) => {
 // Accept and forward traceparent / tracestate headers for distributed tracing.
 // If no traceparent is supplied, generate a minimal W3C-compatible one.
 app.use((req, res, next) => {
-  const traceparent = req.headers.traceparent
+  const traceparentHeader = req.headers['traceparent'];
+  const tracestateHeader = req.headers['tracestate'];
+  const traceparent = (Array.isArray(traceparentHeader) ? traceparentHeader[0] : traceparentHeader)
     || `00-${crypto.randomUUID().replace(/-/g, '')}-${req.requestId.replace(/-/g, '').slice(0, 16)}-01`;
-  const tracestate = req.headers.tracestate || '';
+  const tracestate = (Array.isArray(tracestateHeader) ? tracestateHeader[0] : tracestateHeader) || '';
   req.traceparent = traceparent;
   req.tracestate = tracestate;
   // Echo downstream so callers can correlate
@@ -162,7 +169,7 @@ app.use((req, res, next) => {
 // ── Per-request child logger (C6) ─────────────────────────────────────────────
 // Attach a child logger with requestId / traceId so all service log calls
 // automatically include the request context without manual prop-drilling.
-app.use((req, res, next) => {
+app.use((req, _res, next) => {
   req.logger = logger.child({
     requestId: req.requestId,
     traceId: (req.traceparent || '').split('-')[1] || req.requestId
@@ -205,8 +212,8 @@ app.use(
     cookie: {
       httpOnly: true,
       sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
-      maxAge: parseInt(process.env.SESSION_TIMEOUT, 10) || 60 * 60 * 1000,
+      secure: process.env['NODE_ENV'] === 'production',
+      maxAge: parseInt(process.env['SESSION_TIMEOUT'] || '', 10) || 60 * 60 * 1000,
       path: '/api'
     }
   })
@@ -214,7 +221,7 @@ app.use(
 app.use(express.json({ limit: config.limits.json }));
 app.use(express.urlencoded({ extended: true, limit: config.limits.urlEncoded }));
 app.use(
-  morgan('combined', { stream: { write: (msg) => logger.info(msg.trim()) } })
+  morgan('combined', { stream: { write: (msg: string) => logger.info(msg.trim()) } })
 );
 app.use(metricsMiddleware);
 
@@ -222,17 +229,14 @@ app.use(metricsMiddleware);
 app.use('/api', csrfTokenGenerator); // Generate CSRF tokens for API requests
 app.use('/api', createCsrfRouteGuard(csrfTokenValidator));
 
-// Idempotency middleware
-const { idempotency } = require('./middleware/idempotency');
-
 // Initialize core services
-let contextBus;
-let tokenEconomics;
-let orchestrator;
-let vault;
+let contextBus: ContextBus | undefined;
+let tokenEconomics: TokenEconomics | undefined;
+let orchestrator: InstanceType<typeof ZekkaOrchestrator> | undefined;
+let vault: unknown;
 let isShuttingDown = false;
 
-async function initializeServices() {
+async function initializeServices(): Promise<void> {
   try {
     logger.info('🚀 Initializing Zekka Framework services...');
 
@@ -247,31 +251,31 @@ async function initializeServices() {
       }
     } catch (vaultError) {
       if (
-        process.env.NODE_ENV === 'production'
-        && process.env.VAULT_ENABLED === 'true'
+        process.env['NODE_ENV'] === 'production'
+        && process.env['VAULT_ENABLED'] === 'true'
       ) {
         throw vaultError;
       }
 
       logger.warn(
         '⚠️  Vault initialization failed, using environment variables:',
-        vaultError.message
+        (vaultError as Error).message
       );
     }
 
     // Initialize Context Bus (Redis) with password authentication
     contextBus = new ContextBus({
-      host: process.env.REDIS_HOST || 'localhost',
-      port: parseInt(process.env.REDIS_PORT, 10) || 6379,
-      password: process.env.REDIS_PASSWORD || ''
+      host: process.env['REDIS_HOST'] || 'localhost',
+      port: parseInt(process.env['REDIS_PORT'] || '', 10) || 6379,
+      password: process.env['REDIS_PASSWORD'] || ''
     });
     await contextBus.connect();
     logger.info('✅ Context Bus connected');
 
     // Initialize Token Economics
     tokenEconomics = new TokenEconomics({
-      dailyBudget: parseFloat(process.env.DAILY_BUDGET) || 50,
-      monthlyBudget: parseFloat(process.env.MONTHLY_BUDGET) || 1000,
+      dailyBudget: parseFloat(process.env['DAILY_BUDGET'] || '') || 50,
+      monthlyBudget: parseFloat(process.env['MONTHLY_BUDGET'] || '') || 1000,
       contextBus
     });
     logger.info('✅ Token Economics initialized');
@@ -282,13 +286,13 @@ async function initializeServices() {
       tokenEconomics,
       logger,
       config: {
-        githubToken: process.env.GITHUB_TOKEN,
-        anthropicKey: process.env.ANTHROPIC_API_KEY,
-        openaiKey: process.env.OPENAI_API_KEY,
-        ollamaHost: process.env.OLLAMA_HOST || 'http://localhost:11434',
+        githubToken: process.env['GITHUB_TOKEN'],
+        anthropicKey: process.env['ANTHROPIC_API_KEY'],
+        openaiKey: process.env['OPENAI_API_KEY'],
+        ollamaHost: process.env['OLLAMA_HOST'] || 'http://localhost:11434',
         maxConcurrentAgents:
-          parseInt(process.env.MAX_CONCURRENT_AGENTS, 10) || 10,
-        defaultModel: process.env.DEFAULT_MODEL || 'ollama'
+          parseInt(process.env['MAX_CONCURRENT_AGENTS'] || '', 10) || 10,
+        defaultModel: process.env['DEFAULT_MODEL'] || 'ollama'
       }
     });
     await orchestrator.initialize();
@@ -304,29 +308,32 @@ async function initializeServices() {
 // Swagger API Documentation
 app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
-app.get('/api/docs.json', (req, res) => {
+app.get('/api/docs.json', (_req, res) => {
   res.setHeader('Content-Type', 'application/json');
   res.send(swaggerSpec);
 });
 
-app.get('/api/csrf-token', (req, res) => {
+app.get('/api/csrf-token', (_req, res) => {
   res.set('Cache-Control', 'no-store');
-  res.json({ csrfToken: res.locals.csrfToken });
+  res.json({ csrfToken: res.locals['csrfToken'] });
 });
 
 // Prometheus Metrics
-app.get('/metrics', async (req, res) => {
+app.get('/metrics', async (_req, res) => {
   try {
     const metrics = await getMetrics();
     res.set('Content-Type', 'text/plain');
     res.send(metrics);
   } catch (error) {
     logger.error('Error fetching Prometheus metrics:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: (error as Error).message });
   }
 });
 
-function buildHealthPayload(checks) {
+type ServiceCheck = boolean | { healthy: boolean; [key: string]: unknown };
+type HealthChecks = Record<string, ServiceCheck>;
+
+function buildHealthPayload(checks: HealthChecks) {
   // Each value is either a boolean or an object with a `healthy` boolean property
   const allHealthy = Object.values(checks).every(
     (service) => service === true
@@ -343,7 +350,10 @@ function buildHealthPayload(checks) {
   };
 }
 
-async function respondWithHealth(res, checksPromise) {
+async function respondWithHealth(
+  res: express.Response,
+  checksPromise: Promise<HealthChecks>
+): Promise<express.Response> {
   if (isShuttingDown) {
     return res.status(503).json({
       status: 'shutting_down',
@@ -478,8 +488,8 @@ app.post(
   apiLimiter,
   createProjectLimiter,
   optionalAuth,
-  idempotency(),
-  async (req, res) => {
+  idempotency() as express.RequestHandler,
+  async (req: express.Request, res: express.Response) => {
     try {
       const {
         name, requirements, storyPoints, budget
@@ -491,13 +501,17 @@ app.post(
         });
       }
 
+      if (!orchestrator) {
+        return res.status(503).json({ error: 'Service is still initializing' });
+      }
+
       const project = await orchestrator.createProject({
         name,
         requirements,
         storyPoints: storyPoints || 8,
         budget: budget || {
-          daily: parseFloat(process.env.DAILY_BUDGET) || 50,
-          monthly: parseFloat(process.env.MONTHLY_BUDGET) || 1000
+          daily: parseFloat(process.env['DAILY_BUDGET'] || '') || 50,
+          monthly: parseFloat(process.env['MONTHLY_BUDGET'] || '') || 1000
         },
         userId: req.user?.userId
       });
@@ -512,7 +526,7 @@ app.post(
       return res.status(201).json(project);
     } catch (error) {
       logger.error('Error creating project:', error);
-      return res.status(500).json({ error: error.message });
+      return res.status(500).json({ error: (error as Error).message });
     }
   }
 );
@@ -538,19 +552,24 @@ app.post(
   '/api/projects/:projectId/execute',
   apiLimiter,
   optionalAuth,
-  async (req, res) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const { projectId } = req.params;
 
       logger.info(`🚀 Starting execution for project: ${projectId}`);
 
+      if (!orchestrator) {
+        res.status(503).json({ error: 'Service is still initializing' });
+        return;
+      }
+
       // Start execution asynchronously
       orchestrator
         .executeProject(projectId)
-        .then((result) => {
+        .then((result: unknown) => {
           logger.info(`✅ Project completed: ${projectId}`, result);
         })
-        .catch((error) => {
+        .catch((error: Error) => {
           logger.error(`❌ Project failed: ${projectId}`, error);
         });
 
@@ -561,7 +580,7 @@ app.post(
       });
     } catch (error) {
       logger.error('Error starting execution:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: (error as Error).message });
     }
   }
 );
@@ -591,9 +610,14 @@ app.get(
   '/api/projects/:projectId',
   apiLimiter,
   optionalAuth,
-  async (req, res) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const { projectId } = req.params;
+
+      if (!orchestrator) {
+        return res.status(503).json({ error: 'Service is still initializing' });
+      }
+
       const project = await orchestrator.getProject(projectId);
 
       if (!project) {
@@ -603,7 +627,7 @@ app.get(
       return res.json(project);
     } catch (error) {
       logger.error('Error fetching project:', error);
-      return res.status(500).json({ error: error.message });
+      return res.status(500).json({ error: (error as Error).message });
     }
   }
 );
@@ -619,13 +643,17 @@ app.get(
  *       200:
  *         description: List of projects
  */
-app.get('/api/projects', apiLimiter, optionalAuth, async (req, res) => {
+app.get('/api/projects', apiLimiter, optionalAuth, async (_req, res) => {
   try {
+    if (!orchestrator) {
+      res.status(503).json({ error: 'Service is still initializing' });
+      return;
+    }
     const projects = await orchestrator.listProjects();
     res.json(projects);
   } catch (error) {
     logger.error('Error listing projects:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: (error as Error).message });
   }
 });
 
@@ -656,12 +684,21 @@ app.get('/api/projects', apiLimiter, optionalAuth, async (req, res) => {
  */
 app.get('/api/costs', apiLimiter, optionalAuth, async (req, res) => {
   try {
-    const { projectId, period } = req.query;
+    const projectIdParam = req.query['projectId'];
+    const periodParam = req.query['period'];
+    const projectId = typeof projectIdParam === 'string' ? projectIdParam : null;
+    const period = typeof periodParam === 'string' ? periodParam : undefined;
+
+    if (!tokenEconomics) {
+      res.status(503).json({ error: 'Service is still initializing' });
+      return;
+    }
+
     const costs = await tokenEconomics.getCostSummary(projectId, period);
     res.json(costs);
   } catch (error) {
     logger.error('Error fetching costs:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: (error as Error).message });
   }
 });
 
@@ -680,13 +717,17 @@ app.get('/api/costs', apiLimiter, optionalAuth, async (req, res) => {
  *             schema:
  *               $ref: '#/components/schemas/Metrics'
  */
-app.get('/api/metrics', apiLimiter, optionalAuth, async (req, res) => {
+app.get('/api/metrics', apiLimiter, optionalAuth, async (_req, res) => {
   try {
+    if (!orchestrator) {
+      res.status(503).json({ error: 'Service is still initializing' });
+      return;
+    }
     const metrics = await orchestrator.getMetrics();
     res.json(metrics);
   } catch (error) {
     logger.error('Error fetching metrics:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: (error as Error).message });
   }
 });
 
@@ -697,6 +738,7 @@ app.use('/api/v1/analytics', analyticsRoutes);
 app.use('/api/v1/agents', agentsRoutes);
 app.use('/api/v1/sources', sourcesRoutes);
 app.use('/api/v1/preferences', preferencesRoutes);
+app.use('/api/v1/tenants', tenantsRoutes);
 
 const frontendBuildDir = path.join(__dirname, '../frontend/dist');
 const legacyPublicDir = path.join(__dirname, '../public');
@@ -706,11 +748,11 @@ const primaryWebDir = fs.existsSync(path.join(frontendBuildDir, 'index.html'))
 
 app.use(express.static(primaryWebDir));
 
-app.get('/', (req, res) => {
+app.get('/', (_req, res) => {
   res.sendFile(path.join(primaryWebDir, 'index.html'));
 });
 
-app.get(/^\/(?!api|metrics).*/, (req, res, next) => {
+app.get(/^\/(?!api|metrics).*/, (_req, res, next) => {
   const indexFile = path.join(primaryWebDir, 'index.html');
   if (!fs.existsSync(indexFile)) {
     return next();
@@ -720,7 +762,7 @@ app.get(/^\/(?!api|metrics).*/, (req, res, next) => {
 });
 
 // 404 handler
-app.use((req, res) => {
+app.use((_req, res) => {
   res.status(404).json({ error: 'Not found' });
 });
 
@@ -730,15 +772,20 @@ if (global.Sentry) {
 }
 
 // Error handler
-app.use((err, req, res, _next) => {
+app.use((
+  err: Error,
+  _req: express.Request,
+  res: express.Response,
+  _next: express.NextFunction
+) => {
   logger.error('Unhandled error:', err);
   res.status(500).json({
     error: 'Internal server error',
-    message: process.env.NODE_ENV === 'development' ? err.message : undefined
+    message: process.env['NODE_ENV'] === 'development' ? err.message : undefined
   });
 });
 
-async function shutdown(signal) {
+async function shutdown(signal: string): Promise<void> {
   if (isShuttingDown) {
     return;
   }
@@ -746,7 +793,7 @@ async function shutdown(signal) {
   isShuttingDown = true;
   logger.info(`${signal} received, shutting down gracefully...`);
 
-  const timeoutMs = parseInt(process.env.SHUTDOWN_TIMEOUT_MS || '10000', 10);
+  const timeoutMs = parseInt(process.env['SHUTDOWN_TIMEOUT_MS'] || '10000', 10);
   const forceExit = setTimeout(() => {
     logger.error(`Graceful shutdown timed out after ${timeoutMs}ms`);
     process.exit(1);
@@ -754,7 +801,7 @@ async function shutdown(signal) {
 
   try {
     // Stop accepting new connections
-    await new Promise((resolve, reject) => {
+    await new Promise<void>((resolve, reject) => {
       server.close((error) => {
         if (error) {
           reject(error);
@@ -769,7 +816,7 @@ async function shutdown(signal) {
       logger.info(
         `Waiting for ${activeRequests} in-flight request(s) to finish...`
       );
-      await new Promise((resolve) => {
+      await new Promise<void>((resolve) => {
         const drainCheck = setInterval(() => {
           if (activeRequests <= 0) {
             clearInterval(drainCheck);
@@ -827,7 +874,7 @@ process.on('uncaughtException', (error) => {
 });
 
 // Start server
-async function start() {
+async function start(): Promise<void> {
   await initializeServices();
 
   server.listen(PORT, '0.0.0.0', () => {

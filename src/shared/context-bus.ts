@@ -1,5 +1,45 @@
-const redis = require('redis');
-const { v4: uuidv4 } = require('uuid');
+import { createClient } from 'redis';
+import { v4 as uuidv4 } from 'uuid';
+
+type RedisClient = ReturnType<typeof createClient>;
+
+interface ContextBusOptions {
+  /** Redis server hostname (default 'localhost') */
+  host?: string;
+  /** Redis server port (default 6379) */
+  port?: number;
+  /** Redis authentication password */
+  password?: string;
+  /** Prefix for all Redis keys (default 'zekka:') */
+  keyPrefix?: string;
+  /** Connection timeout in ms (default 5000) */
+  connectTimeout?: number;
+  /** Maximum connection retry attempts (default 3) */
+  maxRetries?: number;
+}
+
+interface FileLock {
+  agentName: string;
+  lockedAt: string;
+  taskId: string;
+}
+
+interface ActiveLock extends FileLock {
+  filePath: string;
+}
+
+interface ConflictInput {
+  taskId: string;
+  [key: string]: unknown;
+}
+
+interface ConflictRecord extends ConflictInput {
+  conflictId: string;
+  createdAt: string;
+  status: string;
+  resolution?: unknown;
+  resolvedAt?: string;
+}
 
 /**
  * Context Bus - Centralized State Management and File Locking System
@@ -11,11 +51,6 @@ const { v4: uuidv4 } = require('uuid');
  * - Project and agent context persistence
  * - Conflict detection and resolution support
  *
- * @module shared/context-bus
- * @requires redis - Redis client for distributed state management
- * @requires uuid - UUID generation for unique identifiers
- *
- * @description
  * The Context Bus uses Redis as a distributed store to coordinate multiple
  * AI agents working on the same project. It ensures data consistency and
  * prevents race conditions when agents modify shared resources.
@@ -39,40 +74,31 @@ const { v4: uuidv4 } = require('uuid');
  *
  * @example
  * // File locking
- * const acquired = await contextBus.requestFileLock(taskId, 'agent-1', 'src/index.js');
+ * const acquired = await contextBus.requestFileLock(taskId, 'agent-1', 'src/index.ts');
  * if (acquired) {
  *   // Safe to edit file
- *   await contextBus.releaseFileLock(taskId, 'agent-1', 'src/index.js');
+ *   await contextBus.releaseFileLock(taskId, 'agent-1', 'src/index.ts');
  * }
- *
- * @author Zekka Technologies
- * @version 2.0.0
- * @since 1.0.0
  */
 class ContextBus {
-  /**
-   * Create a new Context Bus instance.
-   *
-   * @param {Object} options - Configuration options
-   * @param {string} [options.host='localhost'] - Redis server hostname
-   * @param {number} [options.port=6379] - Redis server port
-   * @param {string} [options.password=''] - Redis authentication password
-   * @param {string} [options.keyPrefix='zekka:'] - Prefix for all Redis keys
-   * @param {number} [options.connectTimeout=5000] - Connection timeout in ms
-   * @param {number} [options.maxRetries=3] - Maximum connection retry attempts
-   */
-  constructor(options = {}) {
+  readonly host: string;
+  readonly port: number;
+  readonly password: string;
+  readonly keyPrefix: string;
+  readonly connectTimeout: number;
+  readonly maxRetries: number;
+
+  client: RedisClient | null = null;
+  subscriber: RedisClient | null = null;
+  publisher: RedisClient | null = null;
+
+  constructor(options: ContextBusOptions = {}) {
     this.host = options.host || 'localhost';
     this.port = options.port || 6379;
-    this.password = options.password || process.env.REDIS_PASSWORD || '';
+    this.password = options.password || process.env['REDIS_PASSWORD'] || '';
     this.keyPrefix = options.keyPrefix || 'zekka:';
     this.connectTimeout = options.connectTimeout || 5000;
     this.maxRetries = options.maxRetries || 3;
-
-    this.client = null;
-    this.subscriber = null;
-    this.publisher = null;
-    this._connectionAttempts = 0;
   }
 
   /**
@@ -83,21 +109,16 @@ class ContextBus {
    * - Subscriber client for pub/sub subscriptions
    * - Publisher client for pub/sub publishing
    *
-   * @async
-   * @returns {Promise<void>}
    * @throws {Error} If connection fails after max retries
-   *
-   * @fires ContextBus#connected
-   * @fires ContextBus#error
    */
-  async connect() {
+  async connect(): Promise<void> {
     // Build Redis connection options with optional password
-    const connectionOptions = {
+    const connectionOptions: Parameters<typeof createClient>[0] = {
       socket: {
         host: this.host,
         port: this.port,
         connectTimeout: this.connectTimeout,
-        reconnectStrategy: (retries) => {
+        reconnectStrategy: (retries: number): number | Error => {
           if (retries > this.maxRetries) {
             console.error(
               `❌ Redis connection failed after ${retries} attempts`
@@ -120,10 +141,10 @@ class ContextBus {
     }
 
     // Main client for operations
-    this.client = redis.createClient(connectionOptions);
+    this.client = createClient(connectionOptions);
 
     // Set up error handling
-    this.client.on('error', (err) => {
+    this.client.on('error', (err: Error) => {
       console.error('❌ Redis Client Error:', err.message);
     });
 
@@ -137,11 +158,11 @@ class ContextBus {
     this.subscriber = this.client.duplicate();
     this.publisher = this.client.duplicate();
 
-    this.subscriber.on('error', (err) => {
+    this.subscriber.on('error', (err: Error) => {
       console.error('❌ Redis Subscriber Error:', err.message);
     });
 
-    this.publisher.on('error', (err) => {
+    this.publisher.on('error', (err: Error) => {
       console.error('❌ Redis Publisher Error:', err.message);
     });
 
@@ -151,39 +172,67 @@ class ContextBus {
     console.log('✅ Context Bus connected to Redis');
   }
 
-  async disconnect() {
+  async disconnect(): Promise<void> {
     if (this.client) await this.client.quit();
     if (this.subscriber) await this.subscriber.quit();
     if (this.publisher) await this.publisher.quit();
   }
 
-  isConnected() {
-    return this.client && this.client.isOpen;
+  isConnected(): boolean {
+    return Boolean(this.client && this.client.isOpen);
+  }
+
+  /** Main client accessor that fails loudly when connect() was not called. */
+  private requireClient(): RedisClient {
+    if (!this.client) {
+      throw new Error('Context Bus is not connected — call connect() first');
+    }
+    return this.client;
+  }
+
+  private requirePublisher(): RedisClient {
+    if (!this.publisher) {
+      throw new Error('Context Bus is not connected — call connect() first');
+    }
+    return this.publisher;
+  }
+
+  private requireSubscriber(): RedisClient {
+    if (!this.subscriber) {
+      throw new Error('Context Bus is not connected — call connect() first');
+    }
+    return this.subscriber;
   }
 
   // ========================================
   // Project Context Management
   // ========================================
 
-  async setProjectContext(projectId, context) {
+  async setProjectContext(projectId: string, context: unknown): Promise<void> {
     const key = `project:${projectId}:context`;
-    await this.client.set(key, JSON.stringify(context));
-    await this.client.expire(key, 86400 * 7); // 7 days
+    const client = this.requireClient();
+    await client.set(key, JSON.stringify(context));
+    await client.expire(key, 86400 * 7); // 7 days
 
     // Publish update event
-    await this.publisher.publish(
+    await this.requirePublisher().publish(
       'context:update',
       JSON.stringify({ projectId, context })
     );
   }
 
-  async getProjectContext(projectId) {
+  async getProjectContext<T = Record<string, unknown>>(
+    projectId: string
+  ): Promise<T | null> {
     const key = `project:${projectId}:context`;
-    const data = await this.client.get(key);
-    return data ? JSON.parse(data) : null;
+    const data = await this.requireClient().get(key);
+    return data ? (JSON.parse(data) as T) : null;
   }
 
-  async updateProjectContext(projectId, updates) {
+  async updateProjectContext(
+    projectId: string,
+    updates: Record<string, unknown>
+  ): Promise<Record<string, unknown>> {
     const context = (await this.getProjectContext(projectId)) || {};
     const updated = {
       ...context,
@@ -198,7 +247,12 @@ class ContextBus {
   // File Locking (Critical for preventing conflicts)
   // ========================================
 
-  async requestFileLock(taskId, agentName, filePath, ttlSeconds = 300) {
+  async requestFileLock(
+    taskId: string,
+    agentName: string,
+    filePath: string,
+    ttlSeconds = 300
+  ): Promise<boolean> {
     const lockKey = `lock:${taskId}:${filePath}`;
     const lockValue = JSON.stringify({
       agentName,
@@ -207,7 +261,7 @@ class ContextBus {
     });
 
     // Try to acquire lock (SET NX - set if not exists)
-    const acquired = await this.client.set(lockKey, lockValue, {
+    const acquired = await this.requireClient().set(lockKey, lockValue, {
       NX: true,
       EX: ttlSeconds
     });
@@ -216,21 +270,27 @@ class ContextBus {
       console.log(`🔒 Lock acquired: ${agentName} → ${filePath}`);
       return true;
     }
-    const existing = await this.client.get(lockKey);
-    console.log(
-      `⚠️  Lock denied: ${filePath} is locked by ${JSON.parse(existing).agentName}`
-    );
+    const existing = await this.requireClient().get(lockKey);
+    const holder = existing
+      ? (JSON.parse(existing) as FileLock).agentName
+      : 'unknown';
+    console.log(`⚠️  Lock denied: ${filePath} is locked by ${holder}`);
     return false;
   }
 
-  async releaseFileLock(taskId, agentName, filePath) {
+  async releaseFileLock(
+    taskId: string,
+    agentName: string,
+    filePath: string
+  ): Promise<boolean> {
     const lockKey = `lock:${taskId}:${filePath}`;
-    const existing = await this.client.get(lockKey);
+    const client = this.requireClient();
+    const existing = await client.get(lockKey);
 
     if (existing) {
-      const lock = JSON.parse(existing);
+      const lock = JSON.parse(existing) as FileLock;
       if (lock.agentName === agentName) {
-        await this.client.del(lockKey);
+        await client.del(lockKey);
         console.log(`🔓 Lock released: ${agentName} → ${filePath}`);
         return true;
       }
@@ -243,17 +303,18 @@ class ContextBus {
     return false;
   }
 
-  async getActiveLocks(taskId) {
+  async getActiveLocks(taskId: string): Promise<ActiveLock[]> {
     const pattern = `lock:${taskId}:*`;
-    const keys = await this.client.keys(pattern);
+    const client = this.requireClient();
+    const keys = await client.keys(pattern);
 
-    const locks = [];
+    const locks: ActiveLock[] = [];
     for (const key of keys) {
-      const value = await this.client.get(key);
+      const value = await client.get(key);
       if (value) {
         locks.push({
           filePath: key.replace(`lock:${taskId}:`, ''),
-          ...JSON.parse(value)
+          ...(JSON.parse(value) as FileLock)
         });
       }
     }
@@ -265,9 +326,13 @@ class ContextBus {
   // Agent State Management
   // ========================================
 
-  async setAgentState(taskId, agentName, state) {
+  async setAgentState(
+    taskId: string,
+    agentName: string,
+    state: Record<string, unknown>
+  ): Promise<void> {
     const key = `agent:${taskId}:${agentName}`;
-    await this.client.set(
+    await this.requireClient().set(
       key,
       JSON.stringify({
         ...state,
@@ -277,22 +342,28 @@ class ContextBus {
     ); // 1 hour expiry
   }
 
-  async getAgentState(taskId, agentName) {
+  async getAgentState(
+    taskId: string,
+    agentName: string
+  ): Promise<Record<string, unknown> | null> {
     const key = `agent:${taskId}:${agentName}`;
-    const data = await this.client.get(key);
-    return data ? JSON.parse(data) : null;
+    const data = await this.requireClient().get(key);
+    return data ? (JSON.parse(data) as Record<string, unknown>) : null;
   }
 
-  async getAllAgentStates(taskId) {
+  async getAllAgentStates(
+    taskId: string
+  ): Promise<Record<string, Record<string, unknown>>> {
     const pattern = `agent:${taskId}:*`;
-    const keys = await this.client.keys(pattern);
+    const client = this.requireClient();
+    const keys = await client.keys(pattern);
 
-    const states = {};
+    const states: Record<string, Record<string, unknown>> = {};
     for (const key of keys) {
       const agentName = key.split(':')[2];
-      const data = await this.client.get(key);
-      if (data) {
-        states[agentName] = JSON.parse(data);
+      const data = await client.get(key);
+      if (agentName && data) {
+        states[agentName] = JSON.parse(data) as Record<string, unknown>;
       }
     }
 
@@ -303,11 +374,12 @@ class ContextBus {
   // Conflict Detection
   // ========================================
 
-  async recordConflict(conflict) {
+  async recordConflict(conflict: ConflictInput): Promise<string> {
     const conflictId = uuidv4();
     const key = `conflict:${conflict.taskId}:${conflictId}`;
+    const client = this.requireClient();
 
-    await this.client.set(
+    await client.set(
       key,
       JSON.stringify({
         ...conflict,
@@ -319,24 +391,30 @@ class ContextBus {
     ); // 24 hours
 
     // Add to pending queue
-    await this.client.lPush('conflict:pending', conflictId);
+    await client.lPush('conflict:pending', conflictId);
 
     return conflictId;
   }
 
-  async getConflict(conflictId) {
+  async getConflict(conflictId: string): Promise<ConflictRecord | null> {
     const pattern = `conflict:*:${conflictId}`;
-    const keys = await this.client.keys(pattern);
+    const client = this.requireClient();
+    const keys = await client.keys(pattern);
+    const firstKey = keys[0];
 
-    if (keys.length > 0) {
-      const data = await this.client.get(keys[0]);
-      return data ? JSON.parse(data) : null;
+    if (firstKey) {
+      const data = await client.get(firstKey);
+      return data ? (JSON.parse(data) as ConflictRecord) : null;
     }
 
     return null;
   }
 
-  async updateConflictStatus(conflictId, status, resolution = null) {
+  async updateConflictStatus(
+    conflictId: string,
+    status: string,
+    resolution: unknown = null
+  ): Promise<boolean> {
     const conflict = await this.getConflict(conflictId);
     if (!conflict) return false;
 
@@ -348,19 +426,24 @@ class ContextBus {
       resolvedAt: new Date().toISOString()
     };
 
-    await this.client.set(key, JSON.stringify(updated), { EX: 86400 * 7 }); // 7 days
+    const client = this.requireClient();
+    await client.set(key, JSON.stringify(updated), { EX: 86400 * 7 }); // 7 days
 
     // Remove from pending queue if resolved
     if (status === 'resolved') {
-      await this.client.lRem('conflict:pending', 0, conflictId);
+      await client.lRem('conflict:pending', 0, conflictId);
     }
 
     return true;
   }
 
-  async getPendingConflicts() {
-    const conflictIds = await this.client.lRange('conflict:pending', 0, -1);
-    const conflicts = [];
+  async getPendingConflicts(): Promise<ConflictRecord[]> {
+    const conflictIds = await this.requireClient().lRange(
+      'conflict:pending',
+      0,
+      -1
+    );
+    const conflicts: ConflictRecord[] = [];
 
     for (const id of conflictIds) {
       const conflict = await this.getConflict(id);
@@ -374,35 +457,39 @@ class ContextBus {
   // Pub/Sub for Real-time Updates
   // ========================================
 
-  async subscribe(channel, callback) {
-    await this.subscriber.subscribe(channel, (message) => {
+  async subscribe(
+    channel: string,
+    callback: (message: unknown) => void
+  ): Promise<void> {
+    await this.requireSubscriber().subscribe(channel, (message: string) => {
       callback(JSON.parse(message));
     });
   }
 
-  async publish(channel, message) {
-    await this.publisher.publish(channel, JSON.stringify(message));
+  async publish(channel: string, message: unknown): Promise<void> {
+    await this.requirePublisher().publish(channel, JSON.stringify(message));
   }
 
   // ========================================
   // Cache Management
   // ========================================
 
-  async cache(key, value, ttlSeconds = 3600) {
-    await this.client.set(`cache:${key}`, JSON.stringify(value), {
+  async cache(key: string, value: unknown, ttlSeconds = 3600): Promise<void> {
+    await this.requireClient().set(`cache:${key}`, JSON.stringify(value), {
       EX: ttlSeconds
     });
   }
 
-  async getCached(key) {
-    const data = await this.client.get(`cache:${key}`);
-    return data ? JSON.parse(data) : null;
+  async getCached<T = unknown>(key: string): Promise<T | null> {
+    const data = await this.requireClient().get(`cache:${key}`);
+    return data ? (JSON.parse(data) as T) : null;
   }
 
-  async clearCache(pattern = '*') {
-    const keys = await this.client.keys(`cache:${pattern}`);
+  async clearCache(pattern = '*'): Promise<void> {
+    const client = this.requireClient();
+    const keys = await client.keys(`cache:${pattern}`);
     if (keys.length > 0) {
-      await this.client.del(keys);
+      await client.del(keys);
     }
   }
 
@@ -410,18 +497,18 @@ class ContextBus {
   // Metrics & Monitoring
   // ========================================
 
-  async incrementCounter(metric, value = 1) {
-    await this.client.incrBy(`metric:${metric}`, value);
+  async incrementCounter(metric: string, value = 1): Promise<void> {
+    await this.requireClient().incrBy(`metric:${metric}`, value);
   }
 
-  async getCounter(metric) {
-    const value = await this.client.get(`metric:${metric}`);
-    return parseInt(value, 10) || 0;
+  async getCounter(metric: string): Promise<number> {
+    const value = await this.requireClient().get(`metric:${metric}`);
+    return parseInt(value ?? '', 10) || 0;
   }
 
-  async getMetrics() {
-    const keys = await this.client.keys('metric:*');
-    const metrics = {};
+  async getMetrics(): Promise<Record<string, number>> {
+    const keys = await this.requireClient().keys('metric:*');
+    const metrics: Record<string, number> = {};
 
     for (const key of keys) {
       const metricName = key.replace('metric:', '');
@@ -432,4 +519,4 @@ class ContextBus {
   }
 }
 
-module.exports = ContextBus;
+export = ContextBus;

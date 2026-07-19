@@ -8,7 +8,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Nothing yet
+- **Multi-tenancy foundation (SaaS).** New `tenants` and `tenant_members`
+  tables (migration 008) with per-tenant RBAC (owner/admin/member/viewer),
+  subscription management (plan, status, billing period, seat limits with
+  402 gating when limits/status block access), and a `/api/v1/tenants`
+  management API. Tenant context is resolved from the `X-Tenant-Id` header
+  (UUID or slug) by the new `tenant-context` middleware; projects are
+  tenant-scoped when tenant context is present (`projects.tenant_id`).
+  Single-tenant deployments are unaffected — tenant scoping is opt-in.
+
+### Changed
+- **Backend is now TypeScript-first.** The runtime entrypoint was migrated to
+  strict TypeScript (`src/index.ts`) along with the core shared modules
+  (`src/shared/context-bus.ts`, `src/shared/token-economics.ts`); all new
+  backend code (tenant service/middleware/routes/schemas) is TypeScript.
+  `main`/`npm start`, the Docker images (including the arbitrator image,
+  which now compiles TS in its builder stage), and the systemd unit run the
+  compiled `dist/index.js`. Remaining JS modules compile through `allowJs`
+  and will migrate incrementally; ESLint resolves `.ts` imports repo-wide.
 
 ---
 

@@ -5,13 +5,17 @@ WORKDIR /app
 
 # Copy package files
 COPY package*.json ./
+COPY tsconfig.json ./
 
-# Install dependencies
-RUN npm install --omit=dev
+# Install all dependencies (dev deps needed for the TypeScript build)
+RUN npm ci --legacy-peer-deps --ignore-scripts
 
-# Copy arbitrator code
-COPY src/arbitrator ./src/arbitrator
-COPY src/shared ./src/shared
+# Copy source and compile TypeScript (src/shared is TS; output goes to dist)
+COPY src ./src
+RUN npm run build
+
+# Drop dev dependencies for the runtime image
+RUN npm prune --omit=dev --legacy-peer-deps
 
 # ============================================
 # Production image
@@ -23,9 +27,9 @@ WORKDIR /app
 # Install curl for healthcheck
 RUN apk add --no-cache curl
 
-# Copy from builder
+# Copy from builder (compiled output only)
 COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/src ./src
+COPY --from=builder /app/dist ./dist
 COPY package*.json ./
 
 # Create logs directory
@@ -44,5 +48,5 @@ EXPOSE 3001
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
   CMD curl -f http://localhost:3001/health || exit 1
 
-# Start arbitrator
-CMD ["node", "src/arbitrator/server.js"]
+# Start arbitrator (compiled TypeScript entrypoint)
+CMD ["node", "dist/arbitrator/server.js"]

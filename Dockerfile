@@ -133,5 +133,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=45s --retries=3 \
 # Security: Use dumb-init to handle signals properly
 ENTRYPOINT ["/usr/bin/dumb-init", "--"]
 
-# Start application
-CMD ["node", "src/index.js"]
+# Start application (compiled TypeScript entrypoint)
+CMD ["node", "dist/index.js"]

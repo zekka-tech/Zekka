@@ -36,7 +36,7 @@ class ProjectService {
    */
   async listProjects(userId, filters = {}, pagination = {}) {
     try {
-      const { status, search } = filters;
+      const { status, search, tenantId } = filters;
       const { limit = 20, offset = 0, cursor } = pagination;
 
       // Decode keyset cursor: base64(JSON.stringify({ updated_at, id }))
@@ -78,6 +78,12 @@ class ProjectService {
         paramCount++;
         query += ` AND p.status = $${paramCount}`;
         queryParams.push(status);
+      }
+
+      if (tenantId) {
+        paramCount++;
+        query += ` AND p.tenant_id = $${paramCount}`;
+        queryParams.push(tenantId);
       }
 
       if (search) {
@@ -162,7 +168,9 @@ class ProjectService {
     try {
       await client.query('BEGIN');
 
-      const { name, description, settings = {} } = projectData;
+      const {
+        name, description, settings = {}, tenantId = null
+      } = projectData;
 
       if (!name) {
         throw new AppError('Project name is required', 400);
@@ -171,10 +179,11 @@ class ProjectService {
       // Generate unique project ID
       const projectId = generateId();
 
-      // Create project
+      // Create project (tenant_id scopes the project when SaaS tenant
+      // context is present; NULL preserves single-tenant behaviour)
       const projectQuery = `
-        INSERT INTO projects (id, name, description, owner_id, status, settings)
-        VALUES ($1, $2, $3, $4, $5, $6)
+        INSERT INTO projects (id, name, description, owner_id, status, settings, tenant_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
         RETURNING *
       `;
 
@@ -184,7 +193,8 @@ class ProjectService {
         description || '',
         userId,
         'active',
-        JSON.stringify(settings)
+        JSON.stringify(settings),
+        tenantId
       ]);
 
       const project = projectResult.rows[0];

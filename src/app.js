@@ -30,6 +30,7 @@ const analyticsRoutes = require('./routes/analytics.routes');
 const agentsRoutes = require('./routes/agents.routes');
 const sourcesRoutes = require('./routes/sources.routes');
 const preferencesRoutes = require('./routes/preferences.routes');
+const tenantsRoutes = require('./routes/tenants.routes');
 const authRoutes = require('./routes/auth.routes');
 const usersRoutes = require('./routes/users.routes');
 
@@ -465,6 +466,7 @@ app.use('/api/v1/analytics', analyticsRoutes);
 app.use('/api/v1/agents', agentsRoutes);
 app.use('/api/v1/sources', sourcesRoutes);
 app.use('/api/v1/preferences', preferencesRoutes);
+app.use('/api/v1/tenants', tenantsRoutes);
 
 const frontendBuildDir = path.join(__dirname, '../frontend/dist');
 const legacyPublicDir = path.join(__dirname, '../public');

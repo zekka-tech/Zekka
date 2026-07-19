@@ -55,7 +55,7 @@
 - No visual workflow builder for non-technical users
 - Frontend appears under-developed relative to backend breadth
 - Limited public documentation beyond code docs
-- No mention of a managed SaaS offering or pricing model
+- No managed SaaS offering or pricing model yet (multi-tenant foundation — tenant isolation, per-tenant RBAC, subscription management — landed 2026-07; billing integration still open)
 
 ---
 
@@ -88,7 +88,7 @@
 | **Code Complexity** | ~850-line `index.js`, 20+ services in a single backend | Refactor into domain-scoped modules; enforce modular boundaries |
 | **Frontend Parity** | Backend far exceeds frontend in feature coverage | Invest in frontend development to match backend capabilities; add visual workflow builder |
 | **Onboarding** | No guided getting-started for new developers | Create interactive quick-start, sample projects, and video tutorials |
-| **Multi-tenancy** | No SaaS-ready multi-tenant architecture | Add tenant isolation, role-based access, and subscription management |
+| **Multi-tenancy** | ✅ Foundation shipped (2026-07): `tenants`/`tenant_members` model, per-tenant RBAC (owner/admin/member/viewer), subscription management (plan, status, seat limits) with API-access gating, tenant-scoped projects via `X-Tenant-Id`, and `/api/v1/tenants` management API | Remaining: billing-provider integration (Stripe), tenant scoping for conversations/sources/analytics, and per-tenant usage metering |
 | **Agent Marketplace** | Agents are hardcoded, not pluggable | Build a registry/marketplace with versioning and discoverability |
 | **Visual Workflow Builder** | Only code-based workflow definition | Add low-code/no-code drag-and-drop workflow designer |
 | **Testing Coverage** | Test directories exist but coverage is unclear | Enforce minimum coverage thresholds; automate in CI |
