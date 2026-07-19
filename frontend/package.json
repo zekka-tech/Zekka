@@ -1,7 +1,7 @@
 {
   "name": "@zekka/frontend",
   "private": true,
-  "version": "3.3.0",
+  "version": "3.3.1",
   "description": "Zekka Framework - Enterprise AI Orchestration Frontend",
   "type": "module",
   "scripts": {

@@ -12,6 +12,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.3.1] - 2026-07-19
+
+### 🐛 Fixed
+- **Tenant feature vs the runtime auth schema.** Runtime verification of
+  the published v3.3.0 image (booted against ephemeral Postgres + Redis,
+  tenant API exercised end-to-end) caught that the multi-tenancy code
+  assumed the migration-lineage `users` table (UUID ids), while the auth
+  stack self-creates `users` with `user_id VARCHAR` (`user_<ts>_<rand>`):
+  - Migration 008: `tenant_members.user_id`/`invited_by` are now
+    `VARCHAR(64)` with no FK to `users` (no portable FK target exists
+    across schema lineages); the `projects` ALTER is conditional on the
+    table existing; `update_updated_at_column` is defined idempotently.
+    As shipped in 3.3.0 the migration could not apply on a real
+    deployment (FK type mismatch).
+  - `userId` request validation accepts auth-layer string ids, not just
+    UUIDs.
+  - `listMembers` joins `users` on `user_id` (was the PK `id`) via
+    LEFT JOIN.
+  - Owners now bypass the 402 subscription gate: previously, suspending
+    a subscription locked out everyone — including the owner, who could
+    no longer reach the subscription endpoint to fix billing.
+
+---
+
 ## [3.3.0] - 2026-07-19
 
 ### Added
