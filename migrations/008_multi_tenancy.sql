@@ -46,16 +46,21 @@ CREATE INDEX IF NOT EXISTS idx_tenants_subscription_status ON tenants(subscripti
 -- =====================================================
 -- Tenant Members Table (per-tenant RBAC)
 -- =====================================================
+-- user_id / invited_by store the auth-layer user identifier
+-- (users.user_id, e.g. 'user_<ts>_<rand>' — VARCHAR, not a UUID).
+-- No FK to users: the runtime auth stack self-creates its users table
+-- and its shape differs across deployment lineages, so a portable FK
+-- target does not exist. Application code enforces the relationship.
 CREATE TABLE IF NOT EXISTS tenant_members (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id VARCHAR(64) NOT NULL,
 
     -- Role within the tenant
     role VARCHAR(50) NOT NULL DEFAULT 'member'
         CHECK (role IN ('owner', 'admin', 'member', 'viewer')),
 
-    invited_by UUID REFERENCES users(id),
+    invited_by VARCHAR(64),
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -72,12 +77,30 @@ CREATE INDEX IF NOT EXISTS idx_tenant_members_active
 -- =====================================================
 -- Nullable so existing single-tenant deployments keep working; the
 -- application scopes queries by tenant_id whenever tenant context is present.
-ALTER TABLE projects ADD COLUMN IF NOT EXISTS tenant_id UUID REFERENCES tenants(id) ON DELETE SET NULL;
-CREATE INDEX IF NOT EXISTS idx_projects_tenant_id ON projects(tenant_id) WHERE tenant_id IS NOT NULL;
+-- Conditional: fresh deployments may not have the projects table yet
+-- (it comes from migration 004), and tenant management must not depend on it.
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables
+               WHERE table_schema = 'public' AND table_name = 'projects') THEN
+        ALTER TABLE projects ADD COLUMN IF NOT EXISTS tenant_id UUID REFERENCES tenants(id) ON DELETE SET NULL;
+        CREATE INDEX IF NOT EXISTS idx_projects_tenant_id ON projects(tenant_id) WHERE tenant_id IS NOT NULL;
+    END IF;
+END
+$$;
 
 -- =====================================================
--- updated_at triggers (function defined in 001_initial_schema.sql)
+-- updated_at triggers (function may not exist on runtime-initialized
+-- deployments that never ran 001/003, so define it idempotently)
 -- =====================================================
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 DROP TRIGGER IF EXISTS update_tenants_updated_at ON tenants;
 CREATE TRIGGER update_tenants_updated_at
     BEFORE UPDATE ON tenants

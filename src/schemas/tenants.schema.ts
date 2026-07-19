@@ -46,8 +46,10 @@ const tenantSchemas = {
     seatLimit: Joi.number().integer().min(1).max(10000).optional()
   }).min(1),
 
+  // Auth-layer user IDs are opaque strings (users.user_id, e.g.
+  // 'user_<ts>_<rand>'), not UUIDs.
   addMember: Joi.object({
-    userId: Joi.string().uuid().required(),
+    userId: Joi.string().min(1).max(64).required(),
     role: Joi.string().valid(...tenantRoles).optional()
   }),
 
@@ -61,7 +63,7 @@ const tenantSchemas = {
 
   memberParams: Joi.object({
     tenantId: Joi.string().uuid().required(),
-    userId: Joi.string().uuid().required()
+    userId: Joi.string().min(1).max(64).required()
   })
 };
 

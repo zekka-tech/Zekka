@@ -144,6 +144,25 @@ describe('tenantContext', () => {
     expect(next).not.toHaveBeenCalled();
   });
 
+  it('lets owners through despite an inactive subscription (billing access)', async () => {
+    const { req, res, next } = makeReqRes();
+    req.headers['x-tenant-id'] = TENANT_ID;
+    mocked.getMembership.mockResolvedValue({
+      ...(membership as Record<string, unknown>),
+      role: 'owner'
+    } as never);
+    mocked.getTenantById.mockResolvedValue({
+      ...(tenant as Record<string, unknown>),
+      subscription_status: 'suspended'
+    } as never);
+
+    await tenantContext(req, res, next);
+
+    expect(next).toHaveBeenCalledWith();
+    expect(req.tenant?.role).toBe('owner');
+    expect(req.tenant?.subscriptionStatus).toBe('suspended');
+  });
+
   it('falls back to the single tenant of the user when no header is given', async () => {
     const { req, res, next } = makeReqRes();
     mocked.listTenantsForUser.mockResolvedValue([

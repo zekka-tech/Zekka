@@ -83,7 +83,13 @@ export async function tenantContext(
       return;
     }
 
-    if (!ACTIVE_SUBSCRIPTION_STATUSES.includes(tenant.subscription_status)) {
+    // Inactive subscription blocks tenant access with 402 — except for
+    // owners, who must retain access to fix billing (otherwise a suspended
+    // tenant is permanently locked out of its own subscription endpoint).
+    if (
+      !ACTIVE_SUBSCRIPTION_STATUSES.includes(tenant.subscription_status)
+      && membership.role !== 'owner'
+    ) {
       res.status(402).json({
         error: `Tenant subscription is ${tenant.subscription_status} — access is suspended`
       });

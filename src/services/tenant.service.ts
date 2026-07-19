@@ -234,10 +234,13 @@ export class TenantService {
   }
 
   async listMembers(tenantId: string): Promise<TenantMemberRow[]> {
+    // Join on users.user_id: tenant_members stores the auth-layer user
+    // identifier (VARCHAR), not the users table's numeric/UUID PK.
+    // LEFT JOIN so memberships survive user-record lineage differences.
     const result = await pool.query(
       `SELECT tm.*, u.email, u.name
        FROM tenant_members tm
-       JOIN users u ON u.id = tm.user_id
+       LEFT JOIN users u ON u.user_id = tm.user_id
        WHERE tm.tenant_id = $1 AND tm.is_active = TRUE
        ORDER BY tm.created_at ASC`,
       [tenantId]
