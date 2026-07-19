@@ -182,7 +182,7 @@ class ZekkaOrchestrator {
 
     // Insert into database
     await this.db.query(
-      `INSERT INTO projects (project_id, name, description, story_points, budget_daily, budget_monthly, status)
+      `INSERT INTO orchestration_projects (project_id, name, description, story_points, budget_daily, budget_monthly, status)
        VALUES ($1, $2, $3, $4, $5, $6, $7)`,
       [
         projectId,
@@ -213,7 +213,7 @@ class ZekkaOrchestrator {
 
   async getProject(projectId) {
     const result = await this.db.query(
-      'SELECT * FROM projects WHERE project_id = $1',
+      'SELECT * FROM orchestration_projects WHERE project_id = $1',
       [projectId]
     );
 
@@ -236,7 +236,7 @@ class ZekkaOrchestrator {
 
   async listProjects() {
     const result = await this.db.query(
-      'SELECT * FROM projects ORDER BY created_at DESC LIMIT 50'
+      'SELECT * FROM orchestration_projects ORDER BY created_at DESC LIMIT 50'
     );
 
     return result.rows.map((p) => ({
@@ -250,7 +250,7 @@ class ZekkaOrchestrator {
 
   async getProjectTasks(projectId) {
     const result = await this.db.query(
-      'SELECT * FROM tasks WHERE project_id = $1 ORDER BY stage, created_at',
+      'SELECT * FROM orchestration_tasks WHERE project_id = $1 ORDER BY stage, created_at',
       [projectId]
     );
 
@@ -267,7 +267,7 @@ class ZekkaOrchestrator {
     try {
       // Update project status
       await this.db.query(
-        'UPDATE projects SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE project_id = $2',
+        'UPDATE orchestration_projects SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE project_id = $2',
         ['running', projectId]
       );
 
@@ -304,7 +304,7 @@ class ZekkaOrchestrator {
 
       // Mark as completed
       await this.db.query(
-        'UPDATE projects SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE project_id = $2',
+        'UPDATE orchestration_projects SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE project_id = $2',
         ['completed', projectId]
       );
 
@@ -315,7 +315,7 @@ class ZekkaOrchestrator {
       this.logger.error(`❌ Project failed: ${projectId}`, error);
 
       await this.db.query(
-        'UPDATE projects SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE project_id = $2',
+        'UPDATE orchestration_projects SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE project_id = $2',
         ['failed', projectId]
       );
 
@@ -371,7 +371,7 @@ class ZekkaOrchestrator {
     } = data;
 
     await this.db.query(
-      `INSERT INTO tasks (task_id, project_id, stage, agent_name, status, input_data)
+      `INSERT INTO orchestration_tasks (task_id, project_id, stage, agent_name, status, input_data)
        VALUES ($1, $2, $3, $4, $5, $6)`,
       [
         taskId,
@@ -404,13 +404,13 @@ class ZekkaOrchestrator {
     const startTime = Date.now();
 
     await this.db.query(
-      'UPDATE tasks SET status = $1, started_at = CURRENT_TIMESTAMP WHERE task_id = $2',
+      'UPDATE orchestration_tasks SET status = $1, started_at = CURRENT_TIMESTAMP WHERE task_id = $2',
       ['running', taskId]
     );
 
     try {
       const taskResult = await this.db.query(
-        'SELECT * FROM tasks WHERE task_id = $1',
+        'SELECT * FROM orchestration_tasks WHERE task_id = $1',
         [taskId]
       );
       const task = taskResult.rows[0];
@@ -436,7 +436,7 @@ class ZekkaOrchestrator {
 
       const dbStatus = result.status === 'completed' ? 'completed' : 'failed';
       await this.db.query(
-        `UPDATE tasks SET status = $1, completed_at = CURRENT_TIMESTAMP, output_data = $2
+        `UPDATE orchestration_tasks SET status = $1, completed_at = CURRENT_TIMESTAMP, output_data = $2
          WHERE task_id = $3`,
         [
           dbStatus,
@@ -459,7 +459,7 @@ class ZekkaOrchestrator {
       return result;
     } catch (error) {
       await this.db.query(
-        'UPDATE tasks SET status = $1, error_message = $2 WHERE task_id = $3',
+        'UPDATE orchestration_tasks SET status = $1, error_message = $2 WHERE task_id = $3',
         ['failed', error.message, taskId]
       );
 
@@ -504,7 +504,7 @@ class ZekkaOrchestrator {
    */
   async checkForConflicts(projectId, stage) {
     const { rows } = await this.db.query(
-      'SELECT task_id, agent_name FROM tasks WHERE project_id = $1 AND stage = $2',
+      'SELECT task_id, agent_name FROM orchestration_tasks WHERE project_id = $1 AND stage = $2',
       [projectId, stage]
     );
 
@@ -605,7 +605,7 @@ Choose exactly one task to keep. Reply with a single JSON object:
    */
   async requeueTask(taskId, file, winnerTaskId) {
     await this.db.query(
-      `UPDATE tasks
+      `UPDATE orchestration_tasks
        SET status = 'pending', completed_at = NULL, error_message = $2
        WHERE task_id = $1`,
       [taskId, `re-queued: lost conflict on ${file} to ${winnerTaskId}`]
@@ -619,13 +619,13 @@ Choose exactly one task to keep. Reply with a single JSON object:
 
   async getMetrics() {
     const totalProjects = await this.db.query(
-      'SELECT COUNT(*) as count FROM projects'
+      'SELECT COUNT(*) as count FROM orchestration_projects'
     );
     const runningTasks = await this.db.query(
-      'SELECT COUNT(*) as count FROM tasks WHERE status = \'running\''
+      'SELECT COUNT(*) as count FROM orchestration_tasks WHERE status = \'running\''
     );
     const completedTasks = await this.db.query(
-      'SELECT COUNT(*) as count FROM tasks WHERE status = \'completed\''
+      'SELECT COUNT(*) as count FROM orchestration_tasks WHERE status = \'completed\''
     );
 
     const budgetStatus = this.tokenEconomics

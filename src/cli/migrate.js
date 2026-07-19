@@ -17,6 +17,7 @@
 const fs = require('fs').promises;
 const path = require('path');
 const MigrationManager = require('../utils/migration-manager');
+const { getDatabaseSsl } = require('../config/database-ssl');
 
 // Parse DATABASE_URL if individual DB_* variables aren't set
 function parseDatabaseConfig() {
@@ -32,16 +33,24 @@ function parseDatabaseConfig() {
     };
   }
 
-  // Otherwise, parse DATABASE_URL
+  // Otherwise, parse DATABASE_URL. SSL follows the same policy as the app
+  // (getDatabaseSsl): verified TLS by default in production, DATABASE_SSL=false
+  // opt-out for internal networks — previously this path forced SSL and made
+  // `npm run migrate` fail against non-TLS databases the app itself accepts.
   if (process.env.DATABASE_URL) {
     const url = new URL(process.env.DATABASE_URL);
+    const sslDisabledInUrl = url.searchParams.get('sslmode') === 'disable';
     return {
       host: url.hostname,
       port: parseInt(url.port || '5432', 10),
       database: url.pathname.slice(1).split('?')[0], // Remove leading / and query params
       user: url.username,
       password: url.password,
-      ssl: url.searchParams.get('sslmode') !== 'disable'
+      ssl: sslDisabledInUrl
+        ? false
+        : getDatabaseSsl({
+          defaultEnabled: process.env.NODE_ENV === 'production'
+        })
     };
   }
 

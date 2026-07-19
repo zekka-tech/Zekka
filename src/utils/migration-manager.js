@@ -148,6 +148,11 @@ class MigrationManager {
       const files = await fs.readdir(this.config.migrationsDir);
       return files
         .filter((f) => f.match(/^\d+_.*\.(js|sql|ts)$/))
+        // NNN_down.sql files are rollback scripts for the matching NNN
+        // migration, not migrations themselves. Treating them as pending
+        // used to make every fresh `npm run migrate` collide on version
+        // numbers (e.g. 001_down ran first and claimed version 1).
+        .filter((f) => !f.match(/^\d+_down\.(js|sql|ts)$/))
         .sort()
         .map((filename) => {
           const match = filename.match(/^(\d+)_(.+)\.(js|sql|ts)$/);
@@ -202,17 +207,23 @@ class MigrationManager {
   async executeSqlMigration(filepath, direction = 'up') {
     const content = await fs.readFile(filepath, 'utf-8');
 
-    // Parse migration file for UP and DOWN sections
-    const upMatch = content.match(/--\s*UP\s*([\s\S]*?)(?=--\s*DOWN|$)/i);
-    const downMatch = content.match(/--\s*DOWN\s*([\s\S]*?)$/i);
+    // Parse migration file for UP and DOWN sections. The markers must be
+    // whole comment lines ("-- UP" / "-- DOWN"): the previous substring
+    // regexes matched "-- up…" inside ordinary comments (e.g.
+    // "-- updated_at triggers"), silently truncating the migration SQL
+    // mid-word.
+    const upMarker = content.match(/^--\s*UP\s*$/im);
+    const downMarker = content.match(/^--\s*DOWN\s*$/im);
 
     let sql;
-    if (direction === 'up' && upMatch) {
-      sql = upMatch[1].trim();
-    } else if (direction === 'down' && downMatch) {
-      sql = downMatch[1].trim();
+    if (direction === 'up' && upMarker) {
+      const start = upMarker.index + upMarker[0].length;
+      const end = downMarker ? downMarker.index : content.length;
+      sql = content.slice(start, end).trim();
+    } else if (direction === 'down' && downMarker) {
+      sql = content.slice(downMarker.index + downMarker[0].length).trim();
     } else {
-      // No sections defined, use entire content for UP
+      // No section markers defined, use entire content for UP
       sql = direction === 'up' ? content : '';
     }
 
@@ -332,9 +343,25 @@ class MigrationManager {
     try {
       await client.query('BEGIN');
 
-      // Execute rollback
+      // Execute rollback. SQL migrations may ship the rollback either as a
+      // companion NNN_down.sql file (repo convention) or as a "-- DOWN"
+      // section inside the migration file.
       if (migration.type === 'sql') {
-        await this.executeSqlMigration(migration.filepath, 'down');
+        const paddedVersion = String(migration.version).padStart(3, '0');
+        const downFile = path.join(
+          this.config.migrationsDir,
+          `${paddedVersion}_down.sql`
+        );
+        const hasDownFile = await fs
+          .access(downFile)
+          .then(() => true)
+          .catch(() => false);
+        if (hasDownFile) {
+          const downSql = await fs.readFile(downFile, 'utf-8');
+          await this.pool.query(downSql);
+        } else {
+          await this.executeSqlMigration(migration.filepath, 'down');
+        }
       } else {
         await this.executeJsMigration(migration.filepath, 'down');
       }

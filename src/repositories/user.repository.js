@@ -11,15 +11,21 @@ const {
   ConflictError
 } = require('../utils/errors');
 
-class UserRepository {
-  constructor(pool = sharedPool) {
-    this.pool = pool;
-    this.initializeSchemaPromise = this.initializeSchema();
-  }
+// Postgres advisory-lock key serializing users-schema DDL. Concurrent
+// CREATE TABLE / CREATE INDEX ... IF NOT EXISTS statements race on the pg
+// catalog (duplicate-key on pg_class) when several initializers or app
+// replicas boot against an empty database at the same time, so every
+// users-schema initializer must take this lock first.
+const USERS_SCHEMA_LOCK_KEY = 727201;
 
-  async initializeSchema() {
-    try {
-      await this.pool.query(`
+/**
+ * Create/upgrade the canonical users schema. Single source of truth for the
+ * users table DDL — the auth middleware delegates here instead of shipping
+ * its own (formerly divergent) CREATE TABLE.
+ */
+async function ensureUsersSchema(pool) {
+  const runDdl = async (query) => {
+    await query(`
         CREATE TABLE IF NOT EXISTS users (
           id SERIAL PRIMARY KEY,
           user_id VARCHAR(64) UNIQUE NOT NULL,
@@ -54,7 +60,7 @@ class UserRepository {
         CREATE INDEX IF NOT EXISTS idx_users_telegram_id ON users(telegram_id);
       `);
 
-      await this.pool.query(`
+    await query(`
         ALTER TABLE users
           ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb,
           ADD COLUMN IF NOT EXISTS phone VARCHAR(32),
@@ -70,15 +76,59 @@ class UserRepository {
           ADD COLUMN IF NOT EXISTS verification_token_expires_at TIMESTAMP WITH TIME ZONE,
           ADD COLUMN IF NOT EXISTS failed_login_attempts INTEGER DEFAULT 0;
       `);
-    } catch (error) {
-      throw new DatabaseError('Schema initialization failed', {
-        error: error.message
-      });
+  };
+
+  try {
+    if (typeof pool.connect === 'function') {
+      // Advisory lock needs a dedicated session so lock and DDL share a
+      // connection.
+      const client = await pool.connect();
+      try {
+        await client.query('SELECT pg_advisory_lock($1)', [
+          USERS_SCHEMA_LOCK_KEY
+        ]);
+        try {
+          await runDdl((sql) => client.query(sql));
+        } finally {
+          await client
+            .query('SELECT pg_advisory_unlock($1)', [USERS_SCHEMA_LOCK_KEY])
+            .catch(() => {});
+        }
+      } finally {
+        client.release();
+      }
+    } else {
+      // Pools without connect() (unit-test doubles) run the DDL directly.
+      await runDdl((sql) => pool.query(sql));
     }
+  } catch (error) {
+    throw new DatabaseError('Schema initialization failed', {
+      error: error.message
+    });
+  }
+}
+
+class UserRepository {
+  constructor(pool = sharedPool) {
+    this.pool = pool;
+    this.schemaInitError = null;
+    // Contain the rejection: a floating rejected promise here used to hit the
+    // global unhandledRejection handler (winston's rejection handler exits
+    // the process) and kill the first boot. ready() rethrows on first use.
+    this.initializeSchemaPromise = this.initializeSchema().catch((error) => {
+      this.schemaInitError = error;
+    });
+  }
+
+  async initializeSchema() {
+    await ensureUsersSchema(this.pool);
   }
 
   async ready() {
     await this.initializeSchemaPromise;
+    if (this.schemaInitError) {
+      throw this.schemaInitError;
+    }
   }
 
   generateUserId() {
@@ -499,3 +549,5 @@ class UserRepository {
 }
 
 module.exports = UserRepository;
+module.exports.ensureUsersSchema = ensureUsersSchema;
+module.exports.USERS_SCHEMA_LOCK_KEY = USERS_SCHEMA_LOCK_KEY;

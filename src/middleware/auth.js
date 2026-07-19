@@ -152,43 +152,29 @@ const schemas = {
  * Initialize the users table in the database if it doesn't exist.
  * Called automatically when the module loads.
  *
+ * Delegates to the user repository's ensureUsersSchema — the single source
+ * of truth for the users DDL. This module used to ship its own, slightly
+ * different CREATE TABLE, and the two initializers raced each other at first
+ * boot on an empty database (catalog-level duplicate-key crashes) while
+ * whichever won defined a users shape the other couldn't work with.
+ *
  * @private
  * @async
  * @returns {Promise<void>}
  */
 async function initializeUsersTable() {
-  const createTableQuery = `
-    CREATE TABLE IF NOT EXISTS users (
-      id SERIAL PRIMARY KEY,
-      user_id VARCHAR(50) UNIQUE NOT NULL,
-      email VARCHAR(255) UNIQUE NOT NULL,
-      password_hash VARCHAR(255) NOT NULL,
-      name VARCHAR(100) NOT NULL,
-      is_active BOOLEAN DEFAULT true,
-      email_verified BOOLEAN DEFAULT false,
-      last_login TIMESTAMP WITH TIME ZONE,
-      login_attempts INTEGER DEFAULT 0,
-      locked_until TIMESTAMP WITH TIME ZONE,
-      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
-    CREATE INDEX IF NOT EXISTS idx_users_user_id ON users(user_id);
-  `;
+  // Required lazily to keep module-load order flexible; no require cycle
+  // (the repository does not import this middleware).
+  const { ensureUsersSchema } = require('../repositories/user.repository');
 
   try {
-    await pool.query(createTableQuery);
+    await ensureUsersSchema(pool);
     logger.info('✅ Users table initialized');
   } catch (error) {
-    // Table might already exist, which is fine
-    if (error.code !== '42P07') {
-      // duplicate_table
-      logger.error(
-        '⚠️ Warning: Could not initialize users table:',
-        error.message
-      );
-    }
+    logger.error(
+      '⚠️ Warning: Could not initialize users table:',
+      error.message
+    );
   }
 }
 

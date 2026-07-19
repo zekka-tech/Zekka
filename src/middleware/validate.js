@@ -45,7 +45,16 @@ const validateQuery = (schema) => (req, res, next) => {
     return next(new AppError(errorMessage, 400));
   }
 
-  req.query = value;
+  // Express 5 exposes req.query through a prototype getter, so direct
+  // assignment throws "Cannot set property query ... which has only a
+  // getter". Shadow it with an own data property holding the validated
+  // values instead.
+  Object.defineProperty(req, 'query', {
+    value,
+    writable: true,
+    configurable: true,
+    enumerable: true
+  });
   return next();
 };
 

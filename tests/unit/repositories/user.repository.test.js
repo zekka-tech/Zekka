@@ -2,8 +2,14 @@
  * User Repository Unit Tests
  */
 
+const mockClient = {
+  query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
+  release: jest.fn()
+};
+
 const mockPool = {
-  query: jest.fn()
+  query: jest.fn(),
+  connect: jest.fn().mockResolvedValue(mockClient)
 };
 
 jest.mock('../../../src/config/database', () => ({

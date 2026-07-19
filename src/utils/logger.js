@@ -63,12 +63,21 @@ const logger = createLogger({
       )
     })
   ],
-  // Handle exceptions and rejections
+  // Handle exceptions and rejections. Console transports are essential:
+  // with file-only handlers a fatal startup error (e.g. failed config
+  // validation in production) exits the process with code 1 and *nothing*
+  // on stdout/stderr — invisible in `docker logs` and journald.
   exceptionHandlers: [
-    new transports.File({ filename: path.join(logsDir, 'exceptions.log') })
+    new transports.File({ filename: path.join(logsDir, 'exceptions.log') }),
+    new transports.Console({
+      format: format.combine(format.colorize(), format.simple())
+    })
   ],
   rejectionHandlers: [
-    new transports.File({ filename: path.join(logsDir, 'rejections.log') })
+    new transports.File({ filename: path.join(logsDir, 'rejections.log') }),
+    new transports.Console({
+      format: format.combine(format.colorize(), format.simple())
+    })
   ]
 });
 

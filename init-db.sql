@@ -2,7 +2,7 @@
 -- PostgreSQL initialization script
 
 -- Projects table
-CREATE TABLE IF NOT EXISTS projects (
+CREATE TABLE IF NOT EXISTS orchestration_projects (
     id SERIAL PRIMARY KEY,
     project_id VARCHAR(255) UNIQUE NOT NULL,
     name VARCHAR(255) NOT NULL,
@@ -16,10 +16,10 @@ CREATE TABLE IF NOT EXISTS projects (
 );
 
 -- Tasks table
-CREATE TABLE IF NOT EXISTS tasks (
+CREATE TABLE IF NOT EXISTS orchestration_tasks (
     id SERIAL PRIMARY KEY,
     task_id VARCHAR(255) UNIQUE NOT NULL,
-    project_id VARCHAR(255) REFERENCES projects(project_id),
+    project_id VARCHAR(255) REFERENCES orchestration_projects(project_id),
     stage INTEGER NOT NULL,
     agent_name VARCHAR(255),
     status VARCHAR(50) DEFAULT 'pending',
@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS tasks (
 -- Agent states table
 CREATE TABLE IF NOT EXISTS agent_states (
     id SERIAL PRIMARY KEY,
-    task_id VARCHAR(255) REFERENCES tasks(task_id),
+    task_id VARCHAR(255) REFERENCES orchestration_tasks(task_id),
     agent_name VARCHAR(255) NOT NULL,
     status VARCHAR(50) DEFAULT 'idle',
     current_file VARCHAR(255),
@@ -58,7 +58,7 @@ CREATE TABLE IF NOT EXISTS file_locks (
 -- Conflicts table
 CREATE TABLE IF NOT EXISTS conflicts (
     id SERIAL PRIMARY KEY,
-    task_id VARCHAR(255) REFERENCES tasks(task_id),
+    task_id VARCHAR(255) REFERENCES orchestration_tasks(task_id),
     file_path VARCHAR(255) NOT NULL,
     agent_a VARCHAR(255) NOT NULL,
     agent_b VARCHAR(255) NOT NULL,
@@ -73,7 +73,7 @@ CREATE TABLE IF NOT EXISTS conflicts (
 -- Cost tracking table
 CREATE TABLE IF NOT EXISTS cost_tracking (
     id SERIAL PRIMARY KEY,
-    project_id VARCHAR(255) REFERENCES projects(project_id),
+    project_id VARCHAR(255) REFERENCES orchestration_projects(project_id),
     task_id VARCHAR(255),
     agent_name VARCHAR(255),
     model_used VARCHAR(100),
@@ -96,11 +96,11 @@ CREATE TABLE IF NOT EXISTS audit_log (
 );
 
 -- Create indexes for performance
-CREATE INDEX IF NOT EXISTS idx_projects_project_id ON projects(project_id);
-CREATE INDEX IF NOT EXISTS idx_tasks_task_id ON tasks(task_id);
-CREATE INDEX IF NOT EXISTS idx_tasks_project_id ON tasks(project_id);
-CREATE INDEX IF NOT EXISTS idx_tasks_stage ON tasks(stage);
-CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
+CREATE INDEX IF NOT EXISTS idx_orch_projects_project_id ON orchestration_projects(project_id);
+CREATE INDEX IF NOT EXISTS idx_orch_tasks_task_id ON orchestration_tasks(task_id);
+CREATE INDEX IF NOT EXISTS idx_orch_tasks_project_id ON orchestration_tasks(project_id);
+CREATE INDEX IF NOT EXISTS idx_orch_tasks_stage ON orchestration_tasks(stage);
+CREATE INDEX IF NOT EXISTS idx_orch_tasks_status ON orchestration_tasks(status);
 CREATE INDEX IF NOT EXISTS idx_agent_states_task_id ON agent_states(task_id);
 CREATE INDEX IF NOT EXISTS idx_file_locks_task_id ON file_locks(task_id);
 CREATE INDEX IF NOT EXISTS idx_conflicts_task_id ON conflicts(task_id);
@@ -119,8 +119,8 @@ SELECT
     COUNT(DISTINCT CASE WHEN t.status = 'completed' THEN t.id END) as completed_tasks,
     COALESCE(SUM(c.cost_usd), 0) as total_cost,
     MAX(t.updated_at) as last_activity
-FROM projects p
-LEFT JOIN tasks t ON p.project_id = t.project_id
+FROM orchestration_projects p
+LEFT JOIN orchestration_tasks t ON p.project_id = t.project_id
 LEFT JOIN cost_tracking c ON p.project_id = c.project_id
 GROUP BY p.project_id, p.name, p.status;
 
@@ -136,7 +136,7 @@ GROUP BY DATE(timestamp), project_id
 ORDER BY date DESC, project_id;
 
 -- Insert sample configuration
-INSERT INTO projects (project_id, name, description, story_points, budget_daily, budget_monthly)
+INSERT INTO orchestration_projects (project_id, name, description, story_points, budget_daily, budget_monthly)
 VALUES ('demo-project', 'Demo Project', 'Sample project for testing', 8, 50.00, 1000.00)
 ON CONFLICT (project_id) DO NOTHING;
 

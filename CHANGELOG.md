@@ -7,8 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-- Nothing yet
+### 🐛 Fixed — fresh-deployment landmines
+A pristine deployment (`npm run migrate` + first boot on an empty database)
+now works end-to-end; verified live: migrate completes, first boot is
+race-free, and the auth, tenant, v1 project, and orchestrator APIs all
+function. Previously every one of these steps was broken in some way:
+
+- **Migration runner**: no longer treats `NNN_down.sql` rollback files as
+  pending migrations (fresh `npm run migrate` used to collide on version
+  numbers immediately); `-- UP` / `-- DOWN` section markers must now be
+  whole comment lines (the old substring regex matched `-- up…` inside
+  ordinary comments such as `-- updated_at triggers` and truncated the SQL
+  mid-word); rollback prefers the companion `NNN_down.sql` file; the
+  `DATABASE_URL` path follows the same TLS policy as the app
+  (`DATABASE_SSL=false` opt-out) instead of forcing SSL.
+- **Schema lineages reconciled** (migration 009): legacy migrations 001–007
+  were retired to `migrations/legacy/` — the 001→002 chain never completed
+  on any database, and their UUID-keyed schema never matched the code. 009
+  builds the baseline the code actually queries: canonical `users`
+  (VARCHAR `user_id`), v1 tables with VARCHAR ids and no users FKs,
+  preference/audit/security tables, and `agent_activities` / `token_usage`
+  (used by the code but previously defined nowhere). It is idempotent
+  across all historical lineages and drops only provably-empty
+  uuid-shaped tables.
+- **Orchestrator tables renamed** to `orchestration_projects` /
+  `orchestration_tasks` (migration 009 renames in place, preserving data;
+  `init-db.sql` updated). The orchestrator's `projects` table collided by
+  name with the v1 API's `projects`, so the two subsystems could never
+  coexist on one database.
+- **First-boot crash race eliminated**: the auth middleware and the user
+  repository both created the users schema concurrently with *different*
+  DDL, crashing the first boot on an empty database. The repository's
+  `ensureUsersSchema` is now the single source of truth, serialized by a
+  Postgres advisory lock (shared with migration 009), and a failed init no
+  longer escapes as an unhandled rejection that kills the process.
+- **Silent production exits fixed**: winston's exception/rejection handlers
+  were file-only, so fatal startup errors (e.g. missing `ALLOWED_ORIGINS`)
+  exited with code 1 and nothing in `docker logs`. Console transports
+  added to both.
+- **Express 5 `validateQuery` crash**: every route using query validation
+  500'd since the express 4→5 upgrade (`req.query` is getter-only in
+  Express 5); the middleware now shadows it with a data property.
 
 ---
 
