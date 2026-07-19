@@ -1,11 +1,58 @@
-const { Pool } = require('pg');
+import { Pool } from 'pg';
+import type ContextBus = require('./context-bus');
+
+interface TokenEconomicsOptions {
+  dailyBudget?: number;
+  monthlyBudget?: number;
+  contextBus?: ContextBus;
+}
+
+interface ModelCost {
+  input: number;
+  output: number;
+}
+
+interface CostRecordInput {
+  projectId: string;
+  taskId: string;
+  agentName: string;
+  model: string;
+  tokensInput: number;
+  tokensOutput: number;
+}
+
+interface BudgetWindow {
+  spent: number;
+  budget: number;
+  remaining: number;
+  percent: number;
+}
+
+interface BudgetStatus {
+  daily: BudgetWindow;
+  monthly: BudgetWindow;
+}
+
+interface CostRecommendation {
+  severity: 'info' | 'warning' | 'critical';
+  message: string;
+  action: string;
+}
+
+type TaskComplexity = 'high' | 'medium' | 'low' | 'code' | string;
 
 /**
  * Token Economics - Budget tracking and cost optimization
  * Automatically switches to Ollama when budget thresholds are reached
  */
 class TokenEconomics {
-  constructor(options = {}) {
+  dailyBudget: number;
+  monthlyBudget: number;
+  contextBus: ContextBus | undefined;
+  readonly costs: Record<string, ModelCost>;
+  readonly db: Pool;
+
+  constructor(options: TokenEconomicsOptions = {}) {
     this.dailyBudget = options.dailyBudget || 50;
     this.monthlyBudget = options.monthlyBudget || 1000;
     this.contextBus = options.contextBus;
@@ -37,11 +84,11 @@ class TokenEconomics {
 
     // Initialize DB connection
     this.db = new Pool({
-      host: process.env.POSTGRES_HOST || 'localhost',
-      port: parseInt(process.env.POSTGRES_PORT, 10) || 5432,
-      database: process.env.POSTGRES_DB || 'zekka',
-      user: process.env.POSTGRES_USER || 'zekka',
-      password: process.env.POSTGRES_PASSWORD
+      host: process.env['POSTGRES_HOST'] || 'localhost',
+      port: parseInt(process.env['POSTGRES_PORT'] || '', 10) || 5432,
+      database: process.env['POSTGRES_DB'] || 'zekka',
+      user: process.env['POSTGRES_USER'] || 'zekka',
+      password: process.env['POSTGRES_PASSWORD']
     });
   }
 
@@ -49,8 +96,13 @@ class TokenEconomics {
   // Cost Calculation
   // ========================================
 
-  calculateCost(model, tokensInput, tokensOutput) {
-    const modelCost = this.costs[model] || this.costs['gpt-3.5-turbo'];
+  calculateCost(
+    model: string,
+    tokensInput: number,
+    tokensOutput: number
+  ): number {
+    const fallbackCost = this.costs['gpt-3.5-turbo'] as ModelCost;
+    const modelCost = this.costs[model] || fallbackCost;
 
     const inputCost = (tokensInput / 1000) * modelCost.input;
     const outputCost = (tokensOutput / 1000) * modelCost.output;
@@ -62,7 +114,7 @@ class TokenEconomics {
   // Budget Tracking
   // ========================================
 
-  async recordCost(data) {
+  async recordCost(data: CostRecordInput): Promise<number> {
     const {
       projectId, taskId, agentName, model, tokensInput, tokensOutput
     } = data;
@@ -84,39 +136,39 @@ class TokenEconomics {
     return cost;
   }
 
-  async getDailyCost(projectId = null) {
-    const today = new Date().toISOString().split('T')[0];
+  async getDailyCost(projectId: string | null = null): Promise<number> {
+    const today = new Date().toISOString().split('T')[0] as string;
 
     const query = projectId
-      ? `SELECT COALESCE(SUM(cost_usd), 0) as total FROM cost_tracking 
+      ? `SELECT COALESCE(SUM(cost_usd), 0) as total FROM cost_tracking
          WHERE project_id = $1 AND DATE(timestamp) = $2`
-      : `SELECT COALESCE(SUM(cost_usd), 0) as total FROM cost_tracking 
+      : `SELECT COALESCE(SUM(cost_usd), 0) as total FROM cost_tracking
          WHERE DATE(timestamp) = $1`;
 
     const params = projectId ? [projectId, today] : [today];
     const result = await this.db.query(query, params);
 
-    return parseFloat(result.rows[0].total);
+    return parseFloat(result.rows[0]?.total ?? '0');
   }
 
-  async getMonthlyCost(projectId = null) {
+  async getMonthlyCost(projectId: string | null = null): Promise<number> {
     const firstDay = new Date();
     firstDay.setDate(1);
-    const firstDayStr = firstDay.toISOString().split('T')[0];
+    const firstDayStr = firstDay.toISOString().split('T')[0] as string;
 
     const query = projectId
-      ? `SELECT COALESCE(SUM(cost_usd), 0) as total FROM cost_tracking 
+      ? `SELECT COALESCE(SUM(cost_usd), 0) as total FROM cost_tracking
          WHERE project_id = $1 AND DATE(timestamp) >= $2`
-      : `SELECT COALESCE(SUM(cost_usd), 0) as total FROM cost_tracking 
+      : `SELECT COALESCE(SUM(cost_usd), 0) as total FROM cost_tracking
          WHERE DATE(timestamp) >= $1`;
 
     const params = projectId ? [projectId, firstDayStr] : [firstDayStr];
     const result = await this.db.query(query, params);
 
-    return parseFloat(result.rows[0].total);
+    return parseFloat(result.rows[0]?.total ?? '0');
   }
 
-  async getBudgetStatus(projectId = null) {
+  async getBudgetStatus(projectId: string | null = null): Promise<BudgetStatus> {
     const dailyCost = await this.getDailyCost(projectId);
     const monthlyCost = await this.getMonthlyCost(projectId);
 
@@ -140,7 +192,10 @@ class TokenEconomics {
   // Model Selection (Cost Optimization)
   // ========================================
 
-  async selectModel(taskComplexity, projectId = null) {
+  async selectModel(
+    taskComplexity: TaskComplexity,
+    projectId: string | null = null
+  ): Promise<string> {
     const budgetStatus = await this.getBudgetStatus(projectId);
 
     // If over 95% of daily budget, use only Ollama
@@ -183,7 +238,7 @@ class TokenEconomics {
     }
   }
 
-  selectOllamaModel(taskComplexity) {
+  selectOllamaModel(taskComplexity: TaskComplexity): string {
     // Select appropriate Ollama model based on task
     switch (taskComplexity) {
     case 'high':
@@ -200,17 +255,24 @@ class TokenEconomics {
   // Cost Reporting
   // ========================================
 
-  async getCostSummary(projectId = null, _period = 'daily') {
+  async getCostSummary(
+    projectId: string | null = null,
+    _period = 'daily'
+  ): Promise<{
+    budget: BudgetStatus;
+    breakdown: { byModel: unknown[]; byAgent: unknown[] };
+    recommendations: CostRecommendation[];
+  }> {
     const budgetStatus = await this.getBudgetStatus(projectId);
 
     // Get cost breakdown by model
     const modelQuery = projectId
-      ? `SELECT model_used, SUM(cost_usd) as cost, COUNT(*) as calls 
-         FROM cost_tracking 
+      ? `SELECT model_used, SUM(cost_usd) as cost, COUNT(*) as calls
+         FROM cost_tracking
          WHERE project_id = $1 AND DATE(timestamp) = CURRENT_DATE
          GROUP BY model_used`
-      : `SELECT model_used, SUM(cost_usd) as cost, COUNT(*) as calls 
-         FROM cost_tracking 
+      : `SELECT model_used, SUM(cost_usd) as cost, COUNT(*) as calls
+         FROM cost_tracking
          WHERE DATE(timestamp) = CURRENT_DATE
          GROUP BY model_used`;
 
@@ -219,12 +281,12 @@ class TokenEconomics {
 
     // Get cost by agent
     const agentQuery = projectId
-      ? `SELECT agent_name, SUM(cost_usd) as cost, COUNT(*) as calls 
-         FROM cost_tracking 
+      ? `SELECT agent_name, SUM(cost_usd) as cost, COUNT(*) as calls
+         FROM cost_tracking
          WHERE project_id = $1 AND DATE(timestamp) = CURRENT_DATE
          GROUP BY agent_name`
-      : `SELECT agent_name, SUM(cost_usd) as cost, COUNT(*) as calls 
-         FROM cost_tracking 
+      : `SELECT agent_name, SUM(cost_usd) as cost, COUNT(*) as calls
+         FROM cost_tracking
          WHERE DATE(timestamp) = CURRENT_DATE
          GROUP BY agent_name`;
 
@@ -240,8 +302,10 @@ class TokenEconomics {
     };
   }
 
-  generateCostRecommendations(budgetStatus) {
-    const recommendations = [];
+  generateCostRecommendations(
+    budgetStatus: BudgetStatus
+  ): CostRecommendation[] {
+    const recommendations: CostRecommendation[] = [];
 
     if (budgetStatus.daily.percent > 90) {
       recommendations.push({
@@ -283,7 +347,12 @@ class TokenEconomics {
   // Forecasting
   // ========================================
 
-  async forecastMonthlyCost() {
+  async forecastMonthlyCost(): Promise<{
+    forecast: number;
+    dailyAverage: number;
+    daysRemaining: number;
+    projectedOverrun: number;
+  }> {
     const daysInMonth = new Date(
       new Date().getFullYear(),
       new Date().getMonth() + 1,
@@ -303,9 +372,9 @@ class TokenEconomics {
     };
   }
 
-  async close() {
+  async close(): Promise<void> {
     await this.db.end();
   }
 }
 
-module.exports = TokenEconomics;
+export = TokenEconomics;

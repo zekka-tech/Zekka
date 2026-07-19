@@ -619,7 +619,7 @@ Contributors are recognized in:
 LOG_LEVEL=debug npm run dev
 
 # Debug with Node.js inspector
-node --inspect src/index.js
+npm run build && node --inspect dist/index.js
 
 # Docker container logs
 docker-compose logs -f orchestrator

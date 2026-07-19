@@ -91,7 +91,7 @@ npm run build
 - `frontend/dist` can still be deployed separately when you want an independent static frontend deployment.
 - `docker-compose.prod.yml` contains the production-oriented backend stack.
 - `setup.sh` is the current local bootstrap script for the backend stack.
-- the old `auth.secure` runtime modules have been removed from `src/`; `src/index.secure.js` remains only as a deprecation shim to `src/index.js`.
+- the old `auth.secure` runtime modules have been removed from `src/`; the backend entrypoint is `src/index.ts`, compiled to `dist/index.js` for runtime.
 
 ## Documentation Priority
 

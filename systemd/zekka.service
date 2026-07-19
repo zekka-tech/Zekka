@@ -13,7 +13,7 @@ Environment=NODE_ENV=production
 EnvironmentFile=/opt/zekka/.env
 
 # Main process
-ExecStart=/usr/bin/node /opt/zekka/src/index.js
+ExecStart=/usr/bin/node /opt/zekka/dist/index.js
 
 # Pre-start checks
 ExecStartPre=/usr/bin/node /opt/zekka/scripts/validate-environment.js

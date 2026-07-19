@@ -35,7 +35,7 @@ If you just want the packaged application, open `http://localhost:3000` after st
 - Local backend runtime: `.env` with `SESSION_SECRET`, `JWT_SECRET`, `DATABASE_URL`, and the other required secrets
 - Frontend env: optional `frontend/.env.development` or `VITE_*` variables
 
-`src/index.secure.js` is now a deprecated compatibility shim. Use `src/index.js` for the active backend runtime.
+`src/index.secure.js` is now a deprecated compatibility shim. The active backend runtime is `src/index.ts`, compiled to `dist/index.js` (`npm start` builds and runs it).
 
 ## Verification commands
 

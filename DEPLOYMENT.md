@@ -75,5 +75,5 @@ The packaged Docker image already embeds this bundle for the primary shipped UI.
 - The current backend health endpoint is `/health`.
 - `/api` uses the CSRF session cookie plus `/api/csrf-token` for browser-session CSRF protection.
 - Bearer-token API requests remain valid without a CSRF header.
-- The only supported backend entrypoint is `src/index.js`; the old `auth.secure` stack has been removed from the active source tree.
+- The only supported backend entrypoint is `src/index.ts` (run as the compiled `dist/index.js`); the old `auth.secure` stack has been removed from the active source tree.
 - Grafana uses port `3001`, so that port is not available for another app service in the default stack.

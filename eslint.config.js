@@ -21,6 +21,17 @@ module.exports = [
   js.configs.recommended,
   importPlugin.flatConfigs.recommended,
 
+  // Resolve .ts modules during the incremental TypeScript migration so JS
+  // files can require migrated modules (and vice versa) without extension
+  // errors.
+  {
+    settings: {
+      'import/resolver': {
+        node: { extensions: ['.js', '.ts', '.json'] },
+      },
+    },
+  },
+
   {
     files: ['**/*.js'],
     languageOptions: {
@@ -100,7 +111,7 @@ module.exports = [
       'import/no-extraneous-dependencies': ['error', {
         devDependencies: ['**/*.test.js', '**/*.spec.js', 'tests/**/*.js', 'eslint.config.js'],
       }],
-      'import/extensions': ['error', 'ignorePackages', { js: 'never' }],
+      'import/extensions': ['error', 'ignorePackages', { js: 'never', ts: 'never' }],
       'import/order': 'error',
       'import/no-dynamic-require': 'error',
       'import/prefer-default-export': 'off',
