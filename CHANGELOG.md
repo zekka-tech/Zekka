@@ -8,6 +8,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Nothing yet
+
+---
+
+## [3.3.0] - 2026-07-19
+
+### Added
+- **Real agent execution loop.** Agents no longer run through the
+  `simulateAgentWork` random-delay stub. `AgentRunner` drives a
+  perceive → plan → act → observe → reflect loop: the model emits one
+  structured action per step, executed through a sandboxed tool registry
+  (read-file, write-file, search-code, git, run-tests), with terminal
+  guards for max steps, budget exhaustion, and no-progress detection.
+  Stage-level `resolveStageConflicts` replaces the previous log-only
+  conflict check for agents touching the same files.
 - **Multi-tenancy foundation (SaaS).** New `tenants` and `tenant_members`
   tables (migration 008) with per-tenant RBAC (owner/admin/member/viewer),
   subscription management (plan, status, billing period, seat limits with

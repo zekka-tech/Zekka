@@ -130,7 +130,7 @@ spec:
             runAsUser: 1001
 
         - name: run-migrations
-          image: zekka-framework:v3.2.2
+          image: zekka-framework:v3.3.0
           command: ['node', 'src/cli/migrate.js']
           envFrom:
             - configMapRef:
@@ -148,7 +148,7 @@ spec:
       # Main application containers
       containers:
         - name: zekka-app
-          image: zekka-framework:v3.2.2
+          image: zekka-framework:v3.3.0
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
