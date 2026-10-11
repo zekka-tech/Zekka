@@ -42,6 +42,8 @@ export interface TenantRow {
   subscription_period_end: Date | null;
   seat_limit: number;
   metadata: Record<string, unknown>;
+  stripe_customer_id: string | null;
+  stripe_subscription_id: string | null;
   is_active: boolean;
   created_at: Date;
   updated_at: Date;

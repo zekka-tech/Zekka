@@ -84,6 +84,11 @@ import preferencesRoutes = require('./routes/preferences.routes');
 import authRoutes = require('./routes/auth.routes');
 import usersRoutes = require('./routes/users.routes');
 import tenantsRoutes = require('./routes/tenants.routes');
+import billingRoutes = require('./routes/billing.routes');
+import { stripeWebhookHandler } from './routes/billing.webhook';
+import agentRegistryRoutes = require('./routes/agent-registry.routes');
+import { agentRegistryService } from './services/agent-registry.service';
+import runsRoutes = require('./routes/runs.routes');
 
 // Logger setup
 const logger = createLogger({
@@ -218,6 +223,14 @@ app.use(
     }
   })
 );
+// Stripe webhook must receive the raw body for signature verification, so it
+// is mounted before the JSON parser. It sits outside /api so CSRF does not apply.
+app.post(
+  '/webhooks/stripe',
+  express.raw({ type: 'application/json' }),
+  stripeWebhookHandler
+);
+
 app.use(express.json({ limit: config.limits.json }));
 app.use(express.urlencoded({ extended: true, limit: config.limits.urlEncoded }));
 app.use(
@@ -297,6 +310,16 @@ async function initializeServices(): Promise<void> {
     });
     await orchestrator.initialize();
     logger.info('✅ Orchestrator initialized');
+
+    // Seed built-in agents into the pluggable registry (idempotent). Failure
+    // here must not block boot — the registry is additive to the orchestrator.
+    try {
+      await agentRegistryService.seedBuiltins();
+    } catch (seedError) {
+      logger.warn(
+        `agent-registry: built-in seed skipped: ${(seedError as Error).message}`
+      );
+    }
 
     logger.info('🎉 All services initialized successfully!');
   } catch (error) {
@@ -739,6 +762,9 @@ app.use('/api/v1/agents', agentsRoutes);
 app.use('/api/v1/sources', sourcesRoutes);
 app.use('/api/v1/preferences', preferencesRoutes);
 app.use('/api/v1/tenants', tenantsRoutes);
+app.use('/api/v1/billing', billingRoutes);
+app.use('/api/v1/agent-registry', agentRegistryRoutes);
+app.use('/api/v1/runs', runsRoutes);
 
 const frontendBuildDir = path.join(__dirname, '../frontend/dist');
 const legacyPublicDir = path.join(__dirname, '../public');

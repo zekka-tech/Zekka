@@ -45,7 +45,7 @@ class AnalyticsController {
 
       // Service expects userId (not projectId) to scope results to the
       // authenticated user's own projects.
-      const usage = await analyticsService.getTokenUsage(userId, period);
+      const usage = await analyticsService.getTokenUsage(userId, period, req.tenant?.id || null);
 
       res.status(200).json({
         success: true,
@@ -86,7 +86,7 @@ class AnalyticsController {
       const { userId } = req.user;
       const { period = 'month' } = req.query;
 
-      const costs = await analyticsService.getCosts(userId, period);
+      const costs = await analyticsService.getCosts(userId, period, req.tenant?.id || null);
 
       res.status(200).json({
         success: true,
@@ -126,7 +126,7 @@ class AnalyticsController {
       const { userId } = req.user;
       const { period = 'month' } = req.query;
 
-      const metrics = await analyticsService.getDashboardAnalytics(userId, period);
+      const metrics = await analyticsService.getDashboardAnalytics(userId, period, req.tenant?.id || null);
 
       res.status(200).json({
         success: true,

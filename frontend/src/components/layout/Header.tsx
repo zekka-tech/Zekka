@@ -57,6 +57,17 @@ export const Header = () => {
           >
             Projects
           </Link>
+          <Link
+            to="/runs"
+            className={cn(
+              "px-3 py-2 rounded-lg font-medium text-sm transition-colors",
+              isActive('/runs')
+                ? 'bg-primary/10 text-primary'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+            )}
+          >
+            Runs
+          </Link>
         </nav>
       </div>
 

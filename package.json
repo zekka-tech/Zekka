@@ -1,6 +1,6 @@
 {
   "name": "zekka-framework",
-  "version": "3.3.2",
+  "version": "3.4.0",
   "description": "Enterprise-grade AI orchestration platform",
   "main": "dist/index.js",
   "scripts": {
@@ -105,7 +105,7 @@
     "morgan": "^1.11.0",
     "multer": "^2.1.1",
     "node-cache": "^5.1.2",
-    "nodemailer": "^9.0.3",
+    "nodemailer": "^10.0.9",
     "opossum": "^10.0.0",
     "pg": "^8.22.0",
     "prism-react-renderer": "^2.4.1",
@@ -115,6 +115,7 @@
     "redis": "^6.1.0",
     "socket.io": "^4.8.3",
     "speakeasy": "^2.0.0",
+    "stripe": "^23.0.0",
     "swagger-jsdoc": "^6.3.0",
     "swagger-ui-express": "^5.0.1",
     "uuid": "^11.1.1",

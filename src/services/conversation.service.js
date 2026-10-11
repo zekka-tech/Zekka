@@ -449,7 +449,7 @@ class ConversationService {
    * @param {Object} pagination - Pagination options (limit, offset)
    * @returns {Promise<Object>} Conversations list with metadata
    */
-  async listConversations(userId, projectId = null, pagination = {}) {
+  async listConversations(userId, projectId = null, pagination = {}, tenantId = null) {
     try {
       const { limit = 20, offset = 0, cursor } = pagination;
 
@@ -495,6 +495,14 @@ class ConversationService {
         queryParams.push(projectId);
       }
 
+      // Tenant isolation: when a tenant context is active, only that tenant's
+      // conversations are visible.
+      if (tenantId) {
+        paramCount++;
+        query += ` AND c.tenant_id = $${paramCount}`;
+        queryParams.push(tenantId);
+      }
+
       if (cursorPayload) {
         paramCount++;
         const cursorUpdatedAt = paramCount;
@@ -535,6 +543,12 @@ class ConversationService {
           countParams.push(projectId);
         }
 
+        if (tenantId) {
+          countParamCount++;
+          countQuery += ` AND c.tenant_id = $${countParamCount}`;
+          countParams.push(tenantId);
+        }
+
         const countResult = await db.query(countQuery, countParams);
         total = parseInt(countResult.rows[0].total, 10);
       }
@@ -567,22 +581,28 @@ class ConversationService {
    * @param {Object} metadata - Additional metadata
    * @returns {Promise<Object>} Created conversation
    */
-  async createConversation(userId, projectId, title, metadata = {}) {
+  async createConversation(userId, projectId, title, metadata = {}, tenantId = null) {
     try {
       if (!title) {
         throw new AppError('Conversation title is required', 400);
       }
 
-      // Check if user has access to project
-      const accessQuery = `
+      // Check if user has access to project. When a tenant context is active,
+      // the project must also belong to that tenant (tenant isolation).
+      let accessQuery = `
         SELECT p.id
         FROM projects p
         LEFT JOIN project_members pm ON p.id = pm.project_id
         WHERE p.id = $1 AND p.deleted_at IS NULL
           AND (p.owner_id = $2 OR pm.user_id = $2)
       `;
+      const accessParams = [projectId, userId];
+      if (tenantId) {
+        accessParams.push(tenantId);
+        accessQuery += ` AND p.tenant_id = $${accessParams.length}`;
+      }
 
-      const accessResult = await db.query(accessQuery, [projectId, userId]);
+      const accessResult = await db.query(accessQuery, accessParams);
 
       if (accessResult.rows.length === 0) {
         throw new AppError('Project not found or access denied', 404);
@@ -591,10 +611,10 @@ class ConversationService {
       // Generate unique conversation ID
       const conversationId = generateId();
 
-      // Create conversation
+      // Create conversation (tagged to the active tenant, if any)
       const query = `
-        INSERT INTO conversations (id, title, project_id, user_id, metadata)
-        VALUES ($1, $2, $3, $4, $5)
+        INSERT INTO conversations (id, title, project_id, user_id, metadata, tenant_id)
+        VALUES ($1, $2, $3, $4, $5, $6)
         RETURNING *
       `;
 
@@ -603,7 +623,8 @@ class ConversationService {
         title,
         projectId,
         userId,
-        JSON.stringify(metadata)
+        JSON.stringify(metadata),
+        tenantId
       ]);
 
       const conversation = result.rows[0];

@@ -55,7 +55,7 @@
 - No visual workflow builder for non-technical users
 - Frontend appears under-developed relative to backend breadth
 - Limited public documentation beyond code docs
-- No managed SaaS offering or pricing model yet (multi-tenant foundation — tenant isolation, per-tenant RBAC, subscription management — landed 2026-07; billing integration still open)
+- SaaS foundation now complete: tenant isolation, per-tenant RBAC, subscription management, and **Stripe billing + metered usage** landed (2026-07 → 2026-10). Remaining go-to-market work is pricing/packaging and a hosted control plane, not core code.
 
 ---
 
@@ -88,9 +88,10 @@
 | **Code Complexity** | ~850-line `index.js`, 20+ services in a single backend | Refactor into domain-scoped modules; enforce modular boundaries |
 | **Frontend Parity** | Backend far exceeds frontend in feature coverage | Invest in frontend development to match backend capabilities; add visual workflow builder |
 | **Onboarding** | No guided getting-started for new developers | Create interactive quick-start, sample projects, and video tutorials |
-| **Multi-tenancy** | ✅ Foundation shipped (2026-07): `tenants`/`tenant_members` model, per-tenant RBAC (owner/admin/member/viewer), subscription management (plan, status, seat limits) with API-access gating, tenant-scoped projects via `X-Tenant-Id`, and `/api/v1/tenants` management API | Remaining: billing-provider integration (Stripe), tenant scoping for conversations/sources/analytics, and per-tenant usage metering |
-| **Agent Marketplace** | Agents are hardcoded, not pluggable | Build a registry/marketplace with versioning and discoverability |
-| **Visual Workflow Builder** | Only code-based workflow definition | Add low-code/no-code drag-and-drop workflow designer |
+| **Multi-tenancy** | ✅ Shipped (2026-07 → 2026-10): `tenants`/`tenant_members` model, per-tenant RBAC (owner/admin/member/viewer), subscription management with API-access gating, tenant-scoped **projects, conversations, sources, and analytics** via `X-Tenant-Id`, `/api/v1/tenants` API, **Stripe billing + metered usage** (`/api/v1/billing`, webhooks), and per-tenant usage records | Remaining: per-seat proration policies, usage-based Stripe metered-price push job |
+| **Agent Marketplace** | ✅ Shipped (2026-10): pluggable, versioned agent registry (`agent_definitions`) with built-in seed + per-tenant custom agents, `/api/v1/agent-registry` | Next: public sharing/ratings, import/export |
+| **Visual Workflow Builder** | ✅ Live run inspector shipped (2026-10): streamed plan→act→observe timeline, tool calls, files written, cost, over Socket.IO + `/api/v1/runs`. | Next: drag-and-drop *authoring* (inspector is read/observe today) |
+| **Richer agent tools** | ✅ Shipped (2026-10): `web_fetch` (SSRF-guarded), `db_introspect` (read-only), `package_install` (validated) added to the sandboxed registry; native Anthropic tool-use path + cross-run `agent_memory` | Next: browser/computer-use tool, isolated per-run microVM sandbox |
 | **Testing Coverage** | Test directories exist but coverage is unclear | Enforce minimum coverage thresholds; automate in CI |
 | **Documentation** | Heavy reliance on auto-generated API docs | Add architecture decision records, runbooks, and decision guides |
 | **Error Handling UX** | Backend errors may not surface well to users | Improve frontend error states and user-facing messaging |

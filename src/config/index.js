@@ -321,6 +321,33 @@ const config = {
     monthly: env.MONTHLY_BUDGET
   },
 
+  // Billing (Stripe)
+  billing: {
+    enabled: String(env.BILLING_ENABLED || 'false').toLowerCase() === 'true',
+    stripeSecretKey: env.STRIPE_SECRET_KEY,
+    webhookSecret: env.STRIPE_WEBHOOK_SECRET,
+    // Public base URL the Checkout/Portal flows redirect back to
+    portalReturnUrl:
+      env.BILLING_PORTAL_RETURN_URL || `${env.APP_URL || ''}/settings/billing`,
+    checkoutSuccessUrl:
+      env.BILLING_CHECKOUT_SUCCESS_URL
+      || `${env.APP_URL || ''}/settings/billing?checkout=success`,
+    checkoutCancelUrl:
+      env.BILLING_CHECKOUT_CANCEL_URL
+      || `${env.APP_URL || ''}/settings/billing?checkout=cancel`,
+    // Maps internal plan keys → Stripe Price IDs. JSON string in env.
+    // e.g. {"pro":"price_123","business":"price_456"}
+    priceMap: (() => {
+      try {
+        return env.STRIPE_PRICE_MAP ? JSON.parse(env.STRIPE_PRICE_MAP) : {};
+      } catch {
+        return {};
+      }
+    })(),
+    // Stripe Price ID used for metered usage (per-1k-token) billing, optional
+    meteredUsagePriceId: env.STRIPE_METERED_USAGE_PRICE_ID || null
+  },
+
   // Agent Config
   agents: {
     defaultModel: env.DEFAULT_MODEL,

@@ -78,6 +78,32 @@ function initializeWebSocket(server, logger) {
         uptime: process.uptime()
       });
     });
+
+    // Room subscriptions for the live run inspector. Room names are derived
+    // from the id, so an authenticated client can only subscribe to the
+    // run:/project: stream it already references — no cross-tenant fan-out.
+    const SAFE_ID = /^[A-Za-z0-9_-]{1,128}$/;
+    socket.on('subscribe:run', (runId) => {
+      if (typeof runId === 'string' && SAFE_ID.test(runId)) {
+        const room = `run:${runId}`;
+        socket.join(room);
+        trackRoom(socket.id, room);
+      }
+    });
+    socket.on('subscribe:project', (projectId) => {
+      if (typeof projectId === 'string' && SAFE_ID.test(projectId)) {
+        const room = `project:${projectId}`;
+        socket.join(room);
+        trackRoom(socket.id, room);
+      }
+    });
+    socket.on('unsubscribe:run', (runId) => {
+      if (typeof runId === 'string' && SAFE_ID.test(runId)) {
+        const room = `run:${runId}`;
+        socket.leave(room);
+        untrackRoom(socket.id, room);
+      }
+    });
   });
 
   // Periodic connection cleanup (every 5 minutes)

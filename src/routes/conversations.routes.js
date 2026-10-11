@@ -28,6 +28,7 @@ const {
   validateParams
 } = require('../middleware/validate');
 const { authenticate } = require('../middleware/auth');
+const { optionalTenantContext } = require('../middleware/tenant-context');
 const { idempotency } = require('../middleware/idempotency');
 const {
   ALLOWED_EXTENSIONS,
@@ -48,6 +49,9 @@ const upload = multer({
 
 // Apply authentication to all conversation routes
 router.use(authenticate);
+// Resolve tenant context when an X-Tenant-Id header is present (optional, so
+// single-tenant deployments keep working unchanged).
+router.use(optionalTenantContext);
 
 /**
  * @route   GET /api/v1/conversations

@@ -8,9 +8,12 @@ const express = require('express');
 const router = express.Router();
 const analyticsController = require('../controllers/analytics.controller');
 const { authenticate } = require('../middleware/auth');
+const { optionalTenantContext } = require('../middleware/tenant-context');
 
 // Apply authentication to all analytics routes
 router.use(authenticate);
+// Resolve optional tenant context (no-op without an X-Tenant-Id header)
+router.use(optionalTenantContext);
 
 /**
  * @route   GET /api/v1/analytics/metrics

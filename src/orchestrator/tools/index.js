@@ -15,11 +15,19 @@ const { searchCodeTool } = require('./search-code.tool');
 const { runTestsTool } = require('./run-tests.tool');
 const { writeFileTool } = require('./write-file.tool');
 const { gitTool } = require('./git.tool');
+const { webFetchTool } = require('./web-fetch.tool');
+const { dbIntrospectTool } = require('./db-introspect.tool');
+const { packageInstallTool } = require('./package-install.tool');
+const { browserTool } = require('./browser.tool');
+const { codeExecTool } = require('./code-exec.tool');
 
 /**
  * @param {Object} [options]
  * @param {Object} [options.logger]
  * @param {boolean} [options.includeWrite=false] - Also register write_file + git.
+ * @param {boolean} [options.includeExtended=false] - Also register the extended
+ *   tool surface: web_fetch (read-only), db_introspect (read-only), and
+ *   package_install (write — gated with the write tools).
  * @returns {ToolRegistry}
  */
 function createDefaultRegistry(options = {}) {
@@ -31,6 +39,17 @@ function createDefaultRegistry(options = {}) {
     registry.register(writeFileTool);
     registry.register(gitTool);
   }
+  if (options.includeExtended) {
+    // Read-only extended tools are always safe to expose.
+    registry.register(webFetchTool);
+    registry.register(dbIntrospectTool);
+    registry.register(browserTool); // read-only by default (fetch-based)
+    // Mutating / powerful tools only alongside the write set.
+    if (options.includeWrite) {
+      registry.register(packageInstallTool);
+      registry.register(codeExecTool); // secure-by-default (needs a sandbox)
+    }
+  }
   return registry;
 }
 
@@ -41,5 +60,10 @@ module.exports = {
   searchCodeTool,
   runTestsTool,
   writeFileTool,
-  gitTool
+  gitTool,
+  webFetchTool,
+  dbIntrospectTool,
+  packageInstallTool,
+  browserTool,
+  codeExecTool
 };

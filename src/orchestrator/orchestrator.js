@@ -4,6 +4,8 @@ const { Pool } = require('pg');
 const { v4: uuidv4 } = require('uuid');
 const axios = require('axios');
 const ModelClient = require('../services/model-client');
+const { runTrackerService } = require('../services/run-tracker.service');
+const { agentMemoryService } = require('../services/agent-memory.service');
 const { getDatabaseSsl } = require('../config/database-ssl');
 const { createDefaultRegistry } = require('./tools');
 const { AgentRunner } = require('./agent-runner');
@@ -95,7 +97,11 @@ class ZekkaOrchestrator {
     // write tools are gated behind stage-level conflict detection (checkForConflicts).
     this.workspaceRoot = this.config.workspaceRoot || process.cwd();
     this.toolRegistry = options.toolRegistry
-      || createDefaultRegistry({ logger: this.logger, includeWrite: true });
+      || createDefaultRegistry({
+        logger: this.logger,
+        includeWrite: true,
+        includeExtended: true
+      });
     this.agentRunner = options.agentRunner
       || new AgentRunner({
         modelClient: this.modelClient,
@@ -108,8 +114,20 @@ class ZekkaOrchestrator {
           workspaceRoot: this.workspaceRoot,
           testCommand: this.config.testCommand,
           exec: promisify(childProcess.exec),
-          execFile: promisify(childProcess.execFile)
-        }
+          execFile: promisify(childProcess.execFile),
+          // Read-only schema introspection for db_introspect. Lazily uses the
+          // orchestrator's pool (assigned later in the constructor; this arrow
+          // only runs at agent runtime) so agents can discover — never mutate —
+          // the schema.
+          dbQuery: (sql, params) => this.db.query(sql, params),
+          // code_exec runs through an isolated sandbox when one is wired
+          // (this.config.sandbox). Absent that, local execution stays OFF unless
+          // explicitly opted in for trusted single-tenant/dev use.
+          sandbox: this.config.sandbox || null,
+          allowUnsafeLocalExec: process.env.AGENT_ALLOW_LOCAL_EXEC === 'true'
+        },
+        // Cross-run memory for agents (recall at start, remember at finish).
+        memoryStore: agentMemoryService
       });
 
     // Validate required environment variables
@@ -416,14 +434,48 @@ class ZekkaOrchestrator {
       const task = taskResult.rows[0];
       const goal = await this.buildTaskGoal(task, projectId, opts.stageName);
 
-      // Drive the perceive → plan → act → observe loop.
-      const result = await this.agentRunner.run({
+      // Open a durable, streamable run record. Agents in a stage run
+      // sequentially, so binding onEvent on the shared runner per task is safe.
+      const runId = await runTrackerService.startRun({
         taskId,
         projectId,
+        tenantId: opts.tenantId || null,
+        agentKey: task.agent_name,
         agentName: task.agent_name,
-        stage: task.stage,
-        complexity: opts.complexity,
         goal
+      });
+      this.agentRunner.onEvent = (evt) => runTrackerService.recordEvent(runId, {
+        step: evt.step,
+        type: evt.type,
+        tool: evt.tool || null,
+        payload: evt.payload || {},
+        projectId
+      });
+
+      let result;
+      try {
+        // Drive the perceive → plan → act → observe loop.
+        result = await this.agentRunner.run({
+          taskId,
+          projectId,
+          tenantId: opts.tenantId || null,
+          agentKey: task.agent_name,
+          agentName: task.agent_name,
+          stage: task.stage,
+          complexity: opts.complexity,
+          goal
+        });
+      } finally {
+        this.agentRunner.onEvent = null;
+      }
+
+      await runTrackerService.completeRun(runId, {
+        status: result.status,
+        reason: result.reason,
+        steps: result.steps,
+        filesWritten: result.filesWritten,
+        result: result.result,
+        projectId
       });
 
       // Persist the agent's file footprint so stage-level conflict detection can

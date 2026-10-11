@@ -31,6 +31,10 @@ const agentsRoutes = require('./routes/agents.routes');
 const sourcesRoutes = require('./routes/sources.routes');
 const preferencesRoutes = require('./routes/preferences.routes');
 const tenantsRoutes = require('./routes/tenants.routes');
+const billingRoutes = require('./routes/billing.routes');
+const { stripeWebhookHandler } = require('./routes/billing.webhook');
+const agentRegistryRoutes = require('./routes/agent-registry.routes');
+const runsRoutes = require('./routes/runs.routes');
 const authRoutes = require('./routes/auth.routes');
 const usersRoutes = require('./routes/users.routes');
 
@@ -113,6 +117,13 @@ app.use(
     }
   })
 );
+// Stripe webhook needs the raw body (before JSON parsing) and sits outside /api.
+app.post(
+  '/webhooks/stripe',
+  express.raw({ type: 'application/json' }),
+  stripeWebhookHandler
+);
+
 app.use(express.json({ limit: config.limits.json }));
 app.use(express.urlencoded({ extended: true, limit: config.limits.urlEncoded }));
 app.use(
@@ -467,6 +478,9 @@ app.use('/api/v1/agents', agentsRoutes);
 app.use('/api/v1/sources', sourcesRoutes);
 app.use('/api/v1/preferences', preferencesRoutes);
 app.use('/api/v1/tenants', tenantsRoutes);
+app.use('/api/v1/billing', billingRoutes);
+app.use('/api/v1/agent-registry', agentRegistryRoutes);
+app.use('/api/v1/runs', runsRoutes);
 
 const frontendBuildDir = path.join(__dirname, '../frontend/dist');
 const legacyPublicDir = path.join(__dirname, '../public');

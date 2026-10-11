@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.4.0] - 2026-10-11
+
+### ✨ Added — SaaS billing, tenant data isolation, and agent harness
+- **Stripe billing + usage metering**: `billing.service` wires the tenant
+  subscription model to Stripe (customer provisioning, Checkout + Billing
+  Portal sessions, webhook-driven subscription state sync) and records
+  per-tenant metered usage (`usage_records`) with idempotent webhook
+  processing (`billing_events`). Exposed under `/api/v1/billing`.
+- **Tenant data isolation extended** to conversations, sources, and
+  analytics (previously projects only): `tenant_id` columns + query scoping
+  so a second customer's data can never leak across tenants.
+- **Pluggable agent registry**: agents are now versioned, discoverable
+  records (`agent_definitions`) resolved at orchestration time instead of
+  hardcoded, with built-in agents seeded and per-tenant custom agents.
+- **Richer agent tools**: `web_fetch`, `db_introspect`, `package_install`,
+  and a `code_exec` sandbox + `browser` tool join the sandboxed registry.
+- **Agent harness upgrades**: native Anthropic tool-use path in the model
+  client, durable/resumable run tracking (`agent_runs` / `agent_run_events`)
+  streamed live over Socket.IO, retrieval-backed cross-run agent memory
+  (`agent_memory`), and a frontend live run-inspector.
+
+### 🐛 Fixed
+- **Sources HTTP API**: the service AND controller targeted a legacy schema
+  (folders/`file_path`/`uploaded_by`) that no longer exists, so every
+  `/api/v1/sources` route 500'd. Both layers were rewritten against the real
+  `sources` schema (id/project_id/user_id/name/type/url/content/metadata/
+  tenant_id) with project owner/member + tenant access control; the unbacked
+  folder/download routes were removed.
+
+### 🔒 Security
+- Dependency CVE remediation (carried from the v3.3.2 image hardening):
+  `npm audit fix` across prod deps (proxy-addr CRITICAL, socket.io-parser,
+  fast-uri, ip-address, joi, js-yaml, multer) and **nodemailer bumped to v10**
+  (addressparser DoS, GHSA-v53p). Prod `npm audit` reports zero high/critical.
+
 ## [3.3.2] - 2026-10-11
 
 ### 🐛 Fixed — fresh-deployment landmines

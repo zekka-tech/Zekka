@@ -33,6 +33,9 @@ function renderHistory(memory) {
         return `Step ${entry.step}: your reply could not be parsed as a single JSON `
           + `action. ${entry.hint}`;
       }
+      if (Array.isArray(entry.recalledMemory)) {
+        return `Relevant memory from earlier runs:\n  - ${entry.recalledMemory.join('\n  - ')}`;
+      }
       const action = entry.action.type === 'finish'
         ? 'finish'
         : `${entry.action.tool}(${JSON.stringify(entry.action.args)})`;

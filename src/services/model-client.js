@@ -307,6 +307,92 @@ class ModelClient {
   }
 
   /**
+   * Convert a ToolRegistry `describe()` catalogue into Anthropic tool-use
+   * schemas (JSON Schema `input_schema`). Static so callers can pre-compute it.
+   *
+   * @param {Array<{name:string,description:string,schema:Object}>} catalogue
+   * @returns {Array<{name,description,input_schema}>}
+   */
+  static toAnthropicTools(catalogue = []) {
+    return catalogue.map((tool) => {
+      const properties = {};
+      const required = [];
+      for (const [arg, spec] of Object.entries(tool.schema || {})) {
+        properties[arg] = { type: spec.type || 'string' };
+        if (spec.required) required.push(arg);
+      }
+      return {
+        name: tool.name,
+        description: tool.description || '',
+        input_schema: { type: 'object', properties, required }
+      };
+    });
+  }
+
+  /**
+   * Native Anthropic tool-use turn. Sends the conversation plus the tool
+   * catalogue and returns any structured tool calls the model requested — far
+   * more reliable than parsing JSON actions out of free text.
+   *
+   * @param {Array<{role:string,content:*}>} messages - Anthropic message list
+   * @param {Array<Object>} tools - Anthropic tool schemas (see toAnthropicTools)
+   * @param {Object} [options]
+   * @param {string} [options.system] - System prompt
+   * @param {string} [options.model]
+   * @param {number} [options.maxTokens]
+   * @param {number} [options.temperature]
+   * @returns {Promise<{text:string, toolCalls:Array<{id,name,input}>, stopReason:string, usage:Object, model:string}>}
+   */
+  async generateWithTools(messages, tools = [], options = {}) {
+    if (!process.env.ANTHROPIC_API_KEY) {
+      throw new Error('ANTHROPIC_API_KEY not configured');
+    }
+
+    const model = options.model
+      || process.env.ANTHROPIC_TOOL_MODEL
+      || 'claude-sonnet-4-5-20250929';
+
+    const payload = {
+      model,
+      max_tokens: options.maxTokens || 4000,
+      temperature: options.temperature ?? 0.2,
+      messages,
+      ...(tools.length > 0 ? { tools } : {}),
+      ...(options.system ? { system: options.system } : {})
+    };
+
+    const response = await this.apiClient.callAnthropic(payload);
+    const content = Array.isArray(response.content) ? response.content : [];
+
+    const text = content
+      .filter((block) => block.type === 'text')
+      .map((block) => block.text)
+      .join('\n');
+    const toolCalls = content
+      .filter((block) => block.type === 'tool_use')
+      .map((block) => ({ id: block.id, name: block.name, input: block.input }));
+
+    if (this.tokenEconomics && response.usage) {
+      await this.tokenEconomics.recordCost({
+        projectId: options.projectId,
+        taskId: options.taskId || 'tool-use',
+        agentName: options.agentName || 'agent',
+        model,
+        tokensInput: response.usage.input_tokens,
+        tokensOutput: response.usage.output_tokens
+      });
+    }
+
+    return {
+      text,
+      toolCalls,
+      stopReason: response.stop_reason,
+      usage: response.usage,
+      model
+    };
+  }
+
+  /**
    * Call Claude Sonnet 4.5 API
    *
    * @private

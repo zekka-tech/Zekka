@@ -77,7 +77,8 @@ class ConversationsController {
       const result = await conversationService.listConversations(
         userId,
         projectId,
-        pagination
+        pagination,
+        req.tenant?.id || null
       );
 
       res.status(200).json({
@@ -103,7 +104,8 @@ class ConversationsController {
         userId,
         projectId,
         title,
-        metadata
+        metadata,
+        req.tenant?.id || null
       );
 
       res.status(201).json({

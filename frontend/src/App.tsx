@@ -22,6 +22,7 @@ const AnalyticsPage = lazy(() =>
 const SettingsPage = lazy(() =>
   import('@/pages/Settings').then((module) => ({ default: module.Settings }))
 )
+const RunsPage = lazy(() => import('@/pages/Runs'))
 const AuthPage = lazy(() =>
   import('@/pages/Auth').then((module) => ({ default: module.Auth }))
 )
@@ -90,6 +91,7 @@ function AppContentInner() {
               <Route path="/dashboard" element={<ErrorBoundary><DashboardPage /></ErrorBoundary>} />
               <Route path="/projects" element={<ErrorBoundary><ProjectsPage /></ErrorBoundary>} />
               <Route path="/analytics" element={<ErrorBoundary><AnalyticsPage /></ErrorBoundary>} />
+              <Route path="/runs" element={<ErrorBoundary><RunsPage /></ErrorBoundary>} />
               <Route path="/settings" element={<ErrorBoundary><SettingsPage /></ErrorBoundary>} />
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
             </Routes>

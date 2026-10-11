@@ -35,9 +35,11 @@ class AnalyticsService {
    * @param {string} period - Time period ('day', 'week', 'month', 'all')
    * @returns {Promise<object>} Aggregated metrics
    */
-  async getMetrics(userId, period = 'month') {
+  async getMetrics(userId, period = 'month', tenantId = null) {
     const timeFilter = this._getTimeFilter(period);
-    const cacheKey = CACHE_KEYS.CACHE(`metrics:user:${userId}:${period}`);
+    const cacheKey = CACHE_KEYS.CACHE(
+      `metrics:user:${userId}:${period}:t:${tenantId || 'none'}`
+    );
 
     // Try cache first
     const cached = await cache.get(cacheKey);
@@ -54,7 +56,7 @@ class AnalyticsService {
         COUNT(DISTINCT tu.model) as models_used,
         COUNT(DISTINCT a.agent_id) as agents_used
       FROM users u
-      LEFT JOIN projects p ON p.user_id = u.id ${timeFilter ? `AND p.created_at >= ${timeFilter}` : ''}
+      LEFT JOIN projects p ON p.user_id = u.id ${timeFilter ? `AND p.created_at >= ${timeFilter}` : ''}${tenantId ? ' AND p.tenant_id = $2' : ''}
       LEFT JOIN conversations c ON c.project_id = p.id
       LEFT JOIN messages m ON m.conversation_id = c.id
       LEFT JOIN token_usage tu ON tu.conversation_id = c.id
@@ -63,7 +65,7 @@ class AnalyticsService {
       GROUP BY u.id
     `;
 
-    const result = await pool.query(query, [userId]);
+    const result = await pool.query(query, tenantId ? [userId, tenantId] : [userId]);
     const metrics = result.rows[0] || {
       total_projects: 0,
       total_conversations: 0,
@@ -81,16 +83,18 @@ class AnalyticsService {
     return metrics;
   }
 
-  async getDashboardAnalytics(userId, period = 'month') {
-    const cacheKey = CACHE_KEYS.CACHE(`dashboard-analytics:user:${userId}:${period}`);
+  async getDashboardAnalytics(userId, period = 'month', tenantId = null) {
+    const cacheKey = CACHE_KEYS.CACHE(
+      `dashboard-analytics:user:${userId}:${period}:t:${tenantId || 'none'}`
+    );
     const cached = await cache.get(cacheKey);
     if (cached) return cached;
 
     const [metrics, costs, tokenUsage, agentPerformance] = await Promise.all([
-      this.getMetrics(userId, period),
-      this.getCosts(userId, period),
-      this.getTokenUsage(userId, period),
-      this.getAgentPerformance(userId, period)
+      this.getMetrics(userId, period, tenantId),
+      this.getCosts(userId, period, tenantId),
+      this.getTokenUsage(userId, period, tenantId),
+      this.getAgentPerformance(userId, period, tenantId)
     ]);
 
     const summary = this.normalizeSummaryMetrics(metrics);
@@ -143,9 +147,11 @@ class AnalyticsService {
    * @param {string} period - Time period
    * @returns {Promise<object>} Cost breakdown
    */
-  async getCosts(userId, period = 'month') {
+  async getCosts(userId, period = 'month', tenantId = null) {
     const timeFilter = this._getTimeFilter(period);
-    const cacheKey = CACHE_KEYS.CACHE(`costs:user:${userId}:${period}`);
+    const cacheKey = CACHE_KEYS.CACHE(
+      `costs:user:${userId}:${period}:t:${tenantId || 'none'}`
+    );
 
     const cached = await cache.get(cacheKey);
     if (cached) return cached;
@@ -166,11 +172,12 @@ class AnalyticsService {
       JOIN projects p ON p.id = c.project_id
       WHERE p.user_id = $1
         ${timeFilter ? `AND tu.created_at >= ${timeFilter}` : ''}
+        ${tenantId ? 'AND p.tenant_id = $2' : ''}
       GROUP BY tu.model, tu.agent_id
       ORDER BY total_cost DESC
     `;
 
-    const result = await pool.query(query, [userId]);
+    const result = await pool.query(query, tenantId ? [userId, tenantId] : [userId]);
 
     const costs = {
       byModel: {},
@@ -256,9 +263,10 @@ class AnalyticsService {
    * @param {string} period - Time period
    * @returns {Promise<Array>} Token usage over time
    */
-  async getTokenUsage(userId, period = 'month') {
+  async getTokenUsage(userId, period = 'month', tenantId = null) {
     const timeFilter = this._getTimeFilter(period);
     const groupBy = period === 'day' ? 'hour' : 'day';
+    const tenantClause = tenantId ? 'AND p.tenant_id = $2' : '';
 
     let query;
     if (groupBy === 'hour') {
@@ -274,6 +282,7 @@ class AnalyticsService {
         JOIN projects p ON p.id = c.project_id
         WHERE p.user_id = $1
           ${timeFilter ? `AND tu.created_at >= ${timeFilter}` : ''}
+          ${tenantClause}
         GROUP BY DATE_TRUNC('hour', tu.created_at)
         ORDER BY time_bucket ASC
       `;
@@ -290,12 +299,13 @@ class AnalyticsService {
         JOIN projects p ON p.id = c.project_id
         WHERE p.user_id = $1
           ${timeFilter ? `AND tu.created_at >= ${timeFilter}` : ''}
+          ${tenantClause}
         GROUP BY DATE(tu.created_at)
         ORDER BY time_bucket ASC
       `;
     }
 
-    const result = await pool.query(query, [userId]);
+    const result = await pool.query(query, tenantId ? [userId, tenantId] : [userId]);
     return result.rows;
   }
 
@@ -346,9 +356,11 @@ class AnalyticsService {
     return metrics;
   }
 
-  async getAgentPerformance(userId, period = 'month') {
+  async getAgentPerformance(userId, period = 'month', tenantId = null) {
     const timeFilter = this._getTimeFilter(period);
-    const cacheKey = CACHE_KEYS.CACHE(`agent-performance:user:${userId}:${period}`);
+    const cacheKey = CACHE_KEYS.CACHE(
+      `agent-performance:user:${userId}:${period}:t:${tenantId || 'none'}`
+    );
     const cached = await cache.get(cacheKey);
 
     if (cached) {
@@ -385,11 +397,12 @@ class AnalyticsService {
       JOIN projects p ON p.id = aa.project_id
       WHERE p.user_id = $1
         ${timeFilter ? `AND aa.timestamp >= ${timeFilter}` : ''}
+        ${tenantId ? 'AND p.tenant_id = $2' : ''}
       GROUP BY aa.agent_id
       ORDER BY total_executions DESC, aa.agent_id ASC
     `;
 
-    const result = await pool.query(query, [userId]);
+    const result = await pool.query(query, tenantId ? [userId, tenantId] : [userId]);
     const metrics = result.rows.map((row) => {
       const successes = parseInt(row.successful_actions, 10) || 0;
       const failures = parseInt(row.failed_actions, 10) || 0;

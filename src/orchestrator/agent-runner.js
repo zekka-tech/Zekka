@@ -52,6 +52,23 @@ class AgentRunner {
     this.budgetThresholdPercent = options.budgetThresholdPercent
       ?? DEFAULTS.budgetThresholdPercent;
     this.noProgressLimit = options.noProgressLimit || DEFAULTS.noProgressLimit;
+
+    // Optional, decoupled hooks (both no-ops when absent):
+    //  - onEvent({ step, type, tool, payload }) streams the plan→act→observe
+    //    timeline (the run inspector subscribes through this).
+    //  - memoryStore.recall()/remember() give the agent cross-run memory.
+    this.onEvent = typeof options.onEvent === 'function' ? options.onEvent : null;
+    this.memoryStore = options.memoryStore || null;
+  }
+
+  /** Fire an optional streamed event; never let a listener failure kill the loop. */
+  async _event(type, step, extra = {}) {
+    if (!this.onEvent) return;
+    try {
+      await this.onEvent({ type, step, ...extra });
+    } catch (err) {
+      this.logger.warn(`onEvent(${type}) failed: ${err.message}`);
+    }
   }
 
   /**
@@ -66,6 +83,27 @@ class AgentRunner {
     const filesWritten = [];
     const recentSignatures = [];
 
+    // Seed cross-run memory relevant to this goal, if a store is wired.
+    if (this.memoryStore && typeof this.memoryStore.recall === 'function') {
+      try {
+        const recalled = await this.memoryStore.recall({
+          tenantId: task.tenantId || null,
+          userId: task.userId || null,
+          agentKey: task.agentKey || task.agentName || null,
+          query: task.goal,
+          limit: 5
+        });
+        if (Array.isArray(recalled) && recalled.length > 0) {
+          memory.push({
+            step: -1,
+            recalledMemory: recalled.map((m) => m.content)
+          });
+        }
+      } catch (err) {
+        this.logger.warn(`memory recall failed: ${err.message}`);
+      }
+    }
+
     for (let step = 0; step < this.maxSteps; step += 1) {
       // --- budget guard ---
       if (await this._overBudget(task.projectId)) {
@@ -75,6 +113,7 @@ class AgentRunner {
       }
 
       // --- PLAN ---
+      await this._event('plan', step, { agentName: task.agentName });
       const model = await this._selectModel(task);
       const prompt = buildAgentPrompt(task, this.toolRegistry.describe(), memory);
 
@@ -104,12 +143,15 @@ class AgentRunner {
       }
 
       if (action.type === 'finish') {
+        await this._persistMemory(task, action.result, filesWritten);
+        await this._event('terminal', step + 1, { status: 'completed', reason: 'agent finished' });
         return this._terminate('completed', 'agent finished', {
           task, step: step + 1, memory, filesWritten, result: action.result
         });
       }
 
       // --- ACT ---
+      await this._event('act', step, { tool: action.tool, payload: action.args });
       const observation = await this.toolRegistry.invoke(
         action.tool,
         action.args,
@@ -117,6 +159,10 @@ class AgentRunner {
       );
 
       // --- OBSERVE ---
+      await this._event('observe', step, {
+        tool: action.tool,
+        payload: { ok: observation.ok, error: observation.error }
+      });
       memory.push({ step, action, observation });
       if (Array.isArray(observation.writes)) {
         for (const w of observation.writes) {
@@ -157,6 +203,27 @@ class AgentRunner {
     } catch (err) {
       this.logger.warn(`budget check failed, continuing: ${err.message}`);
       return false;
+    }
+  }
+
+  /** Persist a durable memory of a completed run, if a store is wired. */
+  async _persistMemory(task, result, filesWritten) {
+    if (!this.memoryStore || typeof this.memoryStore.remember !== 'function') return;
+    try {
+      const summary = typeof result === 'string'
+        ? result
+        : (result && result.summary) || `Completed goal: ${task.goal}`;
+      await this.memoryStore.remember({
+        tenantId: task.tenantId || null,
+        userId: task.userId || null,
+        agentKey: task.agentKey || task.agentName || null,
+        projectId: task.projectId || null,
+        kind: 'summary',
+        content: `${summary}${filesWritten.length ? ` (files: ${filesWritten.join(', ')})` : ''}`,
+        importance: 3
+      });
+    } catch (err) {
+      this.logger.warn(`memory persist failed: ${err.message}`);
     }
   }
 

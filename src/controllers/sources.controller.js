@@ -1,28 +1,28 @@
 /**
  * Sources Controller
- * Handles file/source upload and management endpoints
+ * Project knowledge-source management endpoints.
+ *
+ * Routes work against the real `sources` schema (id, project_id, user_id,
+ * name, type, url, content, metadata, tenant_id). All operations are
+ * access-controlled in the service (project owner/member + optional tenant).
  */
 
 const Joi = require('joi');
-const { getSourceService } = require('../services/source.service');
+const { getSourceService, SOURCE_TYPES } = require('../services/source.service');
 
-// Validation schemas used by this controller
-const uploadSourceSchema = Joi.object({
+const createSourceSchema = Joi.object({
   projectId: Joi.string().required(),
   name: Joi.string().min(1).max(255).optional(),
-  type: Joi.string()
-    .valid('file', 'url', 'text', 'github', 'database', 'api')
-    .optional(),
+  type: Joi.string().valid(...SOURCE_TYPES).optional(),
   url: Joi.string().uri().optional(),
+  content: Joi.string().max(1_000_000).optional(),
   metadata: Joi.object().optional()
 }).options({ allowUnknown: false, stripUnknown: true });
 
 const updateSourceSchema = Joi.object({
   name: Joi.string().min(1).max(255).optional(),
-  description: Joi.string().max(1000).optional(),
-  status: Joi.string()
-    .valid('pending', 'processing', 'completed', 'failed', 'archived')
-    .optional(),
+  url: Joi.string().uri().optional().allow(null),
+  content: Joi.string().max(1_000_000).optional().allow(null),
   metadata: Joi.object().optional()
 }).min(1).options({ allowUnknown: false, stripUnknown: true });
 
@@ -31,37 +31,38 @@ const sourceService = getSourceService();
 class SourcesController {
   /**
    * List sources for a project
-   * GET /api/v1/sources?projectId=:projectId
+   * GET /api/v1/sources?projectId=:projectId&type=&limit=&offset=
    */
   async listSources(req, res, next) {
     try {
       const { userId } = req.user;
       const {
-        projectId, type, limit = 20, offset = 0
+        projectId, type, limit, offset
       } = req.query;
 
-      const filters = { type };
-      const pagination = { limit: parseInt(limit, 10), offset: parseInt(offset, 10) };
+      if (!projectId) {
+        return res.status(400).json({ success: false, error: 'projectId is required' });
+      }
 
       const result = await sourceService.listSources(
-        userId,
         projectId,
-        filters,
-        pagination
+        userId,
+        { type, limit, offset },
+        req.tenant?.id || null
       );
 
-      res.status(200).json({
+      return res.status(200).json({
         success: true,
         data: result.sources,
         pagination: result.pagination
       });
     } catch (error) {
-      next(error);
+      return next(error);
     }
   }
 
   /**
-   * Upload a source file
+   * Create a source (text/url/github/… or an uploaded file's text content)
    * POST /api/v1/sources
    */
   async uploadSource(req, res, next) {
@@ -69,7 +70,7 @@ class SourcesController {
       const { userId } = req.user;
       const { file } = req;
 
-      const { error, value } = uploadSourceSchema.validate(req.body);
+      const { error, value } = createSourceSchema.validate(req.body);
       if (error) {
         return res.status(400).json({
           success: false,
@@ -77,23 +78,17 @@ class SourcesController {
         });
       }
 
-      const {
-        projectId, name, type, url, metadata
-      } = value;
-
       const source = await sourceService.createSource(userId, {
-        projectId,
-        name: name || file?.originalname,
-        type: type || file?.mimetype,
-        url,
+        ...value,
+        type: value.type || (file ? 'file' : 'text'),
         file,
-        metadata
+        tenantId: req.tenant?.id || null
       });
 
       return res.status(201).json({
         success: true,
         data: source,
-        message: 'Source uploaded successfully'
+        message: 'Source created successfully'
       });
     } catch (error) {
       return next(error);
@@ -109,14 +104,11 @@ class SourcesController {
       const { userId } = req.user;
       const { id } = req.params;
 
-      const source = await sourceService.getSource(id, userId);
+      const source = await sourceService.getSource(id, userId, req.tenant?.id || null);
 
-      res.status(200).json({
-        success: true,
-        data: source
-      });
+      return res.status(200).json({ success: true, data: source });
     } catch (error) {
-      next(error);
+      return next(error);
     }
   }
 
@@ -137,7 +129,12 @@ class SourcesController {
         });
       }
 
-      const source = await sourceService.updateSource(id, userId, value);
+      const source = await sourceService.updateSource(
+        id,
+        userId,
+        value,
+        req.tenant?.id || null
+      );
 
       return res.status(200).json({
         success: true,
@@ -158,110 +155,11 @@ class SourcesController {
       const { userId } = req.user;
       const { id } = req.params;
 
-      await sourceService.deleteSource(id, userId);
-
-      res.status(200).json({
-        success: true,
-        message: 'Source deleted successfully'
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  /**
-   * Download a source
-   * GET /api/v1/sources/:id/download
-   */
-  async downloadSource(req, res, next) {
-    try {
-      const { userId } = req.user;
-      const { id } = req.params;
-
-      const source = await sourceService.getSourceFile(id, userId);
-
-      res.setHeader(
-        'Content-Disposition',
-        `attachment; filename="${source.name}"`
-      );
-      res.setHeader('Content-Type', source.type);
-      res.send(source.content);
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  /**
-   * Get source statistics
-   * GET /api/v1/sources/:projectId/stats
-   */
-  async getSourceStats(req, res, next) {
-    try {
-      const { userId } = req.user;
-      const { projectId } = req.params;
-
-      const stats = await sourceService.getSourceStats(projectId, userId);
-
-      res.status(200).json({
-        success: true,
-        data: stats
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  /**
-   * List folders for a project
-   * GET /api/v1/sources/folders?projectId=:projectId
-   */
-  async listFolders(req, res, next) {
-    try {
-      const { projectId } = req.query;
-
-      if (!projectId) {
-        return res.status(400).json({
-          success: false,
-          error: 'projectId is required'
-        });
-      }
-
-      const folders = await sourceService.getFolderTree(projectId);
+      await sourceService.deleteSource(id, userId, req.tenant?.id || null);
 
       return res.status(200).json({
         success: true,
-        data: folders
-      });
-    } catch (error) {
-      return next(error);
-    }
-  }
-
-  /**
-   * Create a folder
-   * POST /api/v1/sources/folders
-   */
-  async createFolder(req, res, next) {
-    try {
-      const { projectId, name, parentId } = req.body;
-
-      if (!projectId || !name) {
-        return res.status(400).json({
-          success: false,
-          error: 'projectId and name are required'
-        });
-      }
-
-      const folder = await sourceService.createFolder(projectId, {
-        name,
-        parentFolderId: parentId,
-        metadata: {}
-      });
-
-      return res.status(201).json({
-        success: true,
-        data: folder,
-        message: 'Folder created successfully'
+        message: 'Source deleted successfully'
       });
     } catch (error) {
       return next(error);
@@ -270,30 +168,49 @@ class SourcesController {
 
   /**
    * Search sources in a project
-   * GET /api/v1/sources/search?projectId=:projectId&q=:query
+   * GET /api/v1/sources/search?projectId=:projectId&q=:query&type=&limit=
    */
   async searchSources(req, res, next) {
     try {
+      const { userId } = req.user;
       const {
-        projectId, q: query, type, limit = 50
+        projectId, q: query, type, limit
       } = req.query;
 
       if (!projectId) {
-        return res.status(400).json({
-          success: false,
-          error: 'projectId is required'
-        });
+        return res.status(400).json({ success: false, error: 'projectId is required' });
       }
 
-      const results = await sourceService.searchSources(projectId, query || '', {
-        limit: parseInt(limit, 10),
-        type
-      });
+      const results = await sourceService.searchSources(
+        projectId,
+        userId,
+        query || '',
+        { limit, type },
+        req.tenant?.id || null
+      );
 
-      return res.status(200).json({
-        success: true,
-        data: results
-      });
+      return res.status(200).json({ success: true, data: results });
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  /**
+   * Get source statistics for a project
+   * GET /api/v1/sources/:projectId/stats
+   */
+  async getSourceStats(req, res, next) {
+    try {
+      const { userId } = req.user;
+      const { projectId } = req.params;
+
+      const stats = await sourceService.getSourceStats(
+        projectId,
+        userId,
+        req.tenant?.id || null
+      );
+
+      return res.status(200).json({ success: true, data: stats });
     } catch (error) {
       return next(error);
     }

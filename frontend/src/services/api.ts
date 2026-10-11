@@ -472,12 +472,76 @@ class ApiService {
     return response.data.data
   }
 
+  // ===== Agent Runs (run inspector) =====
+
+  async getRuns(projectId?: string) {
+    const response = await this.axiosInstance.get('/api/v1/runs', {
+      params: projectId ? { projectId } : {},
+    })
+    return response.data.data as AgentRun[]
+  }
+
+  async getRun(runId: string) {
+    const response = await this.axiosInstance.get(`/api/v1/runs/${runId}`)
+    return response.data.data as AgentRun
+  }
+
+  async getRunEvents(runId: string, after = 0) {
+    const response = await this.axiosInstance.get(`/api/v1/runs/${runId}/events`, {
+      params: { after },
+    })
+    return response.data.data as AgentRunEvent[]
+  }
+
+  // ===== Agent Registry =====
+
+  async getRegistryAgents() {
+    const response = await this.axiosInstance.get('/api/v1/agent-registry')
+    return response.data.data as RegistryAgent[]
+  }
+
   // ===== Health Check =====
 
   async healthCheck() {
     const response = await this.axiosInstance.get('/health')
     return response.data
   }
+}
+
+export interface AgentRun {
+  id: string
+  task_id: string | null
+  project_id: string | null
+  agent_key: string | null
+  agent_name: string | null
+  goal: string | null
+  status: string
+  reason: string | null
+  steps: number
+  files_written: string[]
+  cost_usd: number
+  started_at: string
+  finished_at: string | null
+}
+
+export interface AgentRunEvent {
+  id: number
+  step: number
+  type: 'plan' | 'act' | 'observe' | 'terminal' | 'error'
+  tool: string | null
+  payload: Record<string, unknown>
+  created_at?: string
+}
+
+export interface RegistryAgent {
+  agent_key: string
+  version: number
+  name: string
+  tier: number
+  description: string | null
+  capabilities: string[]
+  tools: string[]
+  is_builtin: boolean
 }
 
 // Export singleton instance
