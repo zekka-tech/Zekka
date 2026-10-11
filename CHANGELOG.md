@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.4.1] - 2026-10-11
+
+### 🔒 Security
+- **Frontend HIGH CVEs remediated**: the frontend production dependencies
+  carried 7 high-severity advisories — most notably **react-router RSC-mode
+  CSRF bypass** (GHSA-qwww-vcr4-c8h2) plus socket.io-parser and source-map-js
+  DoS, axios, and transitive nanoid/postcss. Bumped axios → ^1.20,
+  react-router-dom → ^7.18.4 (stays on 7.x), postcss → ^8.5.29, with
+  `overrides` for react-router / socket.io-parser / source-map-js / nanoid.
+  Frontend production `npm audit` now reports zero high/critical, so the CI
+  Dependency Audit gate is green for both backend and frontend.
+
+### ⬆️ Dependencies
+- Bumped `actions/setup-node` 6 → 7 (#27).
+- Frontend production-dependencies group: 20 updates (#64) — Radix UI, React
+  19.3, recharts, socket.io-client, zod, etc.
+
 ## [3.4.0] - 2026-10-11
 
 ### ✨ Added — SaaS billing, tenant data isolation, and agent harness
