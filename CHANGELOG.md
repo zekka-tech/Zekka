@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.3.2] - 2026-10-11
+
 ### 🐛 Fixed — fresh-deployment landmines
 A pristine deployment (`npm run migrate` + first boot on an empty database)
 now works end-to-end; verified live: migrate completes, first boot is
