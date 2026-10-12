@@ -12,6 +12,12 @@ updates:
     labels:
       - "dependencies"
       - "backend"
+    ignore:
+      # typescript-eslint peers cap at <6.1.0; hold TS on the 6.x line until the
+      # lint toolchain supports TS 7 (otherwise grouped dev-dep PRs fail to
+      # resolve at npm ci). Lift once typescript-eslint ships TS-7 support.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
     groups:
       dev-dependencies:
         dependency-type: "development"
@@ -30,6 +36,10 @@ updates:
     labels:
       - "dependencies"
       - "frontend"
+    ignore:
+      # Same TS-7 hold as backend: typescript-eslint peers cap at <6.1.0.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
     groups:
       dev-dependencies:
         dependency-type: "development"
