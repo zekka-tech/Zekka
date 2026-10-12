@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.4.2] - 2026-10-12
+
+### ✨ Added — Stripe billing config wiring
+- Billing is deploy-ready: `BILLING_ENABLED` + `STRIPE_*` / `APP_URL` /
+  `BILLING_*` added to the config env schema with **fail-fast validation**
+  (`STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` required when billing is on;
+  `STRIPE_PRICE_MAP` must be a JSON object), plus a non-secret startup status log.
+- Env scaffolding in `.env.example` / `.env.production.example`, k8s ConfigMap
+  (non-secret keys) + `zekka-secrets` Secret (`STRIPE_SECRET_KEY` /
+  `STRIPE_WEBHOOK_SECRET`, `envFrom`-injected), and `docker-compose.prod.yml`
+  passthrough.
+- New `docs/BILLING_SETUP.md` go-live runbook.
+
+Billing remains OFF by default; operators supply the real `sk_`/`whsec_`/`price_`
+values via env or a secret manager. No code-surface or dependency changes.
+
 ## [3.4.1] - 2026-10-11
 
 ### 🔒 Security
