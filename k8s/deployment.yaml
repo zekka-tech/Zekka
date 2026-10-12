@@ -39,6 +39,12 @@ data:
   VAULT_ENABLED: "false"
   RATE_LIMIT_WINDOW_MS: "900000"
   RATE_LIMIT_MAX_REQUESTS: "100"
+  # Billing (Stripe). Non-secret config only — the API/webhook keys live in the
+  # zekka-secrets Secret below. Flip BILLING_ENABLED to "true" and fill the
+  # price map to turn on the /api/v1/billing endpoints. Price IDs are not secret.
+  BILLING_ENABLED: "false"
+  STRIPE_PRICE_MAP: '{"pro":"price_REPLACE","business":"price_REPLACE"}'
+  STRIPE_METERED_USAGE_PRICE_ID: ""
 
 ---
 # DO NOT commit actual secrets here.
@@ -52,7 +58,11 @@ data:
 #     --from-literal=POSTGRES_USER=zekka_admin \
 #     --from-literal=POSTGRES_PASSWORD=$(openssl rand -hex 16) \
 #     --from-literal=REDIS_PASSWORD=$(openssl rand -hex 16) \
-#     --from-literal=VAULT_TOKEN=<your-vault-token>
+#     --from-literal=VAULT_TOKEN=<your-vault-token> \
+#     --from-literal=STRIPE_SECRET_KEY=<sk_live_...> \
+#     --from-literal=STRIPE_WEBHOOK_SECRET=<whsec_...>
+#
+# (STRIPE_* only required when BILLING_ENABLED="true" in the ConfigMap.)
 #
 # For production use an external secrets operator (e.g. External Secrets Operator
 # with HashiCorp Vault) so secrets are never committed to git.

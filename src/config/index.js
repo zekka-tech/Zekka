@@ -145,6 +145,53 @@ const envSchema = joi
 
     MONTHLY_BUDGET: joi.number().default(1000),
 
+    // Billing (Stripe) — keys are required only when billing is enabled, so
+    // single-tenant / self-host deployments boot fine without them.
+    BILLING_ENABLED: joi.boolean().truthy('true').falsy('false').default(false),
+
+    STRIPE_SECRET_KEY: joi.string().allow('').default('')
+      .when('BILLING_ENABLED', {
+        is: true,
+        then: joi.string().required().messages({
+          'any.required': 'STRIPE_SECRET_KEY is required when BILLING_ENABLED=true'
+        })
+      }),
+
+    STRIPE_WEBHOOK_SECRET: joi.string().allow('').default('')
+      .when('BILLING_ENABLED', {
+        is: true,
+        then: joi.string().required().messages({
+          'any.required': 'STRIPE_WEBHOOK_SECRET is required when BILLING_ENABLED=true'
+        })
+      }),
+
+    // JSON object mapping internal plan keys → Stripe Price IDs, e.g.
+    // {"pro":"price_123","business":"price_456"}. Validated as parseable JSON.
+    STRIPE_PRICE_MAP: joi.string().allow('').default('')
+      .custom((value, helpers) => {
+        if (!value) return value;
+        try {
+          const parsed = JSON.parse(value);
+          if (typeof parsed !== 'object' || Array.isArray(parsed) || parsed === null) {
+            return helpers.error('any.invalid');
+          }
+          return value;
+        } catch {
+          return helpers.error('any.invalid');
+        }
+      })
+      .messages({ 'any.invalid': 'STRIPE_PRICE_MAP must be a JSON object of plan→priceId' }),
+
+    STRIPE_METERED_USAGE_PRICE_ID: joi.string().allow('').default(''),
+
+    BILLING_PORTAL_RETURN_URL: joi.string().allow('').default(''),
+
+    BILLING_CHECKOUT_SUCCESS_URL: joi.string().allow('').default(''),
+
+    BILLING_CHECKOUT_CANCEL_URL: joi.string().allow('').default(''),
+
+    APP_URL: joi.string().allow('').default(''),
+
     // TwinGate & Wazuh
     TWINGATE_API_URL: joi.string().allow('').default(''),
 
@@ -421,5 +468,13 @@ logger.info(
   `   Rate Limit: ${config.rateLimit.max} req/${config.rateLimit.windowMs}ms`
 );
 logger.info(`   MFA: ${config.security.mfaEnabled ? 'Enabled' : 'Disabled'}`);
+if (config.billing.enabled) {
+  const plans = Object.keys(config.billing.priceMap);
+  logger.info(
+    `   Billing: Enabled (Stripe; ${plans.length} plan price(s)${plans.length ? `: ${plans.join(', ')}` : ''})`
+  );
+} else {
+  logger.info('   Billing: Disabled');
+}
 
 module.exports = config;

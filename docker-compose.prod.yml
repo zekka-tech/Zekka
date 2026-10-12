@@ -182,6 +182,13 @@ services:
       - JWT_SECRET=${JWT_SECRET:?JWT_SECRET is required}
       - SESSION_SECRET=${SESSION_SECRET:?SESSION_SECRET is required}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY:?ENCRYPTION_KEY is required}
+      # Billing (Stripe) — off by default; STRIPE_* required only when enabled.
+      - BILLING_ENABLED=${BILLING_ENABLED:-false}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}
+      - STRIPE_PRICE_MAP=${STRIPE_PRICE_MAP:-}
+      - STRIPE_METERED_USAGE_PRICE_ID=${STRIPE_METERED_USAGE_PRICE_ID:-}
+      - APP_URL=${APP_URL:-}
     env_file:
       - .env.production
     volumes:
