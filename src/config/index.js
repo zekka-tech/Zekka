@@ -184,6 +184,10 @@ const envSchema = joi
 
     STRIPE_METERED_USAGE_PRICE_ID: joi.string().allow('').default(''),
 
+    STRIPE_METER_EVENT_NAME: joi.string().allow('').default(''),
+
+    STRIPE_USAGE_REPORT_INTERVAL_MS: joi.number().allow('').default(3600000),
+
     BILLING_PORTAL_RETURN_URL: joi.string().allow('').default(''),
 
     BILLING_CHECKOUT_SUCCESS_URL: joi.string().allow('').default(''),
@@ -392,7 +396,12 @@ const config = {
       }
     })(),
     // Stripe Price ID used for metered usage (per-1k-token) billing, optional
-    meteredUsagePriceId: env.STRIPE_METERED_USAGE_PRICE_ID || null
+    meteredUsagePriceId: env.STRIPE_METERED_USAGE_PRICE_ID || null,
+    // Stripe Billing Meter event name the usage reporter emits to, optional
+    meterEventName: env.STRIPE_METER_EVENT_NAME || null,
+    // How often the background usage reporter pushes to Stripe (ms)
+    meterReportIntervalMs:
+      parseInt(env.STRIPE_USAGE_REPORT_INTERVAL_MS, 10) || 60 * 60 * 1000
   },
 
   // Agent Config

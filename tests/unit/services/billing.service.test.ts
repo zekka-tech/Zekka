@@ -10,7 +10,8 @@ const stripeMocks = {
   customers: { create: jest.fn() },
   checkout: { sessions: { create: jest.fn() } },
   billingPortal: { sessions: { create: jest.fn() } },
-  webhooks: { constructEvent: jest.fn() }
+  webhooks: { constructEvent: jest.fn() },
+  billing: { meterEvents: { create: jest.fn() } }
 };
 jest.mock('stripe', () => jest.fn().mockImplementation(() => stripeMocks));
 
@@ -24,7 +25,9 @@ jest.mock('../../../src/config', () => ({
     checkoutSuccessUrl: 'https://app.test/success',
     checkoutCancelUrl: 'https://app.test/cancel',
     priceMap: { pro: 'price_pro_123' },
-    meteredUsagePriceId: null
+    meteredUsagePriceId: null,
+    meterEventName: 'zekka_tokens',
+    meterReportIntervalMs: 3600000
   }
 }));
 
@@ -224,5 +227,73 @@ describe('getUsageSummary', () => {
     expect(summary.totalBilledUsd).toBe(0.65);
     expect(summary.byModel).toHaveLength(1);
     expect(summary.byModel[0]?.model).toBe('claude-opus-4-8');
+  });
+});
+
+describe('reportMeteredUsage', () => {
+  it('aggregates unreported usage per tenant, pushes a meter event, and marks reported', async () => {
+    poolQuery
+      // enumerate tenants with unreported usage + customer id
+      .mockResolvedValueOnce({ rows: [{ tenant_id: TENANT_ID, stripe_customer_id: 'cus_1' }] })
+      // per-tenant snapshot (ids + quantities)
+      .mockResolvedValueOnce({ rows: [{ id: 'u1', quantity: 1000 }, { id: 'u2', quantity: 500 }] })
+      // UPDATE ... reported_to_stripe
+      .mockResolvedValueOnce({ rowCount: 2 });
+    stripeMocks.billing.meterEvents.create.mockResolvedValue({ id: 'mtr_1' });
+
+    const report = await billingService.reportMeteredUsage();
+
+    expect(report.tenantsReported).toBe(1);
+    expect(report.recordsReported).toBe(2);
+    expect(report.totalQuantity).toBe(1500);
+    expect(stripeMocks.billing.meterEvents.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event_name: 'zekka_tokens',
+        payload: expect.objectContaining({ stripe_customer_id: 'cus_1', value: '1500' })
+      })
+    );
+    // the UPDATE marks exactly the snapshot ids
+    const updateCall = poolQuery.mock.calls.find((c: unknown[]) =>
+      String(c[0]).includes('reported_to_stripe = TRUE'));
+    expect(updateCall![1]).toEqual([['u1', 'u2']]);
+  });
+
+  it('skips a tenant with no stripe_customer_id and never pushes', async () => {
+    poolQuery.mockResolvedValueOnce({ rows: [{ tenant_id: TENANT_ID, stripe_customer_id: null }] });
+    const report = await billingService.reportMeteredUsage();
+    expect(report.tenantsReported).toBe(0);
+    expect(report.skipped[0]).toMatchObject({ tenantId: TENANT_ID, reason: expect.stringMatching(/stripe_customer_id/) });
+    expect(stripeMocks.billing.meterEvents.create).not.toHaveBeenCalled();
+  });
+
+  it('does NOT mark records when the Stripe push fails (retry-safe)', async () => {
+    poolQuery
+      .mockResolvedValueOnce({ rows: [{ tenant_id: TENANT_ID, stripe_customer_id: 'cus_1' }] })
+      .mockResolvedValueOnce({ rows: [{ id: 'u1', quantity: 10 }] });
+    stripeMocks.billing.meterEvents.create.mockRejectedValue(new Error('stripe down'));
+
+    const report = await billingService.reportMeteredUsage();
+
+    expect(report.tenantsReported).toBe(0);
+    expect(report.skipped[0]?.reason).toMatch(/stripe push failed/);
+    const markedAnything = poolQuery.mock.calls.some((c: unknown[]) =>
+      String(c[0]).includes('reported_to_stripe = TRUE'));
+    expect(markedAnything).toBe(false);
+  });
+
+  it('dry-run computes totals without calling Stripe or marking rows', async () => {
+    poolQuery
+      .mockResolvedValueOnce({ rows: [{ tenant_id: TENANT_ID, stripe_customer_id: 'cus_1' }] })
+      .mockResolvedValueOnce({ rows: [{ id: 'u1', quantity: 42 }] });
+
+    const report = await billingService.reportMeteredUsage({ dryRun: true });
+
+    expect(report.dryRun).toBe(true);
+    expect(report.tenantsReported).toBe(1);
+    expect(report.totalQuantity).toBe(42);
+    expect(stripeMocks.billing.meterEvents.create).not.toHaveBeenCalled();
+    const markedAnything = poolQuery.mock.calls.some((c: unknown[]) =>
+      String(c[0]).includes('reported_to_stripe = TRUE'));
+    expect(markedAnything).toBe(false);
   });
 });

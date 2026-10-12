@@ -88,6 +88,7 @@ import billingRoutes = require('./routes/billing.routes');
 import { stripeWebhookHandler } from './routes/billing.webhook';
 import agentRegistryRoutes = require('./routes/agent-registry.routes');
 import { agentRegistryService } from './services/agent-registry.service';
+import { startMeteredUsageReporter } from './services/billing.service';
 import runsRoutes = require('./routes/runs.routes');
 
 // Logger setup
@@ -320,6 +321,10 @@ async function initializeServices(): Promise<void> {
         `agent-registry: built-in seed skipped: ${(seedError as Error).message}`
       );
     }
+
+    // Start the Stripe metered-usage reporter (no-op unless billing + a meter
+    // event name are configured).
+    startMeteredUsageReporter();
 
     logger.info('🎉 All services initialized successfully!');
   } catch (error) {

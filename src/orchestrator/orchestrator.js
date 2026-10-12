@@ -8,6 +8,8 @@ const { runTrackerService } = require('../services/run-tracker.service');
 const { agentMemoryService } = require('../services/agent-memory.service');
 const { getDatabaseSsl } = require('../config/database-ssl');
 const { createDefaultRegistry } = require('./tools');
+const { DockerSandbox } = require('./sandbox/docker-sandbox');
+const { PlaywrightBrowser } = require('./browser/playwright-browser');
 const { AgentRunner } = require('./agent-runner');
 const { extractJsonObject } = require('./parse-action');
 
@@ -120,11 +122,23 @@ class ZekkaOrchestrator {
           // only runs at agent runtime) so agents can discover — never mutate —
           // the schema.
           dbQuery: (sql, params) => this.db.query(sql, params),
-          // code_exec runs through an isolated sandbox when one is wired
-          // (this.config.sandbox). Absent that, local execution stays OFF unless
-          // explicitly opted in for trusted single-tenant/dev use.
-          sandbox: this.config.sandbox || null,
-          allowUnsafeLocalExec: process.env.AGENT_ALLOW_LOCAL_EXEC === 'true'
+          // code_exec runs through an isolated sandbox when one is wired:
+          // an explicit config.sandbox wins; otherwise AGENT_SANDBOX=docker
+          // selects the Docker isolate backend. Absent any sandbox, local
+          // execution stays OFF unless explicitly opted in (trusted/dev only).
+          sandbox: this.config.sandbox
+            || (process.env.AGENT_SANDBOX === 'docker'
+              ? new DockerSandbox({ logger: this.logger })
+              : null),
+          allowUnsafeLocalExec: process.env.AGENT_ALLOW_LOCAL_EXEC === 'true',
+          // Headless browser backend for the `browser` tool: config.browser wins;
+          // else AGENT_BROWSER=playwright selects Playwright (requires the
+          // optional playwright dep). Absent one, the tool uses its fetch-based
+          // read-only fallback.
+          browser: this.config.browser
+            || (process.env.AGENT_BROWSER === 'playwright'
+              ? new PlaywrightBrowser({ logger: this.logger })
+              : null)
         },
         // Cross-run memory for agents (recall at start, remember at finish).
         memoryStore: agentMemoryService

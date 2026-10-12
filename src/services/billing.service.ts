@@ -49,6 +49,14 @@ export interface UsageSummary {
   byModel: Array<{ model: string; quantity: number; billedUsd: number }>;
 }
 
+export interface MeteredUsageReport {
+  tenantsReported: number;
+  recordsReported: number;
+  totalQuantity: number;
+  skipped: Array<{ tenantId: string; reason: string }>;
+  dryRun: boolean;
+}
+
 /** Default markup applied to raw provider cost when a billed amount is omitted. */
 const DEFAULT_USAGE_MARKUP = 1.3;
 
@@ -361,7 +369,146 @@ class BillingService {
       }))
     };
   }
+
+  // ========================================
+  // Metered usage → Stripe (usage-based billing)
+  // ========================================
+
+  /**
+   * Aggregate unreported usage per tenant and push it to Stripe as meter
+   * events, then mark exactly the records that were reported.
+   *
+   * Correctness/idempotency:
+   * - Each tenant's quantity AND the record ids come from the SAME snapshot, so
+   *   usage inserted mid-run rolls over to the next cycle (never double-counted).
+   * - A failed Stripe push leaves that tenant's records unreported → retried
+   *   next run. Records are only marked after a successful push.
+   *
+   * @param opts.dryRun compute the report without calling Stripe or marking rows
+   */
+  async reportMeteredUsage(opts: { dryRun?: boolean } = {}): Promise<MeteredUsageReport> {
+    const dryRun = Boolean(opts.dryRun);
+    const report: MeteredUsageReport = {
+      tenantsReported: 0,
+      recordsReported: 0,
+      totalQuantity: 0,
+      skipped: [],
+      dryRun
+    };
+
+    if (!this.isEnabled) {
+      report.skipped.push({ tenantId: '*', reason: 'billing disabled' });
+      return report;
+    }
+
+    // Enumerate tenants that have unreported usage, with their Stripe customer.
+    const tenants = await pool.query(
+      `SELECT ur.tenant_id, t.stripe_customer_id
+       FROM usage_records ur
+       JOIN tenants t ON t.id = ur.tenant_id
+       WHERE ur.reported_to_stripe = FALSE
+       GROUP BY ur.tenant_id, t.stripe_customer_id`
+    );
+
+    for (const row of tenants.rows) {
+      const tenantId = row.tenant_id as string;
+      const customerId = row.stripe_customer_id as string | null;
+
+      if (!customerId) {
+        report.skipped.push({ tenantId, reason: 'no stripe_customer_id' });
+        continue;
+      }
+
+      // Single snapshot: ids + quantity are consistent with each other.
+      const snapshot = await pool.query(
+        `SELECT id, quantity FROM usage_records
+         WHERE tenant_id = $1 AND reported_to_stripe = FALSE`,
+        [tenantId]
+      );
+      const ids = snapshot.rows.map((r) => r.id as string);
+      const qty = snapshot.rows.reduce((sum, r) => sum + Number(r.quantity), 0);
+
+      if (ids.length === 0 || qty <= 0) {
+        report.skipped.push({ tenantId, reason: 'zero reportable quantity' });
+        continue;
+      }
+
+      if (!dryRun) {
+        try {
+          await this.pushMeterEvent(customerId, qty);
+        } catch (err) {
+          report.skipped.push({
+            tenantId,
+            reason: `stripe push failed: ${(err as Error).message}`
+          });
+          continue; // leave unreported for the next run
+        }
+        await pool.query(
+          'UPDATE usage_records SET reported_to_stripe = TRUE WHERE id = ANY($1)',
+          [ids]
+        );
+      }
+
+      report.tenantsReported += 1;
+      report.recordsReported += ids.length;
+      report.totalQuantity += qty;
+    }
+
+    logger.info(
+      `billing: metered usage report — ${report.tenantsReported} tenant(s), `
+      + `${report.recordsReported} record(s), qty ${report.totalQuantity}`
+      + `${dryRun ? ' (dry-run)' : ''}`
+      + (report.skipped.length ? `, ${report.skipped.length} skipped` : '')
+    );
+    return report;
+  }
+
+  /**
+   * Emit one Stripe Billing Meter Event for a customer's aggregated usage.
+   * Isolated so the exact Stripe API surface is easy to confirm/adjust against
+   * your account's meter configuration (`STRIPE_METER_EVENT_NAME`).
+   */
+  private async pushMeterEvent(customerId: string, value: number): Promise<void> {
+    const eventName = config.billing.meterEventName;
+    if (!eventName) {
+      throw new AppError(
+        'STRIPE_METER_EVENT_NAME is not configured (required for metered usage)',
+        502
+      );
+    }
+    // Stripe Billing Meter Events API (usage-based billing). `as any` because
+    // the billing.meterEvents surface is namespaced and version-sensitive.
+    await (this.stripe as unknown as {
+      billing: { meterEvents: { create: (p: unknown) => Promise<unknown> } };
+    }).billing.meterEvents.create({
+      event_name: eventName,
+      payload: {
+        stripe_customer_id: customerId,
+        value: String(Math.round(value))
+      },
+      timestamp: Math.floor(Date.now() / 1000)
+    });
+  }
 }
 
 export const billingService = new BillingService();
+
+/**
+ * Start the background reporter that periodically pushes metered usage to
+ * Stripe. No-op unless billing is enabled. Returns the interval handle (or null)
+ * so callers can clear it on shutdown.
+ */
+export function startMeteredUsageReporter(
+  intervalMs: number = config.billing.meterReportIntervalMs
+): ReturnType<typeof setInterval> | null {
+  if (!billingService.isEnabled || !config.billing.meterEventName) return null;
+  const handle = setInterval(() => {
+    billingService.reportMeteredUsage().catch((err) => {
+      logger.error(`billing: metered usage report failed: ${(err as Error).message}`);
+    });
+  }, intervalMs);
+  if (typeof handle.unref === 'function') handle.unref();
+  logger.info(`billing: metered usage reporter started (every ${intervalMs}ms)`);
+  return handle;
+}
 export type { TenantRow };
