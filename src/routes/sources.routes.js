@@ -7,6 +7,7 @@ const express = require('express');
 
 const router = express.Router();
 const sourcesController = require('../controllers/sources.controller');
+const { asyncHandler } = require('../middleware/error-handler.middleware');
 const { authenticate } = require('../middleware/auth');
 const { optionalTenantContext } = require('../middleware/tenant-context');
 
@@ -19,13 +20,13 @@ router.use(optionalTenantContext);
  * @route   GET /api/v1/sources?projectId=:projectId
  * @desc    List sources for a project
  */
-router.get('/', sourcesController.listSources);
+router.get('/', asyncHandler(sourcesController.listSources));
 
 /**
  * @route   POST /api/v1/sources
  * @desc    Create a source (text/url/github/database/api, or uploaded file text)
  */
-router.post('/', sourcesController.uploadSource);
+router.post('/', asyncHandler(sourcesController.uploadSource));
 
 // NOTE: the static /search segment MUST be declared before the parameterised
 // /:id route or Express would match it as id="search".
@@ -34,30 +35,30 @@ router.post('/', sourcesController.uploadSource);
  * @route   GET /api/v1/sources/search?projectId=:projectId&q=:query
  * @desc    Fuzzy-search sources in a project
  */
-router.get('/search', sourcesController.searchSources);
+router.get('/search', asyncHandler(sourcesController.searchSources));
 
 /**
  * @route   GET /api/v1/sources/:projectId/stats
  * @desc    Source statistics for a project
  */
-router.get('/:projectId/stats', sourcesController.getSourceStats);
+router.get('/:projectId/stats', asyncHandler(sourcesController.getSourceStats));
 
 /**
  * @route   GET /api/v1/sources/:id
  * @desc    Get a specific source
  */
-router.get('/:id', sourcesController.getSource);
+router.get('/:id', asyncHandler(sourcesController.getSource));
 
 /**
  * @route   PUT /api/v1/sources/:id
  * @desc    Update a source
  */
-router.put('/:id', sourcesController.updateSource);
+router.put('/:id', asyncHandler(sourcesController.updateSource));
 
 /**
  * @route   DELETE /api/v1/sources/:id
  * @desc    Delete a source (soft delete)
  */
-router.delete('/:id', sourcesController.deleteSource);
+router.delete('/:id', asyncHandler(sourcesController.deleteSource));
 
 module.exports = router;

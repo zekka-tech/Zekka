@@ -14,6 +14,7 @@
 const crypto = require('crypto');
 const expressSession = require('express-session');
 const { RedisStore } = require('connect-redis');
+const logger = require('./logger');
 
 class SessionManager {
   constructor(redisClient, options = {}) {
@@ -767,7 +768,7 @@ class SessionManager {
         try {
           await this.cleanupExpiredSessions();
         } catch (error) {
-          console.error('Session cleanup error:', error);
+          logger.error('Session cleanup error:', error);
         }
       },
       intervalMinutes * 60 * 1000

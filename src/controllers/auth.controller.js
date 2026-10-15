@@ -39,190 +39,150 @@ class AuthController {
     this.refreshToken = this.refreshToken.bind(this);
   }
 
-  async register(req, res, next) {
-    try {
-      const { error, value } = registerSchema.validate(req.body, {
-        abortEarly: false,
-        stripUnknown: true
+  async register(req, res) {
+    const { error, value } = registerSchema.validate(req.body, {
+      abortEarly: false,
+      stripUnknown: true
+    });
+
+    if (error) {
+      return res.status(400).json({
+        error: error.details.map((detail) => detail.message).join('; ')
       });
-
-      if (error) {
-        return res.status(400).json({
-          error: error.details.map((detail) => detail.message).join('; ')
-        });
-      }
-
-      const result = await this.authService.register({
-        email: value.email,
-        password: value.password,
-        name: value.name,
-        metadata: {
-          ipAddress: req.ip,
-          userAgent: req.get('user-agent')
-        }
-      });
-
-      return res.status(201).json(result);
-    } catch (error) {
-      return next(error);
     }
-  }
 
-  async login(req, res, next) {
-    try {
-      const { error, value } = loginSchema.validate(req.body, {
-        abortEarly: false,
-        stripUnknown: true
-      });
-
-      if (error) {
-        return res.status(400).json({
-          error: error.details.map((detail) => detail.message).join('; ')
-        });
-      }
-
-      const result = await this.authService.login(value.email, value.password, {
+    const result = await this.authService.register({
+      email: value.email,
+      password: value.password,
+      name: value.name,
+      metadata: {
         ipAddress: req.ip,
         userAgent: req.get('user-agent')
+      }
+    });
+
+    return res.status(201).json(result);
+  }
+
+  async login(req, res) {
+    const { error, value } = loginSchema.validate(req.body, {
+      abortEarly: false,
+      stripUnknown: true
+    });
+
+    if (error) {
+      return res.status(400).json({
+        error: error.details.map((detail) => detail.message).join('; ')
       });
-
-      return res.json(result);
-    } catch (error) {
-      return next(error);
     }
+
+    const result = await this.authService.login(value.email, value.password, {
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent')
+    });
+
+    return res.json(result);
   }
 
-  async me(req, res, next) {
-    try {
-      const user = await this.authService.getUserById(req.user.userId);
-      return res.json({ user });
-    } catch (error) {
-      return next(error);
-    }
+  async me(req, res) {
+    const user = await this.authService.getUserById(req.user.userId);
+    return res.json({ user });
   }
 
-  async logout(req, res, next) {
-    try {
-      const authHeader = req.headers.authorization || '';
-      const token = authHeader.startsWith('Bearer ')
-        ? authHeader.slice(7)
-        : null;
+  async logout(req, res) {
+    const authHeader = req.headers.authorization || '';
+    const token = authHeader.startsWith('Bearer ')
+      ? authHeader.slice(7)
+      : null;
 
-      if (!token) {
-        return res.status(400).json({ error: 'Missing bearer token' });
-      }
-
-      const result = await this.authService.logout(
-        req.user.userId,
-        token,
-        req.body?.refreshToken || null
-      );
-      return res.json(result);
-    } catch (error) {
-      return next(error);
+    if (!token) {
+      return res.status(400).json({ error: 'Missing bearer token' });
     }
+
+    const result = await this.authService.logout(
+      req.user.userId,
+      token,
+      req.body?.refreshToken || null
+    );
+    return res.json(result);
   }
 
-  async changePassword(req, res, next) {
-    try {
-      const { currentPassword, newPassword } = req.body;
+  async changePassword(req, res) {
+    const { currentPassword, newPassword } = req.body;
 
-      if (!currentPassword || !newPassword) {
-        return res.status(400).json({
-          error: 'currentPassword and newPassword are required'
-        });
-      }
-
-      const result = await this.authService.changePassword(
-        req.user.userId,
-        currentPassword,
-        newPassword
-      );
-
-      return res.json(result);
-    } catch (error) {
-      return next(error);
-    }
-  }
-
-  async forgotPassword(req, res, next) {
-    try {
-      const { email } = req.body;
-
-      if (!email) {
-        return res.status(400).json({ error: 'Email is required' });
-      }
-
-      const result = await this.authService.requestPasswordReset(email);
-      return res.json({ message: result.message });
-    } catch (error) {
-      return next(error);
-    }
-  }
-
-  async resetPassword(req, res, next) {
-    try {
-      const { token, newPassword } = req.body;
-
-      if (!token || !newPassword) {
-        return res.status(400).json({
-          error: 'token and newPassword are required'
-        });
-      }
-
-      const result = await this.authService.resetPassword(token, newPassword);
-      return res.json(result);
-    } catch (error) {
-      return next(error);
-    }
-  }
-
-  async verifyEmail(req, res, next) {
-    try {
-      const { token } = req.body;
-
-      if (!token) {
-        return res.status(400).json({ error: 'token is required' });
-      }
-
-      const result = await this.authService.verifyEmail(token);
-      return res.json(result);
-    } catch (error) {
-      return next(error);
-    }
-  }
-
-  async resendVerificationEmail(req, res, next) {
-    try {
-      const { email } = req.body;
-
-      if (!email) {
-        return res.status(400).json({ error: 'Email is required' });
-      }
-
-      const result = await this.authService.resendVerificationEmail(email);
-      return res.json(result);
-    } catch (error) {
-      return next(error);
-    }
-  }
-
-  async refreshToken(req, res, next) {
-    try {
-      const { refreshToken } = req.body;
-
-      if (!refreshToken) {
-        return res.status(400).json({ error: 'refreshToken is required' });
-      }
-
-      const result = await this.authService.refreshAccessToken(refreshToken, {
-        ipAddress: req.ip,
-        userAgent: req.get('user-agent')
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({
+        error: 'currentPassword and newPassword are required'
       });
-      return res.json(result);
-    } catch (error) {
-      return next(error);
     }
+
+    const result = await this.authService.changePassword(
+      req.user.userId,
+      currentPassword,
+      newPassword
+    );
+
+    return res.json(result);
+  }
+
+  async forgotPassword(req, res) {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    const result = await this.authService.requestPasswordReset(email);
+    return res.json({ message: result.message });
+  }
+
+  async resetPassword(req, res) {
+    const { token, newPassword } = req.body;
+
+    if (!token || !newPassword) {
+      return res.status(400).json({
+        error: 'token and newPassword are required'
+      });
+    }
+
+    const result = await this.authService.resetPassword(token, newPassword);
+    return res.json(result);
+  }
+
+  async verifyEmail(req, res) {
+    const { token } = req.body;
+
+    if (!token) {
+      return res.status(400).json({ error: 'token is required' });
+    }
+
+    const result = await this.authService.verifyEmail(token);
+    return res.json(result);
+  }
+
+  async resendVerificationEmail(req, res) {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    const result = await this.authService.resendVerificationEmail(email);
+    return res.json(result);
+  }
+
+  async refreshToken(req, res) {
+    const { refreshToken } = req.body;
+
+    if (!refreshToken) {
+      return res.status(400).json({ error: 'refreshToken is required' });
+    }
+
+    const result = await this.authService.refreshAccessToken(refreshToken, {
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent')
+    });
+    return res.json(result);
   }
 }
 

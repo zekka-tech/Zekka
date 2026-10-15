@@ -7,6 +7,7 @@ const express = require('express');
 
 const router = express.Router();
 const analyticsController = require('../controllers/analytics.controller');
+const { asyncHandler } = require('../middleware/error-handler.middleware');
 const { authenticate } = require('../middleware/auth');
 const { optionalTenantContext } = require('../middleware/tenant-context');
 
@@ -20,21 +21,21 @@ router.use(optionalTenantContext);
  * @desc    Get user metrics
  * @access  Private
  */
-router.get('/metrics', analyticsController.getMetrics);
+router.get('/metrics', asyncHandler(analyticsController.getMetrics));
 
 /**
  * @route   GET /api/v1/analytics/costs
  * @desc    Get user cost summary
  * @access  Private
  */
-router.get('/costs', analyticsController.getCosts);
+router.get('/costs', asyncHandler(analyticsController.getCosts));
 
 /**
  * @route   GET /api/v1/analytics/costs/breakdown
  * @desc    Get user cost timeline breakdown
  * @access  Private
  */
-router.get('/costs/breakdown', analyticsController.getCostsBreakdown);
+router.get('/costs/breakdown', asyncHandler(analyticsController.getCostsBreakdown));
 
 /**
  * @route   GET /api/v1/analytics/agents/:agentId
@@ -45,7 +46,7 @@ router.get('/costs/breakdown', analyticsController.getCostsBreakdown);
  * NOTE: must be registered before /:projectId so Express does not treat
  * "agents" as a projectId value.
  */
-router.get('/agents/:agentId', analyticsController.getAgentMetrics);
+router.get('/agents/:agentId', asyncHandler(analyticsController.getAgentMetrics));
 
 /**
  * @route   GET /api/v1/analytics/:projectId
@@ -53,7 +54,7 @@ router.get('/agents/:agentId', analyticsController.getAgentMetrics);
  * @access  Private
  * @param   {string} projectId - Project ID
  */
-router.get('/:projectId', analyticsController.getProjectAnalytics);
+router.get('/:projectId', asyncHandler(analyticsController.getProjectAnalytics));
 
 /**
  * @route   GET /api/v1/analytics/:projectId/tokens
@@ -61,7 +62,7 @@ router.get('/:projectId', analyticsController.getProjectAnalytics);
  * @access  Private
  * @param   {string} projectId - Project ID
  */
-router.get('/:projectId/tokens', analyticsController.getTokenUsage);
+router.get('/:projectId/tokens', asyncHandler(analyticsController.getTokenUsage));
 
 /**
  * @route   GET /api/v1/analytics/:projectId/costs
@@ -69,6 +70,6 @@ router.get('/:projectId/tokens', analyticsController.getTokenUsage);
  * @access  Private
  * @param   {string} projectId - Project ID
  */
-router.get('/:projectId/costs', analyticsController.getCostBreakdown);
+router.get('/:projectId/costs', asyncHandler(analyticsController.getCostBreakdown));
 
 module.exports = router;

@@ -7,7 +7,7 @@ import { ThemeProvider } from '@/contexts/ThemeContext'
 import { ToastProvider } from '@/components/ui/Toast'
 import { OfflineBanner } from '@/components/ui/OfflineBanner'
 import { useAuth } from '@/hooks/useAuth'
-import { useTheme } from '@/contexts/ThemeContext'
+import { useTheme } from '@/contexts/theme-context'
 import './styles/globals.css'
 
 const DashboardPage = lazy(() =>

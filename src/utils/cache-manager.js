@@ -14,6 +14,7 @@
 
 const Redis = require('ioredis');
 const { LRUCache } = require('lru-cache');
+const logger = require('./logger');
 
 class CacheManager {
   constructor(config = {}) {
@@ -52,21 +53,21 @@ class CacheManager {
       this.redisAvailable = true;
 
       this.redis.on('error', (error) => {
-        console.error('[CacheManager] Redis error:', error.message);
+        logger.error('[CacheManager] Redis error:', error.message);
         this.redisAvailable = false;
       });
 
       this.redis.on('connect', () => {
-        console.log('[CacheManager] Redis connected');
+        logger.info('[CacheManager] Redis connected');
         this.redisAvailable = true;
       });
 
       this.redis.on('ready', () => {
-        console.log('[CacheManager] Redis ready');
+        logger.info('[CacheManager] Redis ready');
         this.redisAvailable = true;
       });
     } catch (error) {
-      console.error(
+      logger.error(
         '[CacheManager] Failed to initialize Redis:',
         error.message
       );
@@ -128,7 +129,7 @@ class CacheManager {
             }
           }
         } catch (error) {
-          console.error('[CacheManager] Redis get error:', error.message);
+          logger.error('[CacheManager] Redis get error:', error.message);
           this.incrementStat('redis.errors');
         }
       }
@@ -145,7 +146,7 @@ class CacheManager {
       this.incrementStat('misses');
       return null;
     } catch (error) {
-      console.error('[CacheManager] Get error:', error.message);
+      logger.error('[CacheManager] Get error:', error.message);
       this.incrementStat('errors');
       return null;
     }
@@ -168,7 +169,7 @@ class CacheManager {
         try {
           await this.redis.setex(key, effectiveTtl, stringValue);
         } catch (error) {
-          console.error('[CacheManager] Redis set error:', error.message);
+          logger.error('[CacheManager] Redis set error:', error.message);
           this.incrementStat('redis.errors');
         }
       }
@@ -181,7 +182,7 @@ class CacheManager {
       this.incrementStat('sets');
       return true;
     } catch (error) {
-      console.error('[CacheManager] Set error:', error.message);
+      logger.error('[CacheManager] Set error:', error.message);
       this.incrementStat('errors');
       return false;
     }
@@ -199,7 +200,7 @@ class CacheManager {
         try {
           await this.redis.del(key);
         } catch (error) {
-          console.error('[CacheManager] Redis delete error:', error.message);
+          logger.error('[CacheManager] Redis delete error:', error.message);
           this.incrementStat('redis.errors');
         }
       }
@@ -210,7 +211,7 @@ class CacheManager {
       this.incrementStat('deletes');
       return true;
     } catch (error) {
-      console.error('[CacheManager] Delete error:', error.message);
+      logger.error('[CacheManager] Delete error:', error.message);
       this.incrementStat('errors');
       return false;
     }
@@ -233,7 +234,7 @@ class CacheManager {
             deletedCount = await this.redis.del(...keys);
           }
         } catch (error) {
-          console.error(
+          logger.error(
             '[CacheManager] Redis deletePattern error:',
             error.message
           );
@@ -254,7 +255,7 @@ class CacheManager {
 
       return deletedCount;
     } catch (error) {
-      console.error('[CacheManager] DeletePattern error:', error.message);
+      logger.error('[CacheManager] DeletePattern error:', error.message);
       this.incrementStat('errors');
       return 0;
     }
@@ -283,7 +284,7 @@ class CacheManager {
 
       return freshValue;
     } catch (error) {
-      console.error('[CacheManager] GetOrSet error:', error.message);
+      logger.error('[CacheManager] GetOrSet error:', error.message);
       this.incrementStat('errors');
 
       // Try to return cached value even if expired
@@ -349,7 +350,7 @@ class CacheManager {
         try {
           await this.redis.flushdb();
         } catch (error) {
-          console.error('[CacheManager] Redis clear error:', error.message);
+          logger.error('[CacheManager] Redis clear error:', error.message);
           this.incrementStat('redis.errors');
         }
       }
@@ -359,7 +360,7 @@ class CacheManager {
 
       return true;
     } catch (error) {
-      console.error('[CacheManager] Clear error:', error.message);
+      logger.error('[CacheManager] Clear error:', error.message);
       this.incrementStat('errors');
       return false;
     }
@@ -378,14 +379,14 @@ class CacheManager {
         await this.set(entry.key, entry.value, entry.ttl);
         loadedCount++;
       } catch (error) {
-        console.error(
+        logger.error(
           `[CacheManager] Warmup error for key ${entry.key}:`,
           error.message
         );
       }
     }
 
-    console.log(
+    logger.info(
       `[CacheManager] Cache warmed up with ${loadedCount}/${entries.length} entries`
     );
     return loadedCount;

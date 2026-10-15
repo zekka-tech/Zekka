@@ -1,16 +1,8 @@
-import { createContext, useContext, useEffect, type ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import { usePreferences } from '@/hooks/usePreferences'
+import { ThemeContext, type ThemeMode } from './theme-context'
 
-export type ThemeMode = 'light' | 'dark' | 'system'
-
-interface ThemeContextType {
-  theme: ThemeMode
-  setTheme: (theme: ThemeMode) => void
-  resolvedTheme: 'light' | 'dark'
-  systemPreference: 'light' | 'dark'
-}
-
-const ThemeContext = createContext<ThemeContextType | undefined>(undefined)
+export type { ThemeMode }
 
 export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   const { preferences, updatePreference } = usePreferences()
@@ -79,12 +71,4 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
       {children}
     </ThemeContext.Provider>
   )
-}
-
-export const useTheme = () => {
-  const context = useContext(ThemeContext)
-  if (!context) {
-    throw new Error('useTheme must be used within a ThemeProvider')
-  }
-  return context
 }

@@ -12,149 +12,121 @@ class AnalyticsController {
    * Get project analytics
    * GET /api/v1/analytics/:projectId
    */
-  async getProjectAnalytics(req, res, next) {
-    try {
-      const { projectId } = req.params;
-      const { userId } = req.user;
-      const { period = 'month' } = req.query;
+  async getProjectAnalytics(req, res) {
+    const { projectId } = req.params;
+    const { userId } = req.user;
+    const { period = 'month' } = req.query;
 
-      // Pass userId so the service can enforce ownership — prevents IDOR
-      const analytics = await analyticsService.getProjectAnalytics(
-        projectId,
-        period,
-        userId
-      );
+    // Pass userId so the service can enforce ownership — prevents IDOR
+    const analytics = await analyticsService.getProjectAnalytics(
+      projectId,
+      period,
+      userId
+    );
 
-      res.status(200).json({
-        success: true,
-        data: analytics
-      });
-    } catch (error) {
-      next(error);
-    }
+    res.status(200).json({
+      success: true,
+      data: analytics
+    });
   }
 
   /**
    * Get token usage
    * GET /api/v1/analytics/:projectId/tokens
    */
-  async getTokenUsage(req, res, next) {
-    try {
-      const { userId } = req.user;
-      const { period = 'month' } = req.query;
+  async getTokenUsage(req, res) {
+    const { userId } = req.user;
+    const { period = 'month' } = req.query;
 
-      // Service expects userId (not projectId) to scope results to the
-      // authenticated user's own projects.
-      const usage = await analyticsService.getTokenUsage(userId, period, req.tenant?.id || null);
+    // Service expects userId (not projectId) to scope results to the
+    // authenticated user's own projects.
+    const usage = await analyticsService.getTokenUsage(userId, period, req.tenant?.id || null);
 
-      res.status(200).json({
-        success: true,
-        data: usage
-      });
-    } catch (error) {
-      next(error);
-    }
+    res.status(200).json({
+      success: true,
+      data: usage
+    });
   }
 
   /**
    * Get cost breakdown
    * GET /api/v1/analytics/:projectId/costs
    */
-  async getCostBreakdown(req, res, next) {
-    try {
-      const { userId } = req.user;
-      const { period = 'month' } = req.query;
+  async getCostBreakdown(req, res) {
+    const { userId } = req.user;
+    const { period = 'month' } = req.query;
 
-      // Service expects userId (not projectId) to scope results.
-      const costs = await analyticsService.getCostsBreakdown(userId, period);
+    // Service expects userId (not projectId) to scope results.
+    const costs = await analyticsService.getCostsBreakdown(userId, period);
 
-      res.status(200).json({
-        success: true,
-        data: costs
-      });
-    } catch (error) {
-      next(error);
-    }
+    res.status(200).json({
+      success: true,
+      data: costs
+    });
   }
 
   /**
    * Get user cost summary
    * GET /api/v1/analytics/costs
    */
-  async getCosts(req, res, next) {
-    try {
-      const { userId } = req.user;
-      const { period = 'month' } = req.query;
+  async getCosts(req, res) {
+    const { userId } = req.user;
+    const { period = 'month' } = req.query;
 
-      const costs = await analyticsService.getCosts(userId, period, req.tenant?.id || null);
+    const costs = await analyticsService.getCosts(userId, period, req.tenant?.id || null);
 
-      res.status(200).json({
-        success: true,
-        data: costs
-      });
-    } catch (error) {
-      next(error);
-    }
+    res.status(200).json({
+      success: true,
+      data: costs
+    });
   }
 
   /**
    * Get user cost timeline breakdown
    * GET /api/v1/analytics/costs/breakdown
    */
-  async getCostsBreakdown(req, res, next) {
-    try {
-      const { userId } = req.user;
-      const { period = 'month' } = req.query;
+  async getCostsBreakdown(req, res) {
+    const { userId } = req.user;
+    const { period = 'month' } = req.query;
 
-      const costs = await analyticsService.getCostsBreakdown(userId, period);
+    const costs = await analyticsService.getCostsBreakdown(userId, period);
 
-      res.status(200).json({
-        success: true,
-        data: costs
-      });
-    } catch (error) {
-      next(error);
-    }
+    res.status(200).json({
+      success: true,
+      data: costs
+    });
   }
 
   /**
    * Get metrics
    * GET /api/v1/analytics/metrics
    */
-  async getMetrics(req, res, next) {
-    try {
-      const { userId } = req.user;
-      const { period = 'month' } = req.query;
+  async getMetrics(req, res) {
+    const { userId } = req.user;
+    const { period = 'month' } = req.query;
 
-      const metrics = await analyticsService.getDashboardAnalytics(userId, period, req.tenant?.id || null);
+    const metrics = await analyticsService.getDashboardAnalytics(userId, period, req.tenant?.id || null);
 
-      res.status(200).json({
-        success: true,
-        data: metrics
-      });
-    } catch (error) {
-      next(error);
-    }
+    res.status(200).json({
+      success: true,
+      data: metrics
+    });
   }
 
   /**
    * Get agent metrics
    * GET /api/v1/analytics/agents/:agentId
    */
-  async getAgentMetrics(req, res, next) {
-    try {
-      const { agentId } = req.params;
-      const { period = 'month' } = req.query;
+  async getAgentMetrics(req, res) {
+    const { agentId } = req.params;
+    const { period = 'month' } = req.query;
 
-      const metrics = await analyticsService.getAgentMetrics(agentId, period);
+    const metrics = await analyticsService.getAgentMetrics(agentId, period);
 
-      res.status(200).json({
-        success: true,
-        data: metrics
-      });
-    } catch (error) {
-      next(error);
-    }
+    res.status(200).json({
+      success: true,
+      data: metrics
+    });
   }
 }
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { FileText, ExternalLink, Code2, Copy, Check, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/cn'
@@ -21,11 +21,21 @@ export const InlineCitation = ({
   const [copied, setCopied] = useState(false)
   const [copyError, setCopyError] = useState<string | null>(null)
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768)
+  const [tooltipPos, setTooltipPos] = useState({ top: 0, left: 0 })
   const badgeRef = useRef<HTMLButtonElement>(null)
   const tooltipId = `citation-tooltip-${index || 1}`
 
   const filename = citation.filePath.split('/').pop() || citation.filePath
   const directory = citation.filePath.substring(0, citation.filePath.lastIndexOf('/'))
+
+  // Measure the badge position before paint whenever the tooltip opens,
+  // so the portal is positioned without reading refs during render.
+  useLayoutEffect(() => {
+    if (showTooltip && badgeRef.current) {
+      const rect = badgeRef.current.getBoundingClientRect()
+      setTooltipPos({ top: rect.bottom + 8, left: rect.left })
+    }
+  }, [showTooltip])
 
   // Detect mobile on mount and window resize
   useEffect(() => {
@@ -99,12 +109,8 @@ export const InlineCitation = ({
             "min-w-max max-w-sm pointer-events-auto"
           )}
           style={{
-            top: badgeRef.current
-              ? badgeRef.current.getBoundingClientRect().bottom + 8
-              : 0,
-            left: badgeRef.current
-              ? badgeRef.current.getBoundingClientRect().left
-              : 0,
+            top: tooltipPos.top,
+            left: tooltipPos.left,
           }}
         >
           {/* Source file info */}

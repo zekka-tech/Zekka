@@ -44,13 +44,13 @@ export const CostBreakdownChart = ({
   }, [chartData])
 
   const donutSegments = useMemo(() => {
-    let accumulatedPercent = 0
-
-    return chartData.map((item) => {
+    return chartData.map((item, index) => {
       const percentage = Number(item.percentage)
-      const start = accumulatedPercent
-      accumulatedPercent += percentage
-      const end = accumulatedPercent
+      // Prefix sum of preceding segments — no mutable accumulator across iterations.
+      const start = chartData
+        .slice(0, index)
+        .reduce((sum, prev) => sum + Number(prev.percentage), 0)
+      const end = start + percentage
 
       const startAngle = (start / 100) * Math.PI * 2 - Math.PI / 2
       const endAngle = (end / 100) * Math.PI * 2 - Math.PI / 2

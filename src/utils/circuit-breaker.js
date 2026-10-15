@@ -1,10 +1,11 @@
+const Opossum = require('opossum');
+const logger = require('./logger');
 /**
  * Circuit Breaker Pattern for External Services
  *
  * PERFORMANCE FIX: Phase 3 - Circuit breakers for resilience
  */
 
-const Opossum = require('opossum');
 
 const CircuitBreaker = Opossum.default || Opossum;
 
@@ -26,31 +27,31 @@ function createCircuitBreaker(asyncFunction, options = {}) {
 
   // Event handlers
   breaker.on('success', (_result) => {
-    console.log(`✅ Circuit ${options.name}: Success`);
+    logger.info(`✅ Circuit ${options.name}: Success`);
   });
 
   breaker.on('timeout', () => {
-    console.warn(`⏱️  Circuit ${options.name}: Timeout`);
+    logger.warn(`⏱️  Circuit ${options.name}: Timeout`);
   });
 
   breaker.on('reject', () => {
-    console.warn(`🚫 Circuit ${options.name}: Rejected`);
+    logger.warn(`🚫 Circuit ${options.name}: Rejected`);
   });
 
   breaker.on('open', () => {
-    console.error(`⚠️  Circuit ${options.name}: OPEN - Too many failures`);
+    logger.error(`⚠️  Circuit ${options.name}: OPEN - Too many failures`);
   });
 
   breaker.on('halfOpen', () => {
-    console.log(`🔄 Circuit ${options.name}: HALF-OPEN - Testing...`);
+    logger.info(`🔄 Circuit ${options.name}: HALF-OPEN - Testing...`);
   });
 
   breaker.on('close', () => {
-    console.log(`✅ Circuit ${options.name}: CLOSED - Service recovered`);
+    logger.info(`✅ Circuit ${options.name}: CLOSED - Service recovered`);
   });
 
   breaker.on('fallback', (_result) => {
-    console.log(`🔀 Circuit ${options.name}: Fallback executed`);
+    logger.info(`🔀 Circuit ${options.name}: Fallback executed`);
   });
 
   // Add fallback if provided

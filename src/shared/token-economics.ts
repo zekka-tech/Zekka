@@ -1,4 +1,5 @@
 import { Pool } from 'pg';
+import logger from '../utils/logger';
 import type ContextBus = require('./context-bus');
 
 interface TokenEconomicsOptions {
@@ -200,13 +201,13 @@ class TokenEconomics {
 
     // If over 95% of daily budget, use only Ollama
     if (budgetStatus.daily.percent > 95) {
-      console.log('⚠️  Daily budget at 95%+ - forcing Ollama');
+      logger.info('⚠️  Daily budget at 95%+ - forcing Ollama');
       return this.selectOllamaModel(taskComplexity);
     }
 
     // If over 80% of daily budget, switch to cheaper models
     if (budgetStatus.daily.percent > 80) {
-      console.log('⚠️  Daily budget at 80%+ - using economic models');
+      logger.info('⚠️  Daily budget at 80%+ - using economic models');
       // Use Gemini Pro (very cost-effective) for high complexity, Ollama for others
       return taskComplexity === 'high'
         ? 'gemini-pro'
@@ -215,7 +216,7 @@ class TokenEconomics {
 
     // If over 90% of monthly budget, be conservative
     if (budgetStatus.monthly.percent > 90) {
-      console.log('⚠️  Monthly budget at 90%+ - using economic models');
+      logger.info('⚠️  Monthly budget at 90%+ - using economic models');
       return taskComplexity === 'high'
         ? 'gemini-pro'
         : this.selectOllamaModel(taskComplexity);

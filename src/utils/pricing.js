@@ -1,3 +1,4 @@
+const logger = require('./logger');
 /**
  * Model Pricing Configuration
  *
@@ -154,7 +155,7 @@ function calculateCost(model, inputTokens = 0, outputTokens = 0) {
   const pricing = MODEL_PRICING[model];
 
   if (!pricing) {
-    console.warn(`Unknown model: ${model}, using zero cost`);
+    logger.warn(`Unknown model: ${model}, using zero cost`);
     return 0;
   }
 

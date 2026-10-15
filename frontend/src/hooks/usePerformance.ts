@@ -26,15 +26,19 @@ export function useDebounce<T>(value: T, delay: number = 500): T {
  */
 export function useThrottle<T>(value: T, delay: number = 500): T {
   const [throttledValue, setThrottledValue] = useState<T>(value)
-  const lastRan = useRef(Date.now())
+  // Initialized lazily inside the effect to avoid calling Date.now() during render.
+  const lastRan = useRef<number | null>(null)
 
   useEffect(() => {
+    if (lastRan.current === null) {
+      lastRan.current = Date.now()
+    }
     const handler = setTimeout(() => {
-      if (Date.now() - lastRan.current >= delay) {
+      if (Date.now() - (lastRan.current ?? 0) >= delay) {
         setThrottledValue(value)
         lastRan.current = Date.now()
       }
-    }, delay - (Date.now() - lastRan.current))
+    }, delay - (Date.now() - (lastRan.current ?? Date.now())))
 
     return () => {
       clearTimeout(handler)
@@ -114,13 +118,17 @@ export function useMediaQuery(query: string): boolean {
  * Useful for animations, transitions, comparing changes
  */
 export function usePrevious<T>(value: T): T | undefined {
-  const ref = useRef<T | undefined>(undefined)
+  // "Adjust state during render" pattern (React-recommended, compiler-safe):
+  // no refs read during render.
+  const [current, setCurrent] = useState<T>(value)
+  const [previous, setPrevious] = useState<T | undefined>(undefined)
 
-  useEffect(() => {
-    ref.current = value
-  }, [value])
+  if (value !== current) {
+    setPrevious(current)
+    setCurrent(value)
+  }
 
-  return ref.current
+  return previous
 }
 
 /**

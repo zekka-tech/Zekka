@@ -12,6 +12,7 @@
 
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
+const logger = require('./logger');
 const { getKeyManager } = require('./encryption-key-manager');
 
 // Password policy configuration
@@ -357,7 +358,7 @@ class PasswordPolicyManager {
           return true;
         }
       } catch (error) {
-        console.error('Error checking password history:', error);
+        logger.error('Error checking password history:', error);
       }
     }
 

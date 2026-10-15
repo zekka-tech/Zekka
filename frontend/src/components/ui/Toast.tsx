@@ -1,29 +1,9 @@
-import { type ReactNode, createContext, useContext, useState, useCallback } from 'react'
+import { type ReactNode, useState, useCallback } from 'react'
 import { X, CheckCircle, AlertCircle, Info, AlertTriangle } from 'lucide-react'
 import { cn } from '@/lib/cn'
+import { ToastContext, type Toast, type ToastType } from './toast-context'
 
-export type ToastType = 'success' | 'error' | 'info' | 'warning'
-
-export interface Toast {
-  id: string
-  type: ToastType
-  message: string
-  description?: string
-  duration?: number
-  action?: {
-    label: string
-    onClick: () => void
-  }
-}
-
-interface ToastContextType {
-  toasts: Toast[]
-  addToast: (toast: Omit<Toast, 'id'>) => string
-  removeToast: (id: string) => void
-  clearToasts: () => void
-}
-
-const ToastContext = createContext<ToastContextType | undefined>(undefined)
+export type { Toast, ToastType }
 
 /**
  * Toast Provider - Manages toast notifications
@@ -65,35 +45,6 @@ export const ToastProvider = ({ children }: { children: ReactNode }) => {
       <ToastContainer toasts={toasts} onRemove={removeToast} />
     </ToastContext.Provider>
   )
-}
-
-/**
- * useToast hook - Use to show toast notifications
- *
- * @example
- * const { toast } = useToast()
- * toast({ type: 'success', message: 'Saved!' })
- * toast({ type: 'error', message: 'Error', description: 'Something went wrong' })
- */
-export const useToast = () => {
-  const context = useContext(ToastContext)
-  if (!context) {
-    throw new Error('useToast must be used within ToastProvider')
-  }
-
-  return {
-    toast: context.addToast,
-    success: (message: string, description?: string) =>
-      context.addToast({ type: 'success', message, description }),
-    error: (message: string, description?: string) =>
-      context.addToast({ type: 'error', message, description }),
-    info: (message: string, description?: string) =>
-      context.addToast({ type: 'info', message, description }),
-    warning: (message: string, description?: string) =>
-      context.addToast({ type: 'warning', message, description }),
-    remove: context.removeToast,
-    clear: context.clearToasts,
-  }
 }
 
 /**

@@ -17,6 +17,7 @@ const {
   HeadObjectCommand,
   ListObjectsV2Command
 } = require('@aws-sdk/client-s3');
+const logger = require('./logger');
 
 /**
  * Storage configuration
@@ -76,23 +77,23 @@ async function initializeStorage() {
   if (STORAGE_CONFIG.type === 'local') {
     try {
       await fs.mkdir(STORAGE_CONFIG.local.uploadDir, { recursive: true });
-      console.log(
+      logger.info(
         '✅ Local file storage initialized:',
         STORAGE_CONFIG.local.uploadDir
       );
     } catch (error) {
-      console.error('❌ Failed to initialize local storage:', error);
+      logger.error('❌ Failed to initialize local storage:', error);
       throw error;
     }
   } else if (STORAGE_CONFIG.type === 's3') {
     try {
       // Initialize S3 client
       getS3Client();
-      console.log('✅ S3 storage configuration loaded');
-      console.log(`   Bucket: ${STORAGE_CONFIG.s3.bucket}`);
-      console.log(`   Region: ${STORAGE_CONFIG.s3.region}`);
+      logger.info('✅ S3 storage configuration loaded');
+      logger.info(`   Bucket: ${STORAGE_CONFIG.s3.bucket}`);
+      logger.info(`   Region: ${STORAGE_CONFIG.s3.region}`);
     } catch (error) {
-      console.error('❌ Failed to initialize S3 storage:', error);
+      logger.error('❌ Failed to initialize S3 storage:', error);
       throw error;
     }
   }
@@ -194,7 +195,7 @@ async function uploadToLocal(fileData, filename, subfolder = '') {
       uploadedAt: new Date().toISOString()
     };
   } catch (error) {
-    console.error('❌ Local upload failed:', error);
+    logger.error('❌ Local upload failed:', error);
     throw new Error(`Failed to upload file: ${error.message}`);
   }
 }
@@ -270,7 +271,7 @@ async function uploadToS3(fileData, filename, subfolder = '') {
         : `https://${STORAGE_CONFIG.s3.bucket}.s3.${STORAGE_CONFIG.s3.region}.amazonaws.com/${key}`
     };
   } catch (error) {
-    console.error('❌ S3 upload failed:', error);
+    logger.error('❌ S3 upload failed:', error);
     throw new Error(`Failed to upload file to S3: ${error.message}`);
   }
 }
@@ -318,7 +319,7 @@ async function deleteFromLocal(filePath) {
     await fs.unlink(absolutePath);
     return true;
   } catch (error) {
-    console.error('❌ Failed to delete file:', error);
+    logger.error('❌ Failed to delete file:', error);
     return false;
   }
 }
@@ -340,7 +341,7 @@ async function deleteFromS3(fileKey) {
     await client.send(command);
     return true;
   } catch (error) {
-    console.error('❌ Failed to delete file from S3:', error);
+    logger.error('❌ Failed to delete file from S3:', error);
     return false;
   }
 }
@@ -392,7 +393,7 @@ async function getFileStreamS3(fileKey) {
     // Return the body stream
     return response.Body;
   } catch (error) {
-    console.error('❌ Failed to get file stream from S3:', error);
+    logger.error('❌ Failed to get file stream from S3:', error);
     throw new Error(`Failed to get file stream from S3: ${error.message}`);
   }
 }
@@ -494,7 +495,7 @@ async function getFileMetadata(filePath) {
         metadata: response.Metadata || {}
       };
     } catch (error) {
-      console.error('❌ Failed to get S3 file metadata:', error);
+      logger.error('❌ Failed to get S3 file metadata:', error);
       throw new Error(`Failed to get file metadata from S3: ${error.message}`);
     }
   }

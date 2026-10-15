@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 import type { ReactNode } from 'react'
-import { ThemeProvider, useTheme } from '../ThemeContext'
+import { ThemeProvider } from '../ThemeContext'
+import { useTheme } from '../theme-context'
 
 const PREFERENCES_KEY = 'user-preferences'
 

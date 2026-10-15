@@ -1,6 +1,7 @@
 const express = require('express');
 const Joi = require('joi');
 const usersController = require('../controllers/users.controller');
+const { asyncHandler } = require('../middleware/error-handler.middleware');
 const { authenticate } = require('../middleware/auth');
 const { validateBody, validateParams, validateQuery } = require('../middleware/validate');
 
@@ -27,24 +28,24 @@ const deleteSchema = Joi.object({
 
 router.use(authenticate);
 
-router.get('/:userId', validateParams(userIdParam), usersController.getUser);
+router.get('/:userId', validateParams(userIdParam), asyncHandler(usersController.getUser));
 router.patch(
   '/:userId',
   validateParams(userIdParam),
   validateBody(updateUserSchema),
-  usersController.updateUser
+  asyncHandler(usersController.updateUser)
 );
 router.get(
   '/:userId/export',
   validateParams(userIdParam),
   validateQuery(exportQuerySchema),
-  usersController.exportUserData
+  asyncHandler(usersController.exportUserData)
 );
 router.delete(
   '/:userId',
   validateParams(userIdParam),
   validateBody(deleteSchema),
-  usersController.deleteUserData
+  asyncHandler(usersController.deleteUserData)
 );
 
 module.exports = router;

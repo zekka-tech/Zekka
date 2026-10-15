@@ -64,183 +64,155 @@ class ConversationsController {
    * List all conversations for the authenticated user
    * GET /api/v1/conversations
    */
-  async listConversations(req, res, next) {
-    try {
-      const { userId } = req.user;
-      const { projectId, limit, offset } = req.query;
+  async listConversations(req, res) {
+    const { userId } = req.user;
+    const { projectId, limit, offset } = req.query;
 
-      const pagination = {
-        limit: Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100),
-        offset: Math.max(parseInt(offset, 10) || 0, 0)
-      };
+    const pagination = {
+      limit: Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100),
+      offset: Math.max(parseInt(offset, 10) || 0, 0)
+    };
 
-      const result = await conversationService.listConversations(
-        userId,
-        projectId,
-        pagination,
-        req.tenant?.id || null
-      );
+    const result = await conversationService.listConversations(
+      userId,
+      projectId,
+      pagination,
+      req.tenant?.id || null
+    );
 
-      res.status(200).json({
-        success: true,
-        data: result.conversations,
-        pagination: result.pagination
-      });
-    } catch (error) {
-      next(error);
-    }
+    res.status(200).json({
+      success: true,
+      data: result.conversations,
+      pagination: result.pagination
+    });
   }
 
   /**
    * Create a new conversation
    * POST /api/v1/conversations
    */
-  async createConversation(req, res, next) {
-    try {
-      const { userId } = req.user;
-      const { title, projectId, metadata } = req.body;
+  async createConversation(req, res) {
+    const { userId } = req.user;
+    const { title, projectId, metadata } = req.body;
 
-      const conversation = await conversationService.createConversation(
-        userId,
-        projectId,
-        title,
-        metadata,
-        req.tenant?.id || null
-      );
+    const conversation = await conversationService.createConversation(
+      userId,
+      projectId,
+      title,
+      metadata,
+      req.tenant?.id || null
+    );
 
-      res.status(201).json({
-        success: true,
-        data: conversation,
-        message: 'Conversation created successfully'
-      });
-    } catch (error) {
-      next(error);
-    }
+    res.status(201).json({
+      success: true,
+      data: conversation,
+      message: 'Conversation created successfully'
+    });
   }
 
   /**
    * Get a single conversation by ID
    * GET /api/v1/conversations/:id
    */
-  async getConversation(req, res, next) {
-    try {
-      const { userId } = req.user;
-      const { id } = req.params;
+  async getConversation(req, res) {
+    const { userId } = req.user;
+    const { id } = req.params;
 
-      const conversation = await conversationService.getConversation(
-        id,
-        userId
-      );
+    const conversation = await conversationService.getConversation(
+      id,
+      userId
+    );
 
-      res.status(200).json({
-        success: true,
-        data: conversation
-      });
-    } catch (error) {
-      next(error);
-    }
+    res.status(200).json({
+      success: true,
+      data: conversation
+    });
   }
 
   /**
    * Update a conversation
    * PUT /api/v1/conversations/:id
    */
-  async updateConversation(req, res, next) {
-    try {
-      const { userId } = req.user;
-      const { id } = req.params;
-      const updates = req.body;
+  async updateConversation(req, res) {
+    const { userId } = req.user;
+    const { id } = req.params;
+    const updates = req.body;
 
-      const conversation = await conversationService.updateConversation(
-        id,
-        userId,
-        updates
-      );
+    const conversation = await conversationService.updateConversation(
+      id,
+      userId,
+      updates
+    );
 
-      res.status(200).json({
-        success: true,
-        data: conversation,
-        message: 'Conversation updated successfully'
-      });
-    } catch (error) {
-      next(error);
-    }
+    res.status(200).json({
+      success: true,
+      data: conversation,
+      message: 'Conversation updated successfully'
+    });
   }
 
   /**
    * Delete a conversation (soft delete)
    * DELETE /api/v1/conversations/:id
    */
-  async deleteConversation(req, res, next) {
-    try {
-      const { userId } = req.user;
-      const { id } = req.params;
+  async deleteConversation(req, res) {
+    const { userId } = req.user;
+    const { id } = req.params;
 
-      await conversationService.deleteConversation(id, userId);
+    await conversationService.deleteConversation(id, userId);
 
-      res.status(200).json({
-        success: true,
-        message: 'Conversation archived successfully'
-      });
-    } catch (error) {
-      next(error);
-    }
+    res.status(200).json({
+      success: true,
+      message: 'Conversation archived successfully'
+    });
   }
 
   /**
    * Get messages from a conversation
    * GET /api/v1/conversations/:id/messages
    */
-  async getMessages(req, res, next) {
-    try {
-      const { userId } = req.user;
-      const { id } = req.params;
-      const { limit, offset } = req.query;
+  async getMessages(req, res) {
+    const { userId } = req.user;
+    const { id } = req.params;
+    const { limit, offset } = req.query;
 
-      const result = await conversationService.getMessages(
-        id,
-        userId,
-        Math.min(Math.max(parseInt(limit, 10) || 50, 1), 200),
-        Math.max(parseInt(offset, 10) || 0, 0)
-      );
+    const result = await conversationService.getMessages(
+      id,
+      userId,
+      Math.min(Math.max(parseInt(limit, 10) || 50, 1), 200),
+      Math.max(parseInt(offset, 10) || 0, 0)
+    );
 
-      res.status(200).json({
-        success: true,
-        data: result.messages,
-        pagination: result.pagination
-      });
-    } catch (error) {
-      next(error);
-    }
+    res.status(200).json({
+      success: true,
+      data: result.messages,
+      pagination: result.pagination
+    });
   }
 
   /**
    * Send a message in a conversation
    * POST /api/v1/conversations/:id/messages
    */
-  async sendMessage(req, res, next) {
-    try {
-      const { userId } = req.user;
-      const { id } = req.params;
-      const { content, metadata } = req.body;
+  async sendMessage(req, res) {
+    const { userId } = req.user;
+    const { id } = req.params;
+    const { content, metadata } = req.body;
 
-      const turnResult = await conversationService.sendMessageTurn(
-        id,
-        userId,
-        content,
-        metadata || {}
-      );
+    const turnResult = await conversationService.sendMessageTurn(
+      id,
+      userId,
+      content,
+      metadata || {}
+    );
 
-      res.status(201).json({
-        success: true,
-        data: turnResult,
-        userMessage: turnResult.userMessage,
-        assistantMessage: turnResult.assistantMessage,
-        message: 'Message sent successfully'
-      });
-    } catch (error) {
-      next(error);
-    }
+    res.status(201).json({
+      success: true,
+      data: turnResult,
+      userMessage: turnResult.userMessage,
+      assistantMessage: turnResult.assistantMessage,
+      message: 'Message sent successfully'
+    });
   }
 
   /**
@@ -302,88 +274,76 @@ class ConversationsController {
    * Update a message
    * PUT /api/v1/conversations/:id/messages/:msgId
    */
-  async updateMessage(req, res, next) {
-    try {
-      const { userId } = req.user;
-      const { msgId } = req.params;
-      const { content, metadata } = req.body;
+  async updateMessage(req, res) {
+    const { userId } = req.user;
+    const { msgId } = req.params;
+    const { content, metadata } = req.body;
 
-      const message = await conversationService.updateMessage(
-        msgId,
-        userId,
-        content,
-        metadata
-      );
+    const message = await conversationService.updateMessage(
+      msgId,
+      userId,
+      content,
+      metadata
+    );
 
-      res.status(200).json({
-        success: true,
-        data: message,
-        message: 'Message updated successfully'
-      });
-    } catch (error) {
-      next(error);
-    }
+    res.status(200).json({
+      success: true,
+      data: message,
+      message: 'Message updated successfully'
+    });
   }
 
   /**
    * Upload file attachment for a conversation
    * POST /api/v1/conversations/:id/attachments
    */
-  async uploadAttachment(req, res, next) {
-    try {
-      if (!req.file) {
-        return res.status(400).json({ success: false, message: 'No file uploaded' });
-      }
-
-      const {
-        originalname, mimetype, size, buffer
-      } = req.file;
-      await validateUploadedFile(req.file);
-
-      if (size > 10 * 1024 * 1024) {
-        return res.status(400).json({ success: false, message: 'File exceeds 10MB limit' });
-      }
-
-      const conversationId = req.params.id;
-      const result = await uploadFile(buffer, originalname, {
-        subfolder: `conversations/${conversationId}`,
-        mimeType: mimetype
-      });
-
-      return res.status(201).json({
-        success: true,
-        data: {
-          url: result.url || result.path,
-          key: result.key || result.filename,
-          filename: path.basename(result.filename || originalname),
-          size,
-          mimeType: mimetype
-        },
-        message: 'File uploaded successfully'
-      });
-    } catch (error) {
-      return next(error);
+  async uploadAttachment(req, res) {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'No file uploaded' });
     }
+
+    const {
+      originalname, mimetype, size, buffer
+    } = req.file;
+    await validateUploadedFile(req.file);
+
+    if (size > 10 * 1024 * 1024) {
+      return res.status(400).json({ success: false, message: 'File exceeds 10MB limit' });
+    }
+
+    const conversationId = req.params.id;
+    const result = await uploadFile(buffer, originalname, {
+      subfolder: `conversations/${conversationId}`,
+      mimeType: mimetype
+    });
+
+    return res.status(201).json({
+      success: true,
+      data: {
+        url: result.url || result.path,
+        key: result.key || result.filename,
+        filename: path.basename(result.filename || originalname),
+        size,
+        mimeType: mimetype
+      },
+      message: 'File uploaded successfully'
+    });
   }
 
   /**
    * Delete a message (soft delete)
    * DELETE /api/v1/conversations/:id/messages/:msgId
    */
-  async deleteMessage(req, res, next) {
-    try {
-      const { userId } = req.user;
-      const { msgId } = req.params;
+  async deleteMessage(req, res) {
+    const { userId } = req.user;
+    const { msgId } = req.params;
 
-      await conversationService.deleteMessage(msgId, userId);
+    await conversationService.deleteMessage(msgId, userId);
 
-      res.status(200).json({
-        success: true,
-        message: 'Message deleted successfully'
-      });
-    } catch (error) {
-      next(error);
-    }
+    res.status(200).json({
+      success: true,
+      message: 'Message deleted successfully'
+    });
   }
 }
 

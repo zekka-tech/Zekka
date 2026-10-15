@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Moon, Sun } from 'lucide-react'
 import { cn } from '@/lib/cn'
-import { useTheme } from '@/contexts/ThemeContext'
+import { useTheme } from '@/contexts/theme-context'
 
 export const ThemeToggle = () => {
   const { theme, resolvedTheme, setTheme } = useTheme()

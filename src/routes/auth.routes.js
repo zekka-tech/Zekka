@@ -1,25 +1,26 @@
 const express = require('express');
 const authController = require('../controllers/auth.controller');
+const { asyncHandler } = require('../middleware/error-handler.middleware');
 const { authenticate } = require('../middleware/auth');
 const { authLimiter } = require('../middleware/rateLimit');
 
 const router = express.Router();
 
-router.post('/register', authLimiter, authController.register);
-router.post('/login', authLimiter, authController.login);
-router.post('/forgot-password', authLimiter, authController.forgotPassword);
-router.post('/refresh-token', authLimiter, authController.refreshToken);
-router.post('/reset-password', authLimiter, authController.resetPassword);
-router.post('/verify-email', authLimiter, authController.verifyEmail);
+router.post('/register', authLimiter, asyncHandler(authController.register));
+router.post('/login', authLimiter, asyncHandler(authController.login));
+router.post('/forgot-password', authLimiter, asyncHandler(authController.forgotPassword));
+router.post('/refresh-token', authLimiter, asyncHandler(authController.refreshToken));
+router.post('/reset-password', authLimiter, asyncHandler(authController.resetPassword));
+router.post('/verify-email', authLimiter, asyncHandler(authController.verifyEmail));
 router.post(
   '/resend-verification',
   authLimiter,
-  authController.resendVerificationEmail
+  asyncHandler(authController.resendVerificationEmail)
 );
 
-router.get('/me', authenticate, authController.me);
-router.post('/logout', authenticate, authController.logout);
-router.post('/change-password', authenticate, authController.changePassword);
+router.get('/me', authenticate, asyncHandler(authController.me));
+router.post('/logout', authenticate, asyncHandler(authController.logout));
+router.post('/change-password', authenticate, asyncHandler(authController.changePassword));
 
 router.use((error, req, res, _next) => {
   if (error.statusCode) {
