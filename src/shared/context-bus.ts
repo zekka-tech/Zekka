@@ -1,4 +1,5 @@
 import { createClient } from 'redis';
+import logger from '../utils/logger';
 import { v4 as uuidv4 } from 'uuid';
 
 type RedisClient = ReturnType<typeof createClient>;
@@ -120,14 +121,14 @@ class ContextBus {
         connectTimeout: this.connectTimeout,
         reconnectStrategy: (retries: number): number | Error => {
           if (retries > this.maxRetries) {
-            console.error(
+            logger.error(
               `❌ Redis connection failed after ${retries} attempts`
             );
             return new Error('Max reconnection attempts reached');
           }
           // Exponential backoff: 100ms, 200ms, 400ms, ...
           const delay = Math.min(retries * 100, 3000);
-          console.log(
+          logger.info(
             `⏳ Redis reconnecting in ${delay}ms (attempt ${retries}/${this.maxRetries})`
           );
           return delay;
@@ -145,11 +146,11 @@ class ContextBus {
 
     // Set up error handling
     this.client.on('error', (err: Error) => {
-      console.error('❌ Redis Client Error:', err.message);
+      logger.error('❌ Redis Client Error:', err.message);
     });
 
     this.client.on('reconnecting', () => {
-      console.log('🔄 Redis client reconnecting...');
+      logger.info('🔄 Redis client reconnecting...');
     });
 
     await this.client.connect();
@@ -159,17 +160,17 @@ class ContextBus {
     this.publisher = this.client.duplicate();
 
     this.subscriber.on('error', (err: Error) => {
-      console.error('❌ Redis Subscriber Error:', err.message);
+      logger.error('❌ Redis Subscriber Error:', err.message);
     });
 
     this.publisher.on('error', (err: Error) => {
-      console.error('❌ Redis Publisher Error:', err.message);
+      logger.error('❌ Redis Publisher Error:', err.message);
     });
 
     await this.subscriber.connect();
     await this.publisher.connect();
 
-    console.log('✅ Context Bus connected to Redis');
+    logger.info('✅ Context Bus connected to Redis');
   }
 
   async disconnect(): Promise<void> {
@@ -267,14 +268,14 @@ class ContextBus {
     });
 
     if (acquired) {
-      console.log(`🔒 Lock acquired: ${agentName} → ${filePath}`);
+      logger.info(`🔒 Lock acquired: ${agentName} → ${filePath}`);
       return true;
     }
     const existing = await this.requireClient().get(lockKey);
     const holder = existing
       ? (JSON.parse(existing) as FileLock).agentName
       : 'unknown';
-    console.log(`⚠️  Lock denied: ${filePath} is locked by ${holder}`);
+    logger.info(`⚠️  Lock denied: ${filePath} is locked by ${holder}`);
     return false;
   }
 
@@ -291,10 +292,10 @@ class ContextBus {
       const lock = JSON.parse(existing) as FileLock;
       if (lock.agentName === agentName) {
         await client.del(lockKey);
-        console.log(`🔓 Lock released: ${agentName} → ${filePath}`);
+        logger.info(`🔓 Lock released: ${agentName} → ${filePath}`);
         return true;
       }
-      console.log(
+      logger.info(
         `⚠️  Cannot release: Lock owned by ${lock.agentName}, not ${agentName}`
       );
       return false;

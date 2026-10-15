@@ -61,9 +61,10 @@ describe('UsersController', () => {
   it('rejects access to another user record', async () => {
     req.params.userId = 'user-2';
 
-    await controller.getUser(req, res, next);
-
-    expect(next).toHaveBeenCalledWith(expect.any(AuthorizationError));
+    // Controllers now throw; the route-layer asyncHandler forwards to next().
+    await expect(controller.getUser(req, res, next)).rejects.toBeInstanceOf(
+      AuthorizationError
+    );
     expect(mockUserRepository.findById).not.toHaveBeenCalled();
   });
 

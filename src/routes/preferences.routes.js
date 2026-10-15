@@ -20,6 +20,7 @@ const express = require('express');
 
 const router = express.Router();
 const preferencesController = require('../controllers/preferences.controller');
+const { asyncHandler } = require('../middleware/error-handler.middleware');
 const preferencesSchemas = require('../schemas/preferences.schema');
 const {
   validateBody,
@@ -36,7 +37,7 @@ router.use(authenticate);
  * @access  Private
  * @returns {Object} User preferences object with categories
  */
-router.get('/', preferencesController.getPreferences);
+router.get('/', asyncHandler(preferencesController.getPreferences));
 
 /**
  * @route   GET /api/v1/preferences/:category
@@ -48,7 +49,7 @@ router.get('/', preferencesController.getPreferences);
 router.get(
   '/:category',
   validateParams(preferencesSchemas.categoryParam),
-  preferencesController.getPreferenceCategory
+  asyncHandler(preferencesController.getPreferenceCategory)
 );
 
 /**
@@ -62,7 +63,7 @@ router.get(
 router.get(
   '/:category/:key',
   validateParams(preferencesSchemas.preferenceKeyParam),
-  preferencesController.getPreference
+  asyncHandler(preferencesController.getPreference)
 );
 
 /**
@@ -80,7 +81,7 @@ router.get(
 router.put(
   '/',
   validateBody(preferencesSchemas.updatePreferences),
-  preferencesController.updatePreferences
+  asyncHandler(preferencesController.updatePreferences)
 );
 
 /**
@@ -89,7 +90,7 @@ router.put(
  * @access  Private
  * @returns {Object} Default preferences
  */
-router.delete('/', preferencesController.resetPreferences);
+router.delete('/', asyncHandler(preferencesController.resetPreferences));
 
 /**
  * @route   POST /api/v1/preferences/export
@@ -98,7 +99,7 @@ router.delete('/', preferencesController.resetPreferences);
  * @query   {boolean} [download=false] - Download as file instead of JSON response
  * @returns {Object} Preferences export with metadata
  */
-router.post('/export', preferencesController.exportPreferences);
+router.post('/export', asyncHandler(preferencesController.exportPreferences));
 
 /**
  * @route   POST /api/v1/preferences/import
@@ -115,7 +116,7 @@ router.post('/export', preferencesController.exportPreferences);
 router.post(
   '/import',
   validateBody(preferencesSchemas.importPreferences),
-  preferencesController.importPreferences
+  asyncHandler(preferencesController.importPreferences)
 );
 
 /**
@@ -124,7 +125,7 @@ router.post(
  * @access  Private
  * @returns {Object} Notification preferences
  */
-router.get('/notifications', preferencesController.getNotificationPreferences);
+router.get('/notifications', asyncHandler(preferencesController.getNotificationPreferences));
 
 /**
  * @route   PUT /api/v1/preferences/notifications
@@ -142,7 +143,7 @@ router.get('/notifications', preferencesController.getNotificationPreferences);
 router.put(
   '/notifications',
   validateBody(preferencesSchemas.updateNotificationPreferences),
-  preferencesController.updateNotificationPreferences
+  asyncHandler(preferencesController.updateNotificationPreferences)
 );
 
 /**
@@ -157,7 +158,7 @@ router.patch(
   '/notifications/:channel',
   validateParams(preferencesSchemas.notificationChannelParam),
   validateBody(preferencesSchemas.updateNotificationChannel),
-  preferencesController.updateNotificationChannel
+  asyncHandler(preferencesController.updateNotificationChannel)
 );
 
 /**
@@ -178,7 +179,7 @@ router.patch(
 router.put(
   '/notifications/quiet-hours',
   validateBody(preferencesSchemas.updateQuietHours),
-  preferencesController.updateQuietHours
+  asyncHandler(preferencesController.updateQuietHours)
 );
 
 module.exports = router;

@@ -21,6 +21,7 @@ const multer = require('multer');
 
 const router = express.Router();
 const conversationsController = require('../controllers/conversations.controller');
+const { asyncHandler } = require('../middleware/error-handler.middleware');
 const conversationSchemas = require('../schemas/conversations.schema');
 const {
   validateBody,
@@ -64,7 +65,7 @@ router.use(optionalTenantContext);
 router.get(
   '/',
   validateQuery(conversationSchemas.listConversations),
-  conversationsController.listConversations
+  asyncHandler(conversationsController.listConversations)
 );
 
 /**
@@ -79,7 +80,7 @@ router.post(
   '/',
   idempotency(),
   validateBody(conversationSchemas.createConversation),
-  conversationsController.createConversation
+  asyncHandler(conversationsController.createConversation)
 );
 
 /**
@@ -91,7 +92,7 @@ router.post(
 router.get(
   '/:id',
   validateParams(conversationSchemas.conversationId),
-  conversationsController.getConversation
+  asyncHandler(conversationsController.getConversation)
 );
 
 /**
@@ -106,7 +107,7 @@ router.put(
   '/:id',
   validateParams(conversationSchemas.conversationId),
   validateBody(conversationSchemas.updateConversation),
-  conversationsController.updateConversation
+  asyncHandler(conversationsController.updateConversation)
 );
 
 /**
@@ -118,7 +119,7 @@ router.put(
 router.delete(
   '/:id',
   validateParams(conversationSchemas.conversationId),
-  conversationsController.deleteConversation
+  asyncHandler(conversationsController.deleteConversation)
 );
 
 /**
@@ -133,7 +134,7 @@ router.get(
   '/:id/messages',
   validateParams(conversationSchemas.conversationId),
   validateQuery(conversationSchemas.getMessages),
-  conversationsController.getMessages
+  asyncHandler(conversationsController.getMessages)
 );
 
 /**
@@ -150,7 +151,7 @@ router.post(
   idempotency(),
   validateParams(conversationSchemas.conversationId),
   validateBody(conversationSchemas.sendMessage),
-  conversationsController.sendMessage
+  asyncHandler(conversationsController.sendMessage)
 );
 
 /**
@@ -166,7 +167,7 @@ router.post(
   '/:id/messages/stream',
   validateParams(conversationSchemas.conversationId),
   validateBody(conversationSchemas.sendMessage),
-  conversationsController.sendMessageStream
+  asyncHandler(conversationsController.sendMessageStream)
 );
 
 /**
@@ -182,7 +183,7 @@ router.put(
   '/:id/messages/:msgId',
   validateParams(conversationSchemas.messageId),
   validateBody(conversationSchemas.updateMessage),
-  conversationsController.updateMessage
+  asyncHandler(conversationsController.updateMessage)
 );
 
 /**
@@ -195,7 +196,7 @@ router.put(
 router.delete(
   '/:id/messages/:msgId',
   validateParams(conversationSchemas.messageId),
-  conversationsController.deleteMessage
+  asyncHandler(conversationsController.deleteMessage)
 );
 
 /**
@@ -219,7 +220,7 @@ router.post(
       next(error);
     }
   },
-  conversationsController.uploadAttachment
+  asyncHandler(conversationsController.uploadAttachment)
 );
 
 module.exports = router;

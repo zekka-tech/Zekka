@@ -5,7 +5,7 @@ import {
   type ConversationStreamDeltaData,
   type ConversationStreamEvent
 } from '@/services/api'
-import { useToast } from '@/components/ui/Toast'
+import { useToast } from '@/components/ui/toast-context'
 import type { Conversation, Message } from '@/types/chat.types'
 
 type ConversationRecord = {

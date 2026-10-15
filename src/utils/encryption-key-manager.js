@@ -13,6 +13,7 @@
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const logger = require('./logger');
 
 // Encryption configuration
 const ENCRYPTION_CONFIG = {
@@ -173,7 +174,7 @@ class EncryptionKeyManager {
    * Get default passphrase (should be overridden in production)
    */
   getDefaultPassphrase() {
-    console.warn(
+    logger.warn(
       'WARNING: Using default passphrase. Set KEY_PASSPHRASE environment variable in production!'
     );
     return 'zekka-default-passphrase-change-in-production';
@@ -260,7 +261,7 @@ class EncryptionKeyManager {
 
     this.saveKeysMetadata();
 
-    console.info(`Encryption key rotated to version ${newVersion}`);
+    logger.info(`Encryption key rotated to version ${newVersion}`);
     return newVersion;
   }
 
@@ -279,7 +280,7 @@ class EncryptionKeyManager {
     const daysSinceCreation = (Date.now() - created.getTime()) / (1000 * 60 * 60 * 24);
 
     if (daysSinceCreation >= this.rotationDays) {
-      console.info('Automatic key rotation triggered');
+      logger.info('Automatic key rotation triggered');
       this.rotateKey();
     }
 
@@ -301,7 +302,7 @@ class EncryptionKeyManager {
         const versionNum = parseInt(version, 10);
         if (versionNum !== this.currentKeyVersion) {
           this.dataKeys.delete(versionNum);
-          console.info(`Removed old encryption key version ${version}`);
+          logger.info(`Removed old encryption key version ${version}`);
         }
       }
     }

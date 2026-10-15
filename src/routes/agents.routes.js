@@ -7,6 +7,7 @@ const express = require('express');
 
 const router = express.Router();
 const agentsController = require('../controllers/agents.controller');
+const { asyncHandler } = require('../middleware/error-handler.middleware');
 const { authenticate } = require('../middleware/auth');
 
 // Apply authentication to all agent routes
@@ -21,7 +22,7 @@ router.use(authenticate);
  * @query   {number} [limit=20] - Results per page
  * @query   {number} [offset=0] - Pagination offset
  */
-router.get('/', agentsController.listAgents);
+router.get('/', asyncHandler(agentsController.listAgents));
 
 /**
  * @route   POST /api/v1/agents
@@ -33,7 +34,7 @@ router.get('/', agentsController.listAgents);
  * @body    {Object} [config] - Agent configuration
  * @body    {string} [description] - Agent description
  */
-router.post('/', agentsController.createAgent);
+router.post('/', asyncHandler(agentsController.createAgent));
 
 /**
  * @route   GET /api/v1/agents/:id
@@ -41,7 +42,7 @@ router.post('/', agentsController.createAgent);
  * @access  Private
  * @param   {string} id - Agent ID
  */
-router.get('/:id', agentsController.getAgent);
+router.get('/:id', asyncHandler(agentsController.getAgent));
 
 /**
  * @route   PUT /api/v1/agents/:id
@@ -52,7 +53,7 @@ router.get('/:id', agentsController.getAgent);
  * @body    {string} [status] - Updated status
  * @body    {Object} [config] - Updated configuration
  */
-router.put('/:id', agentsController.updateAgent);
+router.put('/:id', asyncHandler(agentsController.updateAgent));
 
 /**
  * @route   DELETE /api/v1/agents/:id
@@ -60,7 +61,7 @@ router.put('/:id', agentsController.updateAgent);
  * @access  Private
  * @param   {string} id - Agent ID
  */
-router.delete('/:id', agentsController.deleteAgent);
+router.delete('/:id', asyncHandler(agentsController.deleteAgent));
 
 /**
  * @route   POST /api/v1/agents/:id/start
@@ -68,7 +69,7 @@ router.delete('/:id', agentsController.deleteAgent);
  * @access  Private
  * @param   {string} id - Agent ID
  */
-router.post('/:id/start', agentsController.startAgent);
+router.post('/:id/start', asyncHandler(agentsController.startAgent));
 
 /**
  * @route   POST /api/v1/agents/:id/stop
@@ -76,7 +77,7 @@ router.post('/:id/start', agentsController.startAgent);
  * @access  Private
  * @param   {string} id - Agent ID
  */
-router.post('/:id/stop', agentsController.stopAgent);
+router.post('/:id/stop', asyncHandler(agentsController.stopAgent));
 
 /**
  * @route   GET /api/v1/agents/:id/activity
@@ -86,6 +87,6 @@ router.post('/:id/stop', agentsController.stopAgent);
  * @query   {number} [limit=50] - Results per page
  * @query   {number} [offset=0] - Pagination offset
  */
-router.get('/:id/activity', agentsController.getAgentActivity);
+router.get('/:id/activity', asyncHandler(agentsController.getAgentActivity));
 
 module.exports = router;

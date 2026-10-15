@@ -17,34 +17,38 @@ interface ThreeColumnLayoutProps {
   rightPanel: Panel
 }
 
+type LayoutState = {
+  leftWidth?: number
+  rightWidth?: number
+  isLeftCollapsed?: boolean
+  isRightCollapsed?: boolean
+}
+
+const readSavedLayout = (): LayoutState => {
+  try {
+    const saved = localStorage.getItem('layout-state')
+    return saved ? (JSON.parse(saved) as LayoutState) : {}
+  } catch (e) {
+    console.error('Failed to load layout state:', e)
+    return {}
+  }
+}
+
 export const ThreeColumnLayout = ({
   leftPanel,
   centerPanel,
   rightPanel,
 }: ThreeColumnLayoutProps) => {
-  const [leftWidth, setLeftWidth] = useState(280)
-  const [rightWidth, setRightWidth] = useState(360)
-  const [isLeftCollapsed, setIsLeftCollapsed] = useState(false)
-  const [isRightCollapsed, setIsRightCollapsed] = useState(false)
+  // Read persisted layout once (lazy init) instead of syncing via an effect,
+  // which avoids an extra render on mount.
+  const [saved] = useState(readSavedLayout)
+  const [leftWidth, setLeftWidth] = useState(saved.leftWidth ?? 280)
+  const [rightWidth, setRightWidth] = useState(saved.rightWidth ?? 360)
+  const [isLeftCollapsed, setIsLeftCollapsed] = useState(saved.isLeftCollapsed ?? false)
+  const [isRightCollapsed, setIsRightCollapsed] = useState(saved.isRightCollapsed ?? false)
   const [isDraggingLeft, setIsDraggingLeft] = useState(false)
   const [isDraggingRight, setIsDraggingRight] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
-
-  // Load layout preferences from localStorage
-  useEffect(() => {
-    const saved = localStorage.getItem('layout-state')
-    if (saved) {
-      try {
-        const state = JSON.parse(saved)
-        if (state.leftWidth) setLeftWidth(state.leftWidth)
-        if (state.rightWidth) setRightWidth(state.rightWidth)
-        if (state.isLeftCollapsed !== undefined) setIsLeftCollapsed(state.isLeftCollapsed)
-        if (state.isRightCollapsed !== undefined) setIsRightCollapsed(state.isRightCollapsed)
-      } catch (e) {
-        console.error('Failed to load layout state:', e)
-      }
-    }
-  }, [])
 
   // Save layout preferences
   useEffect(() => {

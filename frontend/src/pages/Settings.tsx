@@ -4,8 +4,8 @@ import { SettingsSection } from '@/components/settings/SettingsSection'
 import { SettingToggle } from '@/components/settings/SettingToggle'
 import { SettingSelect } from '@/components/settings/SettingSelect'
 import { usePreferences } from '@/hooks/usePreferences'
-import { useTheme } from '@/contexts/ThemeContext'
-import { useToast } from '@/components/ui/Toast'
+import { useTheme } from '@/contexts/theme-context'
+import { useToast } from '@/components/ui/toast-context'
 import { Button } from '@/components/ui/Button'
 
 export const Settings = () => {

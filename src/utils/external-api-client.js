@@ -1,3 +1,5 @@
+const axios = require('axios');
+const logger = require('./logger');
 /**
  * External API Client
  * Unified client for all external API integrations with circuit breakers,
@@ -13,7 +15,6 @@
  * - Comprehensive error handling
  */
 
-const axios = require('axios');
 const { CircuitBreaker } = require('./circuit-breaker');
 const { CacheManager } = require('./cache-manager');
 const { AuditLogger } = require('./audit-logger');
@@ -716,7 +717,7 @@ class ExternalAPIClient {
     try {
       return await primaryFn();
     } catch (error) {
-      console.warn(
+      logger.warn(
         'Primary service failed, attempting fallback:',
         error.message
       );
@@ -737,7 +738,7 @@ class ExternalAPIClient {
         try {
           return await fallbackFn();
         } catch (fallbackError) {
-          console.error('Fallback also failed:', fallbackError.message);
+          logger.error('Fallback also failed:', fallbackError.message);
           throw fallbackError;
         }
       }

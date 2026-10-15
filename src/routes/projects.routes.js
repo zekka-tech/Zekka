@@ -18,6 +18,7 @@ const express = require('express');
 
 const router = express.Router();
 const projectsController = require('../controllers/projects.controller');
+const { asyncHandler } = require('../middleware/error-handler.middleware');
 const projectSchemas = require('../schemas/projects.schema');
 const {
   validateBody,
@@ -46,7 +47,7 @@ router.use(optionalTenantContext);
 router.get(
   '/',
   validateQuery(projectSchemas.listProjects),
-  projectsController.listProjects
+  asyncHandler(projectsController.listProjects)
 );
 
 /**
@@ -61,7 +62,7 @@ router.post(
   '/',
   idempotency(),
   validateBody(projectSchemas.createProject),
-  projectsController.createProject
+  asyncHandler(projectsController.createProject)
 );
 
 /**
@@ -73,7 +74,7 @@ router.post(
 router.get(
   '/:id',
   validateParams(projectSchemas.projectId),
-  projectsController.getProject
+  asyncHandler(projectsController.getProject)
 );
 
 /**
@@ -90,7 +91,7 @@ router.put(
   '/:id',
   validateParams(projectSchemas.projectId),
   validateBody(projectSchemas.updateProject),
-  projectsController.updateProject
+  asyncHandler(projectsController.updateProject)
 );
 
 /**
@@ -99,7 +100,7 @@ router.put(
  * @access  Private
  * @param   {string} id - Project UUID
  */
-router.patch('/:id/archive', authenticate, projectsController.archiveProject);
+router.patch('/:id/archive', authenticate, asyncHandler(projectsController.archiveProject));
 
 /**
  * @route   DELETE /api/v1/projects/:id
@@ -110,7 +111,7 @@ router.patch('/:id/archive', authenticate, projectsController.archiveProject);
 router.delete(
   '/:id',
   validateParams(projectSchemas.projectId),
-  projectsController.deleteProject
+  asyncHandler(projectsController.deleteProject)
 );
 
 /**
@@ -122,7 +123,7 @@ router.delete(
 router.get(
   '/:id/stats',
   validateParams(projectSchemas.projectId),
-  projectsController.getProjectStats
+  asyncHandler(projectsController.getProjectStats)
 );
 
 /**
@@ -134,7 +135,7 @@ router.get(
 router.get(
   '/:id/members',
   validateParams(projectSchemas.projectId),
-  projectsController.getProjectMembers
+  asyncHandler(projectsController.getProjectMembers)
 );
 
 /**
@@ -149,7 +150,7 @@ router.post(
   '/:id/members',
   validateParams(projectSchemas.projectId),
   validateBody(projectSchemas.addMember),
-  projectsController.addMember
+  asyncHandler(projectsController.addMember)
 );
 
 /**
@@ -162,7 +163,7 @@ router.post(
 router.delete(
   '/:id/members/:userId',
   validateParams(projectSchemas.removeMember),
-  projectsController.removeMember
+  asyncHandler(projectsController.removeMember)
 );
 
 module.exports = router;

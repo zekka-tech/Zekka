@@ -18,6 +18,7 @@ const { AuditLogger } = require('../utils/audit-logger');
 const { getPasswordPolicyManager } = require('../utils/password-policy');
 const { SessionManager } = require('../utils/session-manager');
 const UserRepository = require('../repositories/user.repository');
+const { sanitizeUser } = require('../utils/sanitize-user');
 const appConfig = require('../config');
 const emailService = require('./email.service');
 
@@ -813,12 +814,7 @@ class AuthService {
    * @returns {Object} Sanitized user object
    */
   sanitizeUser(user) {
-    const {
-      password: _password,
-      password_history: _passwordHistory,
-      ...sanitized
-    } = user;
-    return sanitized;
+    return sanitizeUser(user);
   }
 
   /**

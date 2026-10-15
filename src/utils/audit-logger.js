@@ -13,6 +13,7 @@
 const path = require('path');
 const fs = require('fs');
 const { createLogger, format, transports } = require('winston');
+const logger = require('./logger');
 require('winston-daily-rotate-file');
 
 // Audit event categories
@@ -71,7 +72,7 @@ class AuditLogger {
         fs.mkdirSync(this.logDir, { recursive: true });
       } catch {
         // Fall back to /tmp if we can't write to logs directory
-        console.warn(`Cannot write to ${this.logDir}, falling back to /tmp`);
+        logger.warn(`Cannot write to ${this.logDir}, falling back to /tmp`);
         this.logDir = path.join('/tmp', 'zekka-logs', 'audit');
         fs.mkdirSync(this.logDir, { recursive: true });
       }

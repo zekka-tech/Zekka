@@ -1,6 +1,7 @@
 const UserRepository = require('../repositories/user.repository');
 const GDPRComplianceService = require('../services/gdpr-compliance.service');
 const { AuthorizationError } = require('../utils/errors');
+const { sanitizeUser } = require('../utils/sanitize-user');
 
 class UsersController {
   constructor(userRepository = null, gdprService = null) {
@@ -35,66 +36,40 @@ class UsersController {
   }
 
   sanitizeUser(user) {
-    const {
-      password: _password,
-      password_history: _passwordHistory,
-      reset_token: _resetToken,
-      reset_token_expires_at: _resetTokenExpiresAt,
-      verification_token: _verificationToken,
-      verification_token_expires_at: _verificationTokenExpiresAt,
-      ...sanitized
-    } = user;
-
-    return sanitized;
+    return sanitizeUser(user);
   }
 
-  async getUser(req, res, next) {
-    try {
-      this.assertSelfAccess(req.params.userId, req.user.userId);
-      const user = await this.getUserRepository().findById(req.params.userId);
-      res.json({ user: this.sanitizeUser(user) });
-    } catch (error) {
-      next(error);
-    }
+  async getUser(req, res) {
+    this.assertSelfAccess(req.params.userId, req.user.userId);
+    const user = await this.getUserRepository().findById(req.params.userId);
+    res.json({ user: this.sanitizeUser(user) });
   }
 
-  async updateUser(req, res, next) {
-    try {
-      this.assertSelfAccess(req.params.userId, req.user.userId);
-      const user = await this.getUserRepository().update(req.params.userId, req.body);
-      res.json({ user: this.sanitizeUser(user) });
-    } catch (error) {
-      next(error);
-    }
+  async updateUser(req, res) {
+    this.assertSelfAccess(req.params.userId, req.user.userId);
+    const user = await this.getUserRepository().update(req.params.userId, req.body);
+    res.json({ user: this.sanitizeUser(user) });
   }
 
-  async exportUserData(req, res, next) {
-    try {
-      this.assertSelfAccess(req.params.userId, req.user.userId);
-      const format = req.query.format === 'portable' ? 'portable' : 'json';
-      const gdprService = this.getGdprService();
-      const data = format === 'portable'
-        ? await gdprService.exportPortableData(req.params.userId)
-        : await gdprService.exportUserData(req.params.userId, 'json');
-      res.json({ data });
-    } catch (error) {
-      next(error);
-    }
+  async exportUserData(req, res) {
+    this.assertSelfAccess(req.params.userId, req.user.userId);
+    const format = req.query.format === 'portable' ? 'portable' : 'json';
+    const gdprService = this.getGdprService();
+    const data = format === 'portable'
+      ? await gdprService.exportPortableData(req.params.userId)
+      : await gdprService.exportUserData(req.params.userId, 'json');
+    res.json({ data });
   }
 
-  async deleteUserData(req, res, next) {
-    try {
-      this.assertSelfAccess(req.params.userId, req.user.userId);
-      const reason = req.body.reason || 'user_requested_erasure';
-      const result = await this.getGdprService().deleteUserData(
-        req.params.userId,
-        reason,
-        req.user.userId
-      );
-      res.json(result);
-    } catch (error) {
-      next(error);
-    }
+  async deleteUserData(req, res) {
+    this.assertSelfAccess(req.params.userId, req.user.userId);
+    const reason = req.body.reason || 'user_requested_erasure';
+    const result = await this.getGdprService().deleteUserData(
+      req.params.userId,
+      reason,
+      req.user.userId
+    );
+    res.json(result);
   }
 }
 

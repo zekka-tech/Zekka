@@ -131,10 +131,10 @@ describe('Multi-Tenancy: GDPR endpoints gate on assertSelfAccess', () => {
     const res = { status: jest.fn().mockReturnThis(), json: jest.fn() };
     const next = jest.fn();
 
-    await ctrl.exportUserData(req, res, next);
+    await expect(ctrl.exportUserData(req, res, next)).rejects.toThrow('cross-user blocked');
 
     expect(spy).toHaveBeenCalledWith(USER_A_ID, USER_B_ID);
-    expect(next).toHaveBeenCalledWith(expect.any(Error));
+    expect(next).not.toHaveBeenCalled();
   });
 
   it('deleteUserData calls assertSelfAccess and rejects cross-user request', async () => {
@@ -147,10 +147,10 @@ describe('Multi-Tenancy: GDPR endpoints gate on assertSelfAccess', () => {
     const res = { status: jest.fn().mockReturnThis(), json: jest.fn() };
     const next = jest.fn();
 
-    await ctrl.deleteUserData(req, res, next);
+    await expect(ctrl.deleteUserData(req, res, next)).rejects.toThrow('cross-user blocked');
 
     expect(spy).toHaveBeenCalledWith(USER_A_ID, USER_B_ID);
-    expect(next).toHaveBeenCalledWith(expect.any(Error));
+    expect(next).not.toHaveBeenCalled();
   });
 
   it('getUser calls assertSelfAccess and rejects cross-user request', async () => {
@@ -163,10 +163,10 @@ describe('Multi-Tenancy: GDPR endpoints gate on assertSelfAccess', () => {
     const res = { status: jest.fn().mockReturnThis(), json: jest.fn() };
     const next = jest.fn();
 
-    await ctrl.getUser(req, res, next);
+    await expect(ctrl.getUser(req, res, next)).rejects.toThrow('cross-user blocked');
 
     expect(spy).toHaveBeenCalledWith(USER_A_ID, USER_B_ID);
-    expect(next).toHaveBeenCalledWith(expect.any(Error));
+    expect(next).not.toHaveBeenCalled();
   });
 
   it('updateUser calls assertSelfAccess and rejects cross-user request', async () => {
@@ -179,10 +179,10 @@ describe('Multi-Tenancy: GDPR endpoints gate on assertSelfAccess', () => {
     const res = { status: jest.fn().mockReturnThis(), json: jest.fn() };
     const next = jest.fn();
 
-    await ctrl.updateUser(req, res, next);
+    await expect(ctrl.updateUser(req, res, next)).rejects.toThrow('cross-user blocked');
 
     expect(spy).toHaveBeenCalledWith(USER_A_ID, USER_B_ID);
-    expect(next).toHaveBeenCalledWith(expect.any(Error));
+    expect(next).not.toHaveBeenCalled();
   });
 });
 
